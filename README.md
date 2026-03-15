@@ -1,0 +1,264 @@
+# 个人博客 · 完整搭建指南
+
+技术栈：**Next.js 14 + Prisma + SQLite/PostgreSQL + Tailwind CSS + Stripe + NextAuth.js**
+
+推荐运行环境：**Node 20 LTS**
+
+---
+
+## 一、本地开发启动
+
+### 0. 切换 Node 版本
+
+```bash
+nvm use
+```
+
+### 1. 安装依赖
+
+```bash
+npm install
+```
+
+### 2. 配置环境变量
+
+```bash
+cp .env.example .env
+```
+
+编辑 `.env`，至少填写：
+
+```
+DATABASE_URL="file:./dev.db"
+NEXTAUTH_SECRET="随机字符串，运行 openssl rand -base64 32 生成"
+NEXTAUTH_URL="http://localhost:3000"
+ADMIN_PASSWORD="你的管理员密码"
+ADMIN_EMAIL="你的管理员邮箱"
+NEXT_PUBLIC_SITE_URL="http://localhost:3000"
+NEXT_PUBLIC_SITE_NAME="我的小站"
+```
+
+Stripe 和邮件配置可先留空，基础功能照常运行。
+
+### 3. 初始化数据库
+
+```bash
+npm run db:migrate     # 默认推荐：稳定地同步 schema 到本地数据库
+npm run db:generate    # 生成 Prisma Client
+npm run db:seed        # 写入示例文章（可选）
+```
+
+`db:migrate` / `db:push` 会自动准备本地 SQLite 文件，无需手动创建 `prisma/dev.db`。
+
+如果你在部署环境中需要严格按迁移历史执行，也可以使用：
+
+```bash
+npm run db:deploy
+```
+
+### 4. 启动开发服务器
+
+```bash
+npm run dev
+```
+
+访问 `http://localhost:3000` 查看博客  
+访问 `http://localhost:3000/admin` 进入后台（用 .env 中的邮箱和密码登录）
+
+---
+
+## GitHub 上传建议
+
+这个项目已经包含：
+
+- `.gitignore`：忽略 `node_modules`、`.next`、`.env`、本地 SQLite 数据库等不应入库的文件
+- `.gitattributes`：统一换行符，避免 Windows / macOS 混乱
+- `.nvmrc`：固定 Node 20 LTS
+- `.editorconfig`：统一基础编辑器格式
+
+首次上传建议流程：
+
+```bash
+git init -b main
+git add .
+git commit -m "chore: prepare initial blog baseline"
+git remote add origin https://github.com/<your-account>/<your-repo>.git
+git push -u origin main
+```
+
+---
+
+## 二、配置 Stripe 支付（可选）
+
+### 1. 注册 Stripe 账号
+前往 [stripe.com](https://stripe.com) 注册，进入测试模式。
+
+### 2. 获取 API 密钥
+Dashboard → Developers → API keys
+
+```
+STRIPE_SECRET_KEY=sk_test_...
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+```
+
+### 3. 配置 Webhook（本地测试）
+
+```bash
+# 安装 Stripe CLI
+brew install stripe/stripe-cli/stripe   # macOS
+# 或前往 https://stripe.com/docs/stripe-cli 下载
+
+# 登录
+stripe login
+
+# 监听并转发到本地
+stripe listen --forward-to localhost:3000/api/payments/webhook
+```
+
+复制输出的 `whsec_...` 到 `.env`：
+```
+STRIPE_WEBHOOK_SECRET=whsec_...
+```
+
+### 4. 测试支付
+使用测试卡号：`4242 4242 4242 4242`，有效期任意未来日期，CVV 任意 3 位。
+
+---
+
+## 三、配置邮件发送（可选）
+
+### Gmail 配置（推荐）
+
+1. 开启 Gmail 两步验证
+2. 生成应用专用密码：Google 账号 → 安全 → 应用密码
+3. 填入 `.env`：
+
+```
+EMAIL_FROM="youremail@gmail.com"
+EMAIL_HOST="smtp.gmail.com"
+EMAIL_PORT="587"
+EMAIL_USER="youremail@gmail.com"
+EMAIL_PASS="xxxx xxxx xxxx xxxx"   # 应用专用密码（16位）
+```
+
+---
+
+## 四、部署到 Vercel
+
+### 1. 推送到 GitHub
+
+```bash
+git init
+git add .
+git commit -m "初始提交"
+git remote add origin https://github.com/你的用户名/blog.git
+git push -u origin main
+```
+
+### 2. 在 Vercel 导入项目
+
+1. 登录 [vercel.com](https://vercel.com)
+2. New Project → 选择你的仓库 → Import
+3. 在 Environment Variables 中填入所有 `.env` 变量
+4. 将 `DATABASE_URL` 改为 PostgreSQL 连接字符串（见下方）
+
+### 3. 切换到 PostgreSQL
+
+**选项 A：Vercel Postgres（最简单）**
+1. Vercel 项目 → Storage → Create Database → Postgres
+2. 复制 `POSTGRES_PRISMA_URL` 到环境变量中的 `DATABASE_URL`
+
+**选项 B：Supabase / Neon（免费套餐更慷慨）**
+1. 注册 [neon.tech](https://neon.tech) 或 [supabase.com](https://supabase.com)
+2. 创建项目，复制 Connection String
+
+修改 `prisma/schema.prisma`：
+```prisma
+datasource db {
+  provider = "postgresql"   // 改这里
+  url      = env("DATABASE_URL")
+}
+```
+
+### 4. 运行生产数据库迁移
+
+```bash
+# 安装 Vercel CLI
+npm i -g vercel
+
+# 拉取生产环境变量
+vercel env pull .env.production.local
+
+# 运行迁移
+DATABASE_URL="你的生产PostgreSQL连接字符串" npx prisma migrate deploy
+```
+
+### 5. 配置 Stripe Webhook（生产）
+
+1. Stripe Dashboard → Webhooks → Add endpoint
+2. URL 填：`https://你的域名.vercel.app/api/payments/webhook`
+3. 选择事件：`checkout.session.completed`、`checkout.session.expired`
+4. 复制 Signing secret 到 Vercel 环境变量 `STRIPE_WEBHOOK_SECRET`
+
+---
+
+## 五、项目结构
+
+```
+src/
+├── app/
+│   ├── page.tsx                    # 首页（文章列表）
+│   ├── about/page.tsx              # 关于我
+│   ├── article/[slug]/page.tsx     # 文章详情
+│   ├── payment/success/page.tsx    # 支付成功
+│   ├── admin/
+│   │   ├── layout.tsx              # 后台布局（鉴权）
+│   │   ├── page.tsx                # 后台概览
+│   │   ├── login/page.tsx          # 登录页
+│   │   ├── articles/               # 文章管理
+│   │   ├── comments/               # 评论管理
+│   │   ├── payments/               # 打赏记录
+│   │   └── settings/               # 网站设置
+│   └── api/
+│       ├── auth/[...nextauth]/     # NextAuth
+│       ├── articles/[slug]/unlock/ # 密码验证
+│       ├── comments/               # 评论提交
+│       ├── payments/
+│       │   ├── checkout/           # 创建支付
+│       │   └── webhook/            # Stripe 回调
+│       ├── admin/                  # 管理员 API（鉴权保护）
+│       └── revalidate/             # ISR 触发
+├── components/
+│   ├── blog/                       # 前台组件
+│   └── admin/                      # 后台组件
+├── lib/
+│   ├── prisma.ts                   # 数据库客户端
+│   ├── auth.ts                     # NextAuth 配置
+│   ├── stripe.ts                   # Stripe 客户端
+│   ├── email.ts                    # 邮件发送
+│   ├── utils.ts                    # 工具函数
+│   └── middleware.ts               # 鉴权中间件
+└── prisma/
+    ├── schema.prisma               # 数据模型
+    └── seed.ts                     # 示例数据
+```
+
+---
+
+## 六、常见问题
+
+**Q：修改文章后前台没有更新？**  
+A：文章页使用了 ISR 缓存（60秒），编辑文章时会自动触发重新生成。如需立即更新，在 Vercel 控制台重新部署即可。
+
+**Q：Stripe 支付成功但文章没解锁？**  
+A：检查 `STRIPE_WEBHOOK_SECRET` 是否正确，确认 Webhook 端点已配置且能接收到事件。
+
+**Q：邮件没有收到？**  
+A：检查垃圾邮件文件夹；确认 Gmail 应用密码正确；部分服务器需要开启 `ENABLE_SSL=true`。
+
+**Q：怎么在本地使用 PostgreSQL？**  
+A：安装 [Docker](https://docker.com)，运行：
+```bash
+docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=password postgres
+DATABASE_URL="postgresql://postgres:password@localhost:5432/blog"
+```

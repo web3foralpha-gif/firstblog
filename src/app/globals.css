@@ -1,0 +1,626 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink-50: #faf8f5;
+  --ink-100: #f0ebe3;
+  --ink-800: #3d3530;
+  --ink-900: #221e1a;
+  --accent: #d4711a;
+  --accent-light: #fdf6ee;
+}
+
+@layer base {
+  html {
+    font-family: 'Noto Sans SC', system-ui, sans-serif;
+    background-color: var(--ink-50);
+    color: var(--ink-800);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Noto Serif SC', Georgia, serif;
+  }
+
+  ::selection {
+    background: #fae8d0;
+    color: #4a2309;
+  }
+}
+
+@layer components {
+  /* 文章正文排版 */
+  .prose-blog {
+    font-family: 'Noto Serif SC', Georgia, serif;
+    font-size: 17px;
+    line-height: 1.9;
+    color: #3d3530;
+  }
+
+  .prose-blog h2 {
+    font-size: 22px;
+    font-weight: 500;
+    margin: 2rem 0 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #ddd5c8;
+  }
+
+  .prose-blog h3 {
+    font-size: 18px;
+    font-weight: 500;
+    margin: 1.5rem 0 0.75rem;
+  }
+
+  .prose-blog p {
+    margin-bottom: 1.4rem;
+    text-indent: 2em;
+  }
+
+  .prose-blog a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .prose-blog blockquote {
+    border-left: 3px solid var(--accent);
+    margin: 1.5rem 0;
+    padding: 0.5rem 0 0.5rem 1.25rem;
+    color: #5a4f42;
+    font-style: italic;
+  }
+
+  .prose-blog code {
+    font-family: 'Fira Code', monospace;
+    font-size: 14px;
+    background: #f0ebe3;
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  .prose-blog pre {
+    background: #221e1a;
+    color: #f0ebe3;
+    padding: 1.25rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 1.5rem 0;
+  }
+
+  .prose-blog pre code {
+    background: none;
+    color: inherit;
+    padding: 0;
+    font-size: 14px;
+  }
+
+  .prose-blog img {
+    max-width: 100%;
+    border-radius: 6px;
+    margin: 1.5rem auto;
+  }
+
+  .prose-blog ul, .prose-blog ol {
+    margin: 1rem 0 1rem 1.5rem;
+  }
+
+  .prose-blog li {
+    margin-bottom: 0.4rem;
+    text-indent: 0;
+  }
+
+  .prose-blog .rich-style-block {
+    margin: 1.4rem 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .prose-blog .rich-style-block p:last-child,
+  .prose-blog .rich-style-block ul:last-child,
+  .prose-blog .rich-style-block ol:last-child,
+  .prose-blog .rich-style-block blockquote:last-child {
+    margin-bottom: 0;
+  }
+
+  .prose-blog .rich-style-block p {
+    text-indent: 0;
+  }
+
+  .prose-blog .rich-style-block--font-serif {
+    font-family: 'Noto Serif SC', Georgia, serif;
+  }
+
+  .prose-blog .rich-style-block--font-sans {
+    font-family: 'Noto Sans SC', system-ui, sans-serif;
+  }
+
+  .prose-blog .rich-style-block--font-mono {
+    font-family: 'Fira Code', 'SFMono-Regular', monospace;
+  }
+
+  .prose-blog .rich-style-block--size-base {
+    font-size: 17px;
+  }
+
+  .prose-blog .rich-style-block--size-lg {
+    font-size: 19px;
+  }
+
+  .prose-blog .rich-style-block--size-xl {
+    font-size: 22px;
+    line-height: 1.85;
+  }
+
+  .prose-blog .rich-style-block--size-2xl {
+    font-size: 26px;
+    line-height: 1.75;
+  }
+
+  .prose-blog .rich-style-block--color-default {
+    color: #3d3530;
+  }
+
+  .prose-blog .rich-style-block--color-amber {
+    color: #b85d0c;
+  }
+
+  .prose-blog .rich-style-block--color-rose {
+    color: #a64963;
+  }
+
+  .prose-blog .rich-style-block--color-emerald {
+    color: #22664a;
+  }
+
+  .prose-blog .rich-style-block--color-slate {
+    color: #334155;
+  }
+
+  .prose-blog .rich-style-block--align-left {
+    text-align: left;
+  }
+
+  .prose-blog .rich-style-block--align-center {
+    text-align: center;
+  }
+
+  .prose-blog .rich-style-block--align-right {
+    text-align: right;
+  }
+
+  .prose-blog .rich-video-block {
+    margin: 1.8rem 0;
+  }
+
+  .prose-blog .rich-video-block video {
+    display: block;
+    width: 100%;
+    border-radius: 18px;
+    background: #111827;
+    box-shadow: 0 18px 36px rgba(17, 24, 39, 0.18);
+  }
+
+  /* 卡片样式 */
+  .card {
+    background: white;
+    border: 1px solid #ddd5c8;
+    border-radius: 8px;
+    transition: box-shadow 0.2s, transform 0.2s;
+  }
+
+  .card:hover {
+    box-shadow: 0 4px 20px rgba(60, 40, 20, 0.08);
+    transform: translateY(-2px);
+  }
+
+  /* 按钮样式 */
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 0.2s, transform 0.1s;
+    cursor: pointer;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .btn-primary:hover {
+    background: #b05a14;
+  }
+
+  .btn-primary:active {
+    transform: scale(0.98);
+  }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--ink-800);
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 400;
+    border: 1px solid #c4b8a7;
+    transition: background 0.2s;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .btn-secondary:hover {
+    background: #f0ebe3;
+  }
+
+  /* 表单输入 */
+  .input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #ddd5c8;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    background: white;
+    color: #3d3530;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+  }
+
+  .input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(212, 113, 26, 0.12);
+  }
+
+  /* 标签/徽章 */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .badge-public {
+    background: #eaf3de;
+    color: #3b6d11;
+  }
+
+  .badge-password {
+    background: #e6f1fb;
+    color: #185fa5;
+  }
+
+  .badge-paid {
+    background: #faeeda;
+    color: #854f0b;
+  }
+
+  .badge-pending {
+    background: #faeeda;
+    color: #854f0b;
+  }
+
+  .badge-approved {
+    background: #eaf3de;
+    color: #3b6d11;
+  }
+
+  .badge-pinned {
+    background: #faeeda;
+    color: #854f0b;
+  }
+
+  .badge-rejected {
+    background: #fcebeb;
+    color: #a32d2d;
+  }
+
+  /* 分割线 */
+  .divider {
+    border: none;
+    border-top: 1px solid #ddd5c8;
+    margin: 2rem 0;
+  }
+
+  /* 毛玻璃遮罩（打赏文章内容模糊） */
+  .content-blur {
+    filter: blur(4px);
+    user-select: none;
+    pointer-events: none;
+  }
+
+  /* 管理后台侧边栏 */
+  .admin-sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #5a4f42;
+    transition: background 0.15s, color 0.15s;
+    text-decoration: none;
+  }
+
+  .admin-sidebar-link:hover,
+  .admin-sidebar-link.active {
+    background: #fdf6ee;
+    color: #d4711a;
+  }
+}
+
+/* Markdown 编辑器样式 */
+.markdown-editor {
+  font-family: 'Noto Serif SC', serif;
+  font-size: 15px;
+  line-height: 1.8;
+  resize: vertical;
+  min-height: 400px;
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f0ebe3;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c4b8a7;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a89880;
+}
+
+/* ── 移动端全局优化 ─────────────────────────────────── */
+@layer base {
+  /* 防止 iOS 自动放大输入框 */
+  input, textarea, select {
+    font-size: 16px;
+  }
+  /* 平滑滚动 */
+  html {
+    scroll-behavior: smooth;
+  }
+  /* 触摸高亮去除 */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@layer components {
+  /* 移动端文章卡片触摸友好 */
+  .card {
+    touch-action: manipulation;
+  }
+
+  /* 移动端正文字号缩小一档 */
+  @media (max-width: 640px) {
+    .prose-blog {
+      font-size: 15px;
+      line-height: 1.85;
+    }
+    .prose-blog p {
+      text-indent: 1.5em;
+    }
+    .prose-blog h2 {
+      font-size: 19px;
+    }
+    .prose-blog h3 {
+      font-size: 16px;
+    }
+    .markdown-editor {
+      min-height: 280px !important;
+    }
+  }
+}
+
+/* ── 皮卡丘在小屏缩小并贴边 ─────────────────────────── */
+@media (max-width: 640px) {
+  /* 小屏皮卡丘自动通过 PikachuWidget 的 right/bottom 控制，无需额外 CSS */
+  /* 防止遮挡底部内容，给 body 加底部 padding */
+  body {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
+/* ── 触摸设备 hover 状态优化 ─────────────────────────── */
+@media (hover: none) {
+  .group:hover .group-hover\:text-\[\#d4711a\] {
+    color: inherit;
+  }
+}
+
+@layer components {
+  .rich-editor-shell {
+    border: 1px solid #ddd5c8;
+    border-radius: 24px;
+    background: white;
+    overflow: hidden;
+    box-shadow: 0 16px 36px rgba(61, 53, 48, 0.06);
+  }
+
+  .rich-editor-shell .ql-container.ql-snow {
+    border: none;
+    font-family: 'Noto Serif SC', Georgia, serif;
+  }
+
+  .rich-editor-shell .ql-editor {
+    min-height: 420px;
+    padding: 24px 28px 32px;
+    font-family: 'Noto Serif SC', Georgia, serif;
+    font-size: 16px;
+    line-height: 1.9;
+    color: #3d3530;
+  }
+
+  .rich-editor-shell .ql-editor.ql-blank::before {
+    left: 28px;
+    right: 28px;
+    color: #b8ab98;
+    font-style: normal;
+  }
+
+  .rich-editor-shell .ql-editor p,
+  .rich-editor-shell .ql-editor ul,
+  .rich-editor-shell .ql-editor ol,
+  .rich-editor-shell .ql-editor blockquote {
+    margin-bottom: 1rem;
+  }
+
+  .rich-editor-shell .ql-editor h2 {
+    margin: 2rem 0 1rem;
+    font-size: 1.65rem;
+    line-height: 1.35;
+    font-weight: 600;
+    color: #221e1a;
+  }
+
+  .rich-editor-shell .ql-editor h3 {
+    margin: 1.5rem 0 0.85rem;
+    font-size: 1.3rem;
+    line-height: 1.45;
+    font-weight: 600;
+    color: #2f2924;
+  }
+
+  .rich-editor-shell .ql-editor blockquote {
+    border-left: 4px solid #d4711a;
+    padding-left: 1rem;
+    color: #5a4f42;
+    font-style: italic;
+  }
+
+  .rich-editor-shell .ql-editor ul,
+  .rich-editor-shell .ql-editor ol {
+    padding-left: 1.5rem;
+  }
+
+  .rich-editor-shell .ql-editor img {
+    display: block;
+    max-width: 100%;
+    border-radius: 18px;
+    margin: 1.5rem auto;
+  }
+
+  .rich-editor-shell .ql-editor video {
+    display: block;
+    width: 100%;
+    border-radius: 18px;
+    background: #111827;
+  }
+
+  .ql-font-serif {
+    font-family: 'Noto Serif SC', Georgia, serif;
+  }
+
+  .ql-font-sans {
+    font-family: 'Noto Sans SC', system-ui, sans-serif;
+  }
+
+  .ql-font-song {
+    font-family: 'Songti SC', 'STSong', 'SimSun', serif;
+  }
+
+  .ql-font-hei {
+    font-family: 'PingFang SC', 'Microsoft YaHei', 'SimHei', sans-serif;
+  }
+
+  .ql-font-mono {
+    font-family: 'Fira Code', 'SFMono-Regular', monospace;
+  }
+
+  .ql-align-center {
+    text-align: center;
+  }
+
+  .ql-align-right {
+    text-align: right;
+  }
+
+  .ql-align-justify {
+    text-align: justify;
+  }
+
+  .ql-uploaded-video {
+    margin: 1.8rem 0;
+  }
+
+  .ql-uploaded-video video {
+    display: block;
+    width: 100%;
+    border-radius: 18px;
+    background: #111827;
+    box-shadow: 0 18px 36px rgba(17, 24, 39, 0.18);
+  }
+
+  .prose-blog .ql-font-serif {
+    font-family: 'Noto Serif SC', Georgia, serif;
+  }
+
+  .prose-blog .ql-font-sans {
+    font-family: 'Noto Sans SC', system-ui, sans-serif;
+  }
+
+  .prose-blog .ql-font-song {
+    font-family: 'Songti SC', 'STSong', 'SimSun', serif;
+  }
+
+  .prose-blog .ql-font-hei {
+    font-family: 'PingFang SC', 'Microsoft YaHei', 'SimHei', sans-serif;
+  }
+
+  .prose-blog .ql-font-mono {
+    font-family: 'Fira Code', 'SFMono-Regular', monospace;
+  }
+
+  .prose-blog .ql-align-center {
+    text-align: center;
+  }
+
+  .prose-blog .ql-align-right {
+    text-align: right;
+  }
+
+  .prose-blog .ql-align-justify {
+    text-align: justify;
+  }
+
+  .prose-blog .ql-uploaded-video {
+    margin: 1.8rem 0;
+  }
+
+  .prose-blog .ql-uploaded-video video {
+    display: block;
+    width: 100%;
+    border-radius: 18px;
+    background: #111827;
+    box-shadow: 0 18px 36px rgba(17, 24, 39, 0.18);
+  }
+
+  @media (max-width: 640px) {
+    .rich-editor-shell .ql-editor {
+      min-height: 320px;
+      padding: 18px 18px 24px;
+    }
+
+    .rich-editor-shell .ql-editor.ql-blank::before {
+      left: 18px;
+      right: 18px;
+    }
+  }
+}

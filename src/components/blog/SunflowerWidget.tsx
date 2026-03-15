@@ -1,0 +1,232 @@
+'use client'
+import { useState, useEffect, useCallback } from 'react'
+import SunflowerIllustration from './SunflowerIllustration'
+
+type SunflowerState = {
+  stage: number
+  name: string
+  emoji: string
+  totalCount: number
+  progressCurrent: number
+  progressMax: number
+  progressPct: number
+  isMax: boolean
+  nextNeeded: number
+  alreadyDone?: boolean
+}
+
+const DEFAULT_ACTIONS = [
+  { key: 'water',     label: '浇水',   icon: '💧', color: 'hover:bg-blue-50 hover:border-blue-300 active:bg-blue-100',   feedback: '滋润了！🌊' },
+  { key: 'fertilize', label: '施肥',   icon: '💩', color: 'hover:bg-amber-50 hover:border-amber-300 active:bg-amber-100', feedback: '营养充足！✨' },
+  { key: 'sun',       label: '晒太阳', icon: '☀️', color: 'hover:bg-yellow-50 hover:border-yellow-300 active:bg-yellow-100', feedback: '沐浴阳光！🌤' },
+]
+
+const STAGE_DESCRIPTIONS = [
+  '一颗小种子静静等待…',
+  '嫩芽破土而出，生命开始了！',
+  '茎干挺立，努力向上生长中',
+  '叶片舒展，在阳光下呼吸',
+  '花骨朵含苞待放，快开了！',
+  '盛开啦！感谢所有人的照顾 🌻',
+]
+
+export default function SunflowerWidget() {
+  const [state, setState] = useState<SunflowerState | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [acting, setActing] = useState(false)
+  const [feedback, setFeedback] = useState<string | null>(null)
+  const [alreadyDone, setAlreadyDone] = useState(false)
+  const [justLeveledUp, setJustLeveledUp] = useState(false)
+  const [shake, setShake] = useState(false)
+  const [actions, setActions] = useState(DEFAULT_ACTIONS)
+  const [doneText, setDoneText] = useState('你已经照顾过向日葵啦 🌸')
+
+  // 从公开 API 拉取文案
+  useEffect(() => {
+    fetch('/api/settings/public')
+      .then(r => r.json())
+      .then(data => {
+        setActions(prev => prev.map((a, i) => ({
+          ...a,
+          feedback: [data['ui.sfWaterText'], data['ui.sfFertilizeText'], data['ui.sfSunText']][i] || a.feedback,
+        })))
+        if (data['ui.sfDoneText']) setDoneText(data['ui.sfDoneText'])
+      })
+      .catch(() => {})
+  }, [])
+
+    const fetchState = useCallback(async () => {
+    try {
+      const res = await fetch('/api/sunflower')
+      if (res.ok) setState(await res.json())
+    } catch {}
+    finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => {
+    fetchState()
+    // 每 30 秒轮询一次
+    const interval = setInterval(fetchState, 30000)
+    return () => clearInterval(interval)
+  }, [fetchState])
+
+  async function interact(action: string, actionFeedback: string) {
+    if (acting || alreadyDone) {
+      if (alreadyDone) {
+        setShake(true)
+        setTimeout(() => setShake(false), 500)
+      }
+      return
+    }
+    setActing(true)
+
+    try {
+      const res = await fetch('/api/sunflower', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      const data = await res.json()
+
+      if (data.alreadyDone) {
+        setAlreadyDone(true)
+        setFeedback(doneText)
+      } else {
+        const prevStage = state?.stage ?? 0
+        setState(data)
+        setFeedback(actionFeedback)
+        if (data.stage > prevStage) {
+          setJustLeveledUp(true)
+          setTimeout(() => setJustLeveledUp(false), 3000)
+        }
+      }
+    } catch {
+      setFeedback('网络错误，请重试')
+    } finally {
+      setActing(false)
+      setTimeout(() => setFeedback(null), 2500)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-[#f0ebe3] bg-white p-6 text-center">
+        <div className="text-3xl mb-2 animate-pulse">🌱</div>
+        <p className="text-xs text-[#a89880]">加载中…</p>
+      </div>
+    )
+  }
+
+  if (!state) return null
+
+  return (
+    <div className="rounded-2xl border border-[#f0ebe3] bg-white overflow-hidden">
+      {/* 升级庆祝横幅 */}
+      {justLeveledUp && (
+        <div className="bg-gradient-to-r from-yellow-300 via-orange-300 to-yellow-300 text-center py-2 animate-bounce">
+          <span className="text-sm font-medium text-orange-800">
+            🎉 向日葵成长到新阶段啦！
+          </span>
+        </div>
+      )}
+
+      <div className="p-5">
+        {/* 向日葵插图 */}
+        <div className={`relative mb-2 ${shake ? 'animate-bounce' : ''}`}>
+          <SunflowerIllustration stage={state.stage} />
+
+          {/* 浮动反馈文字 */}
+          {feedback && (
+            <div className="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center px-3">
+              <div className="max-w-full animate-bounce rounded-2xl border border-[#f0ebe3] bg-white/90 px-3 py-1 text-center text-xs text-[#5a4f42] shadow-sm">
+                <span className="block max-w-full whitespace-normal break-words">
+                  {feedback}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 阶段信息 */}
+        <div className="text-center mb-4">
+          <div className="flex items-center justify-center gap-1.5 mb-1">
+            <span className="text-xl">{state.emoji}</span>
+            <span className="font-serif font-medium text-[#221e1a] text-base">{state.name}阶段</span>
+          </div>
+          <p className="text-xs text-[#a89880]">{STAGE_DESCRIPTIONS[state.stage]}</p>
+        </div>
+
+        {/* 进度条 */}
+        <div className="mb-4">
+          <div className="flex justify-between items-baseline mb-1.5">
+            <span className="text-xs text-[#8c7d68]">
+              已有 <span className="font-medium text-[#d4711a]">{state.totalCount}</span> 人照顾
+            </span>
+            {!state.isMax && (
+              <span className="text-xs text-[#c4b8a7]">
+                还差 {state.nextNeeded} 人
+              </span>
+            )}
+          </div>
+          <div className="w-full bg-[#f0ebe3] rounded-full h-2 overflow-hidden">
+            <div
+              className="h-2 rounded-full transition-all duration-700 ease-out"
+              style={{
+                width: `${state.progressPct}%`,
+                background: state.isMax
+                  ? 'linear-gradient(90deg, #f5c800, #f59200)'
+                  : 'linear-gradient(90deg, #a8d840, #5aaa28)',
+              }}
+            />
+          </div>
+          {!state.isMax && (
+            <div className="flex justify-between mt-1">
+              {/* 阶段节点 */}
+              <span className="text-[10px] text-[#c4b8a7]">{state.totalCount - state.progressCurrent}</span>
+              <span className="text-[10px] text-[#c4b8a7]">{state.totalCount - state.progressCurrent + state.progressMax}</span>
+            </div>
+          )}
+        </div>
+
+        {/* 互动按钮 */}
+        {alreadyDone ? (
+          <div className="text-center py-3 px-4 bg-[#faf8f5] rounded-xl border border-[#f0ebe3]">
+            <p className="text-sm text-[#a89880]">{doneText}</p>
+            <p className="text-xs text-[#c4b8a7] mt-0.5">感谢你的爱护！</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            {actions.map(a => (
+              <button
+                key={a.key}
+                onClick={() => interact(a.key, a.feedback)}
+                disabled={acting}
+                className={`flex flex-col items-center gap-1 py-3 rounded-xl border border-[#f0ebe3] transition-all text-center disabled:opacity-60 ${a.color} active:scale-95`}
+              >
+                <span className="text-xl leading-none">{a.icon}</span>
+                <span className="text-xs text-[#5a4f42]">{a.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* 阶段里程碑展示 */}
+        <div className="mt-4 pt-4 border-t border-[#f0ebe3]">
+          <p className="text-[10px] text-[#c4b8a7] mb-2 text-center">成长历程</p>
+          <div className="flex justify-between items-center">
+            {['🌰', '🌱', '🌿', '🍃', '🌼', '🌻'].map((emoji, i) => (
+              <div key={i} className="flex flex-col items-center gap-0.5">
+                <span className={`text-base leading-none transition-all ${i <= state.stage ? 'opacity-100' : 'opacity-25 grayscale'}`}>
+                  {emoji}
+                </span>
+                {i < 5 && (
+                  <div className={`w-4 h-px mt-1 ${i < state.stage ? 'bg-[#5aaa28]' : 'bg-[#f0ebe3]'}`} />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

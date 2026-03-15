@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Article {
+  id           String    @id @default(cuid())
+  slug         String    @unique
+  title        String
+  content      String
+  excerpt      String?
+  mood         String    @default("")
+  coverImage   String?
+  accessType   String    @default("PUBLIC")
+  pinned       Boolean   @default(false)
+  pinnedAt     DateTime?
+  passwordHash String?
+  passwordHint String?
+  price        Float?
+  published    Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  comments     Comment[]
+  payments     Payment[]
+  @@index([published, pinned, createdAt])
+}
+
+model Media {
+  id           String   @id @default(cuid())
+  filename     String
+  originalName String
+  url          String
+  key          String   @unique
+  size         Int
+  mimeType     String
+  type         String   @default("IMAGE")
+  createdAt    DateTime @default(now())
+  @@index([type, createdAt])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  articleId String
+  nickname  String
+  email     String?
+  content   String
+  status    String   @default("PENDING")
+  createdAt DateTime @default(now())
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  @@index([articleId, status])
+}
+
+model Payment {
+  id              String    @id @default(cuid())
+  articleId       String
+  email           String
+  amount          Float
+  currency        String    @default("cny")
+  stripeSessionId String?   @unique
+  status          String    @default("PENDING")
+  accessToken     String?   @unique
+  tokenExpiresAt  DateTime?
+  createdAt       DateTime  @default(now())
+  article         Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  @@index([articleId])
+  @@index([accessToken])
+}
+
+model SiteSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model Guestbook {
+  id           String   @id @default(cuid())
+  nickname     String
+  avatar       String
+  email        String?
+  emailPublic  Boolean  @default(false)
+  emailVisible Boolean  @default(false)
+  content      String
+  emoji        String?
+  pinned       Boolean  @default(false)
+  pinnedAt     DateTime?
+  ipAddress    String?
+  ipCountry    String?
+  ipRegion     String?
+  ipCity       String?
+  ipIsp        String?
+  status       String   @default("PENDING")
+  createdAt    DateTime @default(now())
+  @@index([status, pinned, createdAt])
+}
+
+model PageView {
+  id        String   @id @default(cuid())
+  sessionId String
+  ipAddress String?
+  ipRegion  String?
+  ipCity    String?
+  path      String
+  enteredAt DateTime @default(now())
+  duration  Int?
+  userAgent String?
+  @@index([sessionId])
+  @@index([enteredAt])
+}
+
+model SunflowerState {
+  id         String   @id @default("singleton")
+  totalCount Int      @default(0)
+  updatedAt  DateTime @updatedAt
+}
+
+model SunflowerInteraction {
+  ipHash    String   @id
+  action    String
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  key       String   @id
+  value     String
+  type      String   @default("string")
+  updatedAt DateTime @updatedAt
+}
