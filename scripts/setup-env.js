@@ -89,7 +89,7 @@ if (kept.length > 0) {
 
 console.log('\n📝 请手动填写以下必填项（在 .env 中找到对应行）：')
 const required = [
-  ['DATABASE_URL',              'PostgreSQL 连接字符串，本地开发可用 file:./dev.db (SQLite)'],
+  ['DATABASE_URL',              'PostgreSQL 连接字符串，例如 postgresql://postgres:password@localhost:5432/blog?schema=public'],
   ['ADMIN_EMAIL',               '管理员登录邮箱'],
   ['ADMIN_PASSWORD',            '管理员登录密码'],
   ['NEXT_PUBLIC_SITE_NAME',     '网站名称（显示在页面标题）'],
@@ -113,4 +113,4 @@ console.log('\n📧 开启邮件通知还需填写：')
 console.log('   ○ SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS')
 
 console.log('\n🚀 填写完成后运行：')
-console.log('   npm run db:migrate && npm run dev\n')
+console.log('   npm run db:deploy && npm run dev\n')

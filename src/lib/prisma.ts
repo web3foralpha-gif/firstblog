@@ -1,11 +1,12 @@
 import { PrismaClient } from '@prisma/client'
+import { hasValidDatabaseUrl } from './database-url'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
 function createPrismaClient() {
-  const hasDatabaseUrl = Boolean(process.env.DATABASE_URL?.trim())
+  const hasDatabaseUrl = hasValidDatabaseUrl(process.env.DATABASE_URL)
 
   return new PrismaClient({
     log: !hasDatabaseUrl

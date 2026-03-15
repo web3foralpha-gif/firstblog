@@ -10,15 +10,16 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "db:generate": "prisma generate",
-    "db:migrate": "node scripts/ensure-sqlite-db.js && prisma db push",
-    "db:deploy": "node scripts/ensure-sqlite-db.js && prisma migrate deploy",
+    "db:generate": "node scripts/run-prisma-generate.js",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed.ts",
     "setup": "node scripts/setup-env.js",
-    "db:push": "node scripts/ensure-sqlite-db.js && prisma db push",
-    "postinstall": "prisma generate",
-    "prepare": "prisma generate"
+    "db:push": "prisma db push",
+    "db:import:sqlite": "node scripts/import-sqlite-to-postgres.js",
+    "postinstall": "node scripts/run-prisma-generate.js",
+    "prepare": "node scripts/run-prisma-generate.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.525.0",

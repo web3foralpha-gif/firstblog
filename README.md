@@ -1,6 +1,6 @@
 # 个人博客 · 完整搭建指南
 
-技术栈：**Next.js 14 + Prisma + SQLite/PostgreSQL + Tailwind CSS + Stripe + NextAuth.js**
+技术栈：**Next.js 14 + Prisma + PostgreSQL + Tailwind CSS + Stripe + NextAuth.js**
 
 推荐运行环境：**Node 20 LTS**
 
@@ -29,7 +29,7 @@ cp .env.example .env
 编辑 `.env`，至少填写：
 
 ```
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://postgres:password@localhost:5432/blog?schema=public"
 NEXTAUTH_SECRET="随机字符串，运行 openssl rand -base64 32 生成"
 NEXTAUTH_URL="http://localhost:3000"
 ADMIN_PASSWORD="你的管理员密码"
@@ -40,23 +40,34 @@ NEXT_PUBLIC_SITE_NAME="我的小站"
 
 Stripe 和邮件配置可先留空，基础功能照常运行。
 
-### 3. 初始化数据库
+### 3. 准备本地 PostgreSQL
+
+推荐直接用 Docker：
 
 ```bash
-npm run db:migrate     # 默认推荐：稳定地同步 schema 到本地数据库
+docker run --name blog-postgres \
+  -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_DB=blog \
+  -p 5432:5432 \
+  -d postgres:16
+```
+
+### 4. 初始化数据库
+
+```bash
+npm run db:deploy      # 应用仓库中的正式迁移
 npm run db:generate    # 生成 Prisma Client
 npm run db:seed        # 写入示例文章（可选）
 ```
 
-`db:migrate` / `db:push` 会自动准备本地 SQLite 文件，无需手动创建 `prisma/dev.db`。
-
-如果你在部署环境中需要严格按迁移历史执行，也可以使用：
+开发中如果你修改了 `schema.prisma`，再运行：
 
 ```bash
-npm run db:deploy
+npm run db:migrate
 ```
 
-### 4. 启动开发服务器
+### 5. 启动开发服务器
 
 ```bash
 npm run dev
@@ -72,6 +83,7 @@ npm run dev
 这个项目已经包含：
 
 - `.gitignore`：忽略 `node_modules`、`.next`、`.env`、本地 SQLite 数据库等不应入库的文件
+- `prisma/dev.db` 仅可作为旧版 SQLite 数据迁移源，不再作为正式运行数据库
 - `.gitattributes`：统一换行符，避免 Windows / macOS 混乱
 - `.nvmrc`：固定 Node 20 LTS
 - `.editorconfig`：统一基础编辑器格式
@@ -160,25 +172,19 @@ git push -u origin main
 1. 登录 [vercel.com](https://vercel.com)
 2. New Project → 选择你的仓库 → Import
 3. 在 Environment Variables 中填入所有 `.env` 变量
-4. 将 `DATABASE_URL` 改为 PostgreSQL 连接字符串（见下方）
+4. 将 `DATABASE_URL` 填为 PostgreSQL 连接字符串（见下方）
 
-### 3. 切换到 PostgreSQL
+### 3. 连接 PostgreSQL
 
-**选项 A：Vercel Postgres（最简单）**
-1. Vercel 项目 → Storage → Create Database → Postgres
-2. 复制 `POSTGRES_PRISMA_URL` 到环境变量中的 `DATABASE_URL`
+**选项 A：Vercel Marketplace 数据库（推荐）**
+1. Vercel 项目 → Storage / Marketplace → 选择 Prisma Postgres、Neon 或 Supabase
+2. 将集成自动注入的 Postgres 连接串同步到 `DATABASE_URL`
 
 **选项 B：Supabase / Neon（免费套餐更慷慨）**
 1. 注册 [neon.tech](https://neon.tech) 或 [supabase.com](https://supabase.com)
 2. 创建项目，复制 Connection String
 
-修改 `prisma/schema.prisma`：
-```prisma
-datasource db {
-  provider = "postgresql"   // 改这里
-  url      = env("DATABASE_URL")
-}
-```
+仓库已经默认使用 PostgreSQL，无需再改 `schema.prisma`。
 
 ### 4. 运行生产数据库迁移
 
@@ -193,7 +199,17 @@ vercel env pull .env.production.local
 DATABASE_URL="你的生产PostgreSQL连接字符串" npx prisma migrate deploy
 ```
 
-### 5. 配置 Stripe Webhook（生产）
+### 5. 迁移旧版本地 SQLite 数据（如果你以前用过 `prisma/dev.db`）
+
+如果你的历史文章和留言还在本地 SQLite 文件里，可以在连上新的 PostgreSQL 后执行：
+
+```bash
+DATABASE_URL="你的PostgreSQL连接字符串" npm run db:import:sqlite
+```
+
+默认会读取 `prisma/dev.db`，并把文章、留言、评论、设置、向日葵数据导入到 PostgreSQL。
+
+### 6. 配置 Stripe Webhook（生产）
 
 1. Stripe Dashboard → Webhooks → Add endpoint
 2. URL 填：`https://你的域名.vercel.app/api/payments/webhook`

@@ -1,5 +1,6 @@
 import { prisma } from './prisma'
 import { encrypt, decrypt } from './encrypt'
+import { hasValidDatabaseUrl } from './database-url'
 
 let hasLoggedSettingsFallback = false
 
@@ -58,12 +59,12 @@ function buildDefaultSettings(): Record<string, string> {
 // ── 获取所有设置（解密，后台用）────────────────────────────────────
 export async function getAllSettings(): Promise<Record<string, string>> {
   const map = buildDefaultSettings()
-  const hasDatabaseUrl = Boolean(process.env.DATABASE_URL?.trim())
+  const hasDatabaseUrl = hasValidDatabaseUrl(process.env.DATABASE_URL)
 
   if (!hasDatabaseUrl) {
     if (!hasLoggedSettingsFallback) {
       hasLoggedSettingsFallback = true
-      console.warn('[settings] DATABASE_URL is missing, using default settings.')
+      console.warn('[settings] DATABASE_URL is missing or invalid, using default settings.')
     }
     return map
   }
