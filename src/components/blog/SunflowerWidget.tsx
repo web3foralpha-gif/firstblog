@@ -12,6 +12,9 @@ type SunflowerState = {
   progressPct: number
   isMax: boolean
   nextNeeded: number
+  success?: boolean
+  unavailable?: boolean
+  message?: string
   alreadyDone?: boolean
 }
 
@@ -30,6 +33,24 @@ const STAGE_DESCRIPTIONS = [
   '盛开啦！感谢所有人的照顾 🌻',
 ]
 
+function buildFallbackState(message = '向日葵花园暂时离线，正在恢复中。'): SunflowerState {
+  return {
+    stage: 0,
+    name: '种子',
+    emoji: '🌰',
+    totalCount: 0,
+    progressCurrent: 0,
+    progressMax: 10,
+    progressPct: 0,
+    isMax: false,
+    nextNeeded: 10,
+    success: false,
+    unavailable: true,
+    message,
+    alreadyDone: false,
+  }
+}
+
 export default function SunflowerWidget() {
   const [state, setState] = useState<SunflowerState | null>(null)
   const [loading, setLoading] = useState(true)
@@ -40,6 +61,7 @@ export default function SunflowerWidget() {
   const [shake, setShake] = useState(false)
   const [actions, setActions] = useState(DEFAULT_ACTIONS)
   const [doneText, setDoneText] = useState('你已经照顾过向日葵啦 🌸')
+  const [serviceMessage, setServiceMessage] = useState<string | null>(null)
 
   // 从公开 API 拉取文案
   useEffect(() => {
@@ -55,11 +77,24 @@ export default function SunflowerWidget() {
       .catch(() => {})
   }, [])
 
-    const fetchState = useCallback(async () => {
+  const fetchState = useCallback(async () => {
     try {
       const res = await fetch('/api/sunflower')
-      if (res.ok) setState(await res.json())
-    } catch {}
+      const data = await res.json().catch(() => null)
+
+      if (data) {
+        setState(data)
+        setServiceMessage(data.unavailable ? (data.message || '向日葵花园暂时离线，正在恢复中。') : null)
+      } else {
+        const fallback = buildFallbackState()
+        setState(fallback)
+        setServiceMessage(fallback.message || null)
+      }
+    } catch {
+      const fallback = buildFallbackState()
+      setState(fallback)
+      setServiceMessage(fallback.message || null)
+    }
     finally { setLoading(false) }
   }, [])
 
@@ -88,12 +123,17 @@ export default function SunflowerWidget() {
       })
       const data = await res.json()
 
-      if (data.alreadyDone) {
+      if (data.unavailable) {
+        setState(data)
+        setServiceMessage(data.message || '向日葵花园暂时无法保存互动，稍后再试。')
+        setFeedback(data.message || '向日葵花园暂时无法保存互动，稍后再试。')
+      } else if (data.alreadyDone) {
         setAlreadyDone(true)
         setFeedback(doneText)
       } else {
         const prevStage = state?.stage ?? 0
         setState(data)
+        setServiceMessage(null)
         setFeedback(actionFeedback)
         if (data.stage > prevStage) {
           setJustLeveledUp(true)
@@ -117,7 +157,7 @@ export default function SunflowerWidget() {
     )
   }
 
-  if (!state) return null
+  const currentState = state ?? buildFallbackState()
 
   return (
     <div className="rounded-2xl border border-[#f0ebe3] bg-white overflow-hidden">
@@ -133,7 +173,7 @@ export default function SunflowerWidget() {
       <div className="p-5">
         {/* 向日葵插图 */}
         <div className={`relative mb-2 ${shake ? 'animate-bounce' : ''}`}>
-          <SunflowerIllustration stage={state.stage} />
+          <SunflowerIllustration stage={currentState.stage} />
 
           {/* 浮动反馈文字 */}
           {feedback && (
@@ -150,21 +190,26 @@ export default function SunflowerWidget() {
         {/* 阶段信息 */}
         <div className="text-center mb-4">
           <div className="flex items-center justify-center gap-1.5 mb-1">
-            <span className="text-xl">{state.emoji}</span>
-            <span className="font-serif font-medium text-[#221e1a] text-base">{state.name}阶段</span>
+            <span className="text-xl">{currentState.emoji}</span>
+            <span className="font-serif font-medium text-[#221e1a] text-base">{currentState.name}阶段</span>
           </div>
-          <p className="text-xs text-[#a89880]">{STAGE_DESCRIPTIONS[state.stage]}</p>
+          <p className="text-xs text-[#a89880]">{STAGE_DESCRIPTIONS[currentState.stage]}</p>
+          {serviceMessage && (
+            <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-[11px] text-[#9a6a13]">
+              {serviceMessage}
+            </p>
+          )}
         </div>
 
         {/* 进度条 */}
         <div className="mb-4">
           <div className="flex justify-between items-baseline mb-1.5">
             <span className="text-xs text-[#8c7d68]">
-              已有 <span className="font-medium text-[#d4711a]">{state.totalCount}</span> 人照顾
+              已有 <span className="font-medium text-[#d4711a]">{currentState.totalCount}</span> 人照顾
             </span>
-            {!state.isMax && (
+            {!currentState.isMax && (
               <span className="text-xs text-[#c4b8a7]">
-                还差 {state.nextNeeded} 人
+                还差 {currentState.nextNeeded} 人
               </span>
             )}
           </div>
@@ -172,24 +217,29 @@ export default function SunflowerWidget() {
             <div
               className="h-2 rounded-full transition-all duration-700 ease-out"
               style={{
-                width: `${state.progressPct}%`,
-                background: state.isMax
+                width: `${currentState.progressPct}%`,
+                background: currentState.isMax
                   ? 'linear-gradient(90deg, #f5c800, #f59200)'
                   : 'linear-gradient(90deg, #a8d840, #5aaa28)',
               }}
             />
           </div>
-          {!state.isMax && (
+          {!currentState.isMax && (
             <div className="flex justify-between mt-1">
               {/* 阶段节点 */}
-              <span className="text-[10px] text-[#c4b8a7]">{state.totalCount - state.progressCurrent}</span>
-              <span className="text-[10px] text-[#c4b8a7]">{state.totalCount - state.progressCurrent + state.progressMax}</span>
+              <span className="text-[10px] text-[#c4b8a7]">{currentState.totalCount - currentState.progressCurrent}</span>
+              <span className="text-[10px] text-[#c4b8a7]">{currentState.totalCount - currentState.progressCurrent + currentState.progressMax}</span>
             </div>
           )}
         </div>
 
         {/* 互动按钮 */}
-        {alreadyDone ? (
+        {currentState.unavailable ? (
+          <div className="text-center py-3 px-4 bg-[#faf8f5] rounded-xl border border-[#f0ebe3]">
+            <p className="text-sm text-[#8c7d68]">花园暂时离线，向日葵先陪着你</p>
+            <p className="text-xs text-[#c4b8a7] mt-0.5">数据库恢复后，互动进度会重新开始记录。</p>
+          </div>
+        ) : alreadyDone ? (
           <div className="text-center py-3 px-4 bg-[#faf8f5] rounded-xl border border-[#f0ebe3]">
             <p className="text-sm text-[#a89880]">{doneText}</p>
             <p className="text-xs text-[#c4b8a7] mt-0.5">感谢你的爱护！</p>
@@ -216,11 +266,11 @@ export default function SunflowerWidget() {
           <div className="flex justify-between items-center">
             {['🌰', '🌱', '🌿', '🍃', '🌼', '🌻'].map((emoji, i) => (
               <div key={i} className="flex flex-col items-center gap-0.5">
-                <span className={`text-base leading-none transition-all ${i <= state.stage ? 'opacity-100' : 'opacity-25 grayscale'}`}>
+                <span className={`text-base leading-none transition-all ${i <= currentState.stage ? 'opacity-100' : 'opacity-25 grayscale'}`}>
                   {emoji}
                 </span>
                 {i < 5 && (
-                  <div className={`w-4 h-px mt-1 ${i < state.stage ? 'bg-[#5aaa28]' : 'bg-[#f0ebe3]'}`} />
+                  <div className={`w-4 h-px mt-1 ${i < currentState.stage ? 'bg-[#5aaa28]' : 'bg-[#f0ebe3]'}`} />
                 )}
               </div>
             ))}

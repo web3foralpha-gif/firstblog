@@ -6,6 +6,8 @@ interface SfState {
   stage: number; name: string; emoji: string
   totalCount: number; progressCurrent: number; progressMax: number; progressPct: number
   isMax: boolean; nextNeeded: number
+  unavailable?: boolean
+  message?: string
 }
 interface Interaction {
   id: string; action: string; ipHash: string; createdAt: string
@@ -21,6 +23,7 @@ export default function SunflowerAdminPage() {
   const [sf, setSf]           = useState<SfState | null>(null)
   const [logs, setLogs]       = useState<Interaction[]>([])
   const [loading, setLoading] = useState(true)
+  const [warning, setWarning] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -29,8 +32,20 @@ export default function SunflowerAdminPage() {
         fetch('/api/sunflower'),
         fetch('/api/admin/sunflower'),
       ])
-      if (sfRes.ok)   setSf(await sfRes.json())
-      if (logsRes.ok) setLogs((await logsRes.json()).interactions ?? [])
+      const sfData = sfRes.ok ? await sfRes.json() : null
+      const logsData = logsRes.ok ? await logsRes.json() : null
+
+      if (sfData) {
+        setSf(sfData)
+        setWarning(sfData.unavailable ? (sfData.message || '向日葵数据库暂时不可用。') : null)
+      }
+
+      if (logsData) {
+        setLogs(logsData.interactions ?? [])
+        if (logsData.unavailable) {
+          setWarning(logsData.message || '向日葵数据库暂时不可用。')
+        }
+      }
     } finally { setLoading(false) }
   }, [])
 
@@ -54,6 +69,12 @@ export default function SunflowerAdminPage() {
     <div>
       {dialog}
       <PageHeader title="向日葵" subtitle="互动数据管理" />
+
+      {warning && (
+        <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {warning}
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-3 gap-5 mb-6">
         {/* 当前状态大卡片 */}

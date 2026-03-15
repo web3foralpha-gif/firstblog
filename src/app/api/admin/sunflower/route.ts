@@ -1,12 +1,55 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAdmin } from '@/lib/middleware'
 
-// 重置向日葵（仅管理员，用于测试）
-export async function POST(req: NextRequest) {
+async function ensureAdmin() {
   const { error } = await requireAdmin()
+  return error
+}
+
+function unavailableResponse(status = 200) {
+  return NextResponse.json(
+    {
+      interactions: [],
+      unavailable: true,
+      message: '向日葵数据库暂时不可用。',
+    },
+    { status }
+  )
+}
+
+export async function GET() {
+  const error = await ensureAdmin()
   if (error) return error
 
+  try {
+    const interactions = await prisma.sunflowerInteraction.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      select: {
+        ipHash: true,
+        action: true,
+        createdAt: true,
+      },
+    })
+
+    return NextResponse.json({
+      interactions: interactions.map((item) => ({
+        id: item.ipHash,
+        ipHash: item.ipHash,
+        action: item.action,
+        createdAt: item.createdAt,
+      })),
+      unavailable: false,
+      message: '',
+    })
+  } catch (error) {
+    console.error('Admin sunflower GET error:', error)
+    return unavailableResponse()
+  }
+}
+
+async function resetSunflower() {
   await prisma.$transaction([
     prisma.sunflowerInteraction.deleteMany(),
     prisma.sunflowerState.upsert({
@@ -15,6 +58,31 @@ export async function POST(req: NextRequest) {
       create: { id: 'singleton', totalCount: 0 },
     }),
   ])
+}
 
-  return NextResponse.json({ success: true, message: '向日葵已重置为种子阶段' })
+// 重置向日葵（仅管理员，用于测试）
+export async function POST() {
+  const error = await ensureAdmin()
+  if (error) return error
+
+  try {
+    await resetSunflower()
+    return NextResponse.json({ success: true, message: '向日葵已重置为种子阶段' })
+  } catch (error) {
+    console.error('Admin sunflower POST error:', error)
+    return NextResponse.json({ success: false, error: '向日葵数据库暂时不可用。' }, { status: 503 })
+  }
+}
+
+export async function DELETE() {
+  const error = await ensureAdmin()
+  if (error) return error
+
+  try {
+    await resetSunflower()
+    return NextResponse.json({ success: true, message: '向日葵已重置为种子阶段' })
+  } catch (error) {
+    console.error('Admin sunflower DELETE error:', error)
+    return NextResponse.json({ success: false, error: '向日葵数据库暂时不可用。' }, { status: 503 })
+  }
 }
