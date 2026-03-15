@@ -3,15 +3,18 @@ import { prisma } from '@/lib/prisma'
 import { requireAdmin } from '@/lib/middleware'
 import { revalidatePath } from 'next/cache'
 
-async function handleUpdate(req: NextRequest, { params }: { params: { id: string } }) {
+type RouteContext = { params: Promise<{ id: string }> }
+
+async function handleUpdate(req: NextRequest, { params }: RouteContext) {
   const { error } = await requireAdmin()
   if (error) return error
 
+  const { id } = await params
   const body = await req.json()
   const data: any = {}
 
   if (body.action === 'delete') {
-    await prisma.guestbook.delete({ where: { id: params.id } })
+    await prisma.guestbook.delete({ where: { id } })
     revalidatePath('/guestbook')
     return NextResponse.json({ success: true })
   }
@@ -52,23 +55,24 @@ async function handleUpdate(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: '没有可更新的字段' }, { status: 400 })
   }
 
-  const message = await prisma.guestbook.update({ where: { id: params.id }, data })
+  const message = await prisma.guestbook.update({ where: { id }, data })
   revalidatePath('/guestbook')
   return NextResponse.json(message)
 }
 
-export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, ctx: RouteContext) {
   return handleUpdate(req, ctx)
 }
 
-export async function PUT(req: NextRequest, ctx: { params: { id: string } }) {
+export async function PUT(req: NextRequest, ctx: RouteContext) {
   return handleUpdate(req, ctx)
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, { params }: RouteContext) {
   const { error } = await requireAdmin()
   if (error) return error
-  await prisma.guestbook.delete({ where: { id: params.id } })
+  const { id } = await params
+  await prisma.guestbook.delete({ where: { id } })
   revalidatePath('/guestbook')
   return NextResponse.json({ success: true })
 }

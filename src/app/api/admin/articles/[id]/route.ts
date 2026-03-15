@@ -6,11 +6,14 @@ import bcrypt from 'bcryptjs'
 import { revalidatePath } from 'next/cache'
 import { hasMeaningfulArticleContent } from '@/lib/article-content'
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+type RouteContext = { params: Promise<{ id: string }> }
+
+export async function PUT(req: NextRequest, { params }: RouteContext) {
   const { error } = await requireAdmin()
   if (error) return error
 
   try {
+    const { id } = await params
     const { title, content, mood, coverImage, accessType, password, passwordHint, price, published, pinned } = await req.json()
 
     if (!title?.trim() || !hasMeaningfulArticleContent(content || '')) {
@@ -50,7 +53,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
 
     const article = await prisma.article.update({
-      where: { id: params.id },
+      where: { id },
       data,
     })
 
@@ -63,17 +66,18 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: RouteContext) {
   const { error } = await requireAdmin()
   if (error) return error
 
+  const { id } = await params
   const body = await req.json()
   if (typeof body?.pinned !== 'boolean') {
     return NextResponse.json({ error: '缺少置顶状态' }, { status: 400 })
   }
 
   const article = await prisma.article.update({
-    where: { id: params.id },
+    where: { id },
     data: {
       pinned: body.pinned,
       pinnedAt: body.pinned ? new Date() : null,
@@ -85,12 +89,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   return NextResponse.json(article)
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, { params }: RouteContext) {
   const { error } = await requireAdmin()
   if (error) return error
 
-  const article = await prisma.article.findUnique({ where: { id: params.id }, select: { slug: true } })
-  await prisma.article.delete({ where: { id: params.id } })
+  const { id } = await params
+  const article = await prisma.article.findUnique({ where: { id }, select: { slug: true } })
+  await prisma.article.delete({ where: { id } })
   revalidatePath('/')
   if (article?.slug) {
     revalidatePath(`/article/${article.slug}`)

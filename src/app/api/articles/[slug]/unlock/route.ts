@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 
-export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
   const { password } = await req.json()
   if (!password) return NextResponse.json({ error: '请输入密码' }, { status: 400 })
 
   const article = await prisma.article.findUnique({
-    where: { slug: params.slug, published: true, accessType: 'PASSWORD' },
+    where: { slug, published: true, accessType: 'PASSWORD' },
     select: { content: true, passwordHash: true },
   })
 

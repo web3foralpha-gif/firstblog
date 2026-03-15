@@ -8,15 +8,16 @@ export const dynamic = 'force-dynamic'
 export default async function PaymentSuccessPage({
   searchParams,
 }: {
-  searchParams: { session_id?: string }
+  searchParams: Promise<{ session_id?: string }>
 }) {
+  const resolvedSearchParams = await searchParams
   let tokenUrl: string | null = null
   let articleTitle = ''
   let articleSlug = ''
 
-  if (searchParams.session_id) {
+  if (resolvedSearchParams.session_id) {
     try {
-      const session = await stripe.checkout.sessions.retrieve(searchParams.session_id)
+      const session = await stripe.checkout.sessions.retrieve(resolvedSearchParams.session_id)
       const payment = await prisma.payment.findUnique({
         where: { stripeSessionId: session.id },
         include: { article: { select: { title: true, slug: true } } },

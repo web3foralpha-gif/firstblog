@@ -5,9 +5,10 @@ import ArticleForm from '@/components/admin/ArticleForm'
 export const metadata = { title: '编辑文章' }
 export const dynamic = 'force-dynamic'
 
-export default async function EditArticlePage({ params }: { params: { id: string } }) {
+export default async function EditArticlePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const article = await prisma.article.findUnique({
-    where: { id: params.id },
+    where: { id },
   })
   if (!article) notFound()
 

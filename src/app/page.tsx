@@ -30,8 +30,9 @@ async function getHomeData(page: number) {
   }
 }
 
-export default async function HomePage({ searchParams }: { searchParams: { page?: string } }) {
-  const page = Math.max(1, Number(searchParams.page) || 1)
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
+  const resolvedSearchParams = await searchParams
+  const page = Math.max(1, Number(resolvedSearchParams.page) || 1)
   const { articles, total } = await getHomeData(page)
 
   const totalPages = Math.ceil(total / PAGE_SIZE)

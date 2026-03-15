@@ -9,19 +9,24 @@ import type { Metadata } from 'next'
 
 export const dynamic = 'force-dynamic'
 
-type Props = { params: { slug: string }; searchParams: { token?: string } }
+type Props = {
+  params: Promise<{ slug: string }>
+  searchParams: Promise<{ token?: string }>
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params
   const article = await prisma.article.findUnique({
-    where: { slug: params.slug },
+    where: { slug },
     select: { title: true },
   }).catch(() => null)
   return { title: article?.title || '文章' }
 }
 
 export default async function ArticlePage({ params, searchParams }: Props) {
+  const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams])
   const article = await prisma.article.findUnique({
-    where: { slug: params.slug, published: true },
+    where: { slug, published: true },
     include: {
       comments: {
         where: { status: 'APPROVED' },
@@ -35,11 +40,11 @@ export default async function ArticlePage({ params, searchParams }: Props) {
 
   // 验证 token（打赏文章）
   let tokenValid = false
-  if (article.accessType === 'PAID' && searchParams.token) {
+  if (article.accessType === 'PAID' && resolvedSearchParams.token) {
     const payment = await prisma.payment.findFirst({
       where: {
         articleId: article.id,
-        accessToken: searchParams.token,
+        accessToken: resolvedSearchParams.token,
         status: 'COMPLETED',
         OR: [{ tokenExpiresAt: null }, { tokenExpiresAt: { gt: new Date() } }],
       },
@@ -76,7 +81,7 @@ export default async function ArticlePage({ params, searchParams }: Props) {
 
         {/* 文章内容（含访问控制逻辑） */}
         <ArticleContent
-          slug={params.slug}
+          slug={slug}
           content={article.content}
           accessType={article.accessType as 'PUBLIC' | 'PASSWORD' | 'PAID'}
           price={article.price}
