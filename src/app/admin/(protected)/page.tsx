@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
 import { Card, Badge } from '@/components/admin/ui'
 
+export const dynamic = 'force-dynamic'
+
 export default async function AdminDashboard() {
   const [
     sunflowerState, articleCount, pendingComments,

@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { formatGeo } from '@/lib/geo'
 
 export const metadata = { title: '访问统计' }
+export const dynamic = 'force-dynamic'
 
 function formatDuration(seconds: number | null) {
   if (!seconds) return '—'

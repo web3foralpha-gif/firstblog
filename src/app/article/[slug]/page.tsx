@@ -7,7 +7,7 @@ import CommentSection from '@/components/blog/CommentSection'
 import ArticleContent from '@/components/blog/ArticleContent'
 import type { Metadata } from 'next'
 
-export const revalidate = 60
+export const dynamic = 'force-dynamic'
 
 type Props = { params: { slug: string }; searchParams: { token?: string } }
 
@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const article = await prisma.article.findUnique({
     where: { slug: params.slug },
     select: { title: true },
-  })
+  }).catch(() => null)
   return { title: article?.title || '文章' }
 }
 
@@ -29,7 +29,7 @@ export default async function ArticlePage({ params, searchParams }: Props) {
         select: { id: true, nickname: true, email: true, content: true, createdAt: true },
       },
     },
-  })
+  }).catch(() => null)
 
   if (!article) notFound()
 
@@ -43,7 +43,7 @@ export default async function ArticlePage({ params, searchParams }: Props) {
         status: 'COMPLETED',
         OR: [{ tokenExpiresAt: null }, { tokenExpiresAt: { gt: new Date() } }],
       },
-    })
+    }).catch(() => null)
     tokenValid = !!payment
   }
 

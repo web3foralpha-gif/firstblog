@@ -6,7 +6,7 @@ import { formatDate } from '@/lib/utils'
 import { getPublicGuestbookEmail } from '@/lib/guestbook'
 import type { Metadata } from 'next'
 
-export const revalidate = 60
+export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = { title: '留言板' }
 
@@ -25,7 +25,7 @@ export default async function GuestbookPage() {
       email: true,
       emailVisible: true,
     },
-  })
+  }).catch(() => [])
 
   return (
     <div className="min-h-screen bg-[#faf8f5]">

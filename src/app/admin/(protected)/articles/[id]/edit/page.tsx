@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import ArticleForm from '@/components/admin/ArticleForm'
 
 export const metadata = { title: '编辑文章' }
+export const dynamic = 'force-dynamic'
 
 export default async function EditArticlePage({ params }: { params: { id: string } }) {
   const article = await prisma.article.findUnique({

@@ -3,6 +3,8 @@ import { stripe } from '@/lib/stripe'
 import Link from 'next/link'
 import Header from '@/components/blog/Header'
 
+export const dynamic = 'force-dynamic'
+
 export default async function PaymentSuccessPage({
   searchParams,
 }: {

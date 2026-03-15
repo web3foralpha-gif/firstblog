@@ -5,8 +5,12 @@ const globalForPrisma = globalThis as unknown as {
 }
 
 function createPrismaClient() {
+  const hasDatabaseUrl = Boolean(process.env.DATABASE_URL?.trim())
+
   return new PrismaClient({
-    log: process.env.NODE_ENV === 'development'
+    log: !hasDatabaseUrl
+      ? []
+      : process.env.NODE_ENV === 'development'
       ? ['error', 'warn']
       : ['error'],
   })

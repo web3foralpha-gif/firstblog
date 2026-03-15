@@ -7,22 +7,32 @@ import SunflowerWidget from '@/components/blog/SunflowerWidget'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: '首页' }
+export const dynamic = 'force-dynamic'
 
 const PAGE_SIZE = 10
 
+async function getHomeData(page: number) {
+  try {
+    const [articles, total] = await Promise.all([
+      prisma.article.findMany({
+        where: { published: true },
+        orderBy: [{ pinned: 'desc' }, { pinnedAt: 'desc' }, { createdAt: 'desc' }],
+        skip: (page - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
+        select: { id: true, slug: true, title: true, excerpt: true, content: true, mood: true, pinned: true, accessType: true, price: true, createdAt: true },
+      }),
+      prisma.article.count({ where: { published: true } }),
+    ])
+
+    return { articles, total }
+  } catch {
+    return { articles: [], total: 0 }
+  }
+}
+
 export default async function HomePage({ searchParams }: { searchParams: { page?: string } }) {
   const page = Math.max(1, Number(searchParams.page) || 1)
-
-  const [articles, total] = await Promise.all([
-    prisma.article.findMany({
-      where: { published: true },
-      orderBy: [{ pinned: 'desc' }, { pinnedAt: 'desc' }, { createdAt: 'desc' }],
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      select: { id: true, slug: true, title: true, excerpt: true, content: true, mood: true, pinned: true, accessType: true, price: true, createdAt: true },
-    }),
-    prisma.article.count({ where: { published: true } }),
-  ])
+  const { articles, total } = await getHomeData(page)
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
 

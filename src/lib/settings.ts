@@ -1,6 +1,8 @@
 import { prisma } from './prisma'
 import { encrypt, decrypt } from './encrypt'
 
+let hasLoggedSettingsFallback = false
+
 // ── 所有设置的类型定义与默认值 ──────────────────────────────────────
 export const SETTING_DEFS: Record<string, {
   type: 'string' | 'number' | 'boolean' | 'encrypted'
@@ -43,19 +45,44 @@ export const SETTING_DEFS: Record<string, {
   'mascot.chatPlaceholder': { type: 'string',    default: '问问皮卡丘…',              public: true,  label: '输入框占位文字' },
 }
 
-// ── 获取所有设置（解密，后台用）────────────────────────────────────
-export async function getAllSettings(): Promise<Record<string, string>> {
-  const rows = await prisma.setting.findMany()
+function buildDefaultSettings(): Record<string, string> {
   const map: Record<string, string> = {}
 
   for (const [key, def] of Object.entries(SETTING_DEFS)) {
     map[key] = def.default
   }
-  for (const row of rows) {
-    const def = SETTING_DEFS[row.key]
-    if (!def) continue
-    map[row.key] = def.type === 'encrypted' ? decrypt(row.value) : row.value
+
+  return map
+}
+
+// ── 获取所有设置（解密，后台用）────────────────────────────────────
+export async function getAllSettings(): Promise<Record<string, string>> {
+  const map = buildDefaultSettings()
+  const hasDatabaseUrl = Boolean(process.env.DATABASE_URL?.trim())
+
+  if (!hasDatabaseUrl) {
+    if (!hasLoggedSettingsFallback) {
+      hasLoggedSettingsFallback = true
+      console.warn('[settings] DATABASE_URL is missing, using default settings.')
+    }
+    return map
   }
+
+  try {
+    const rows = await prisma.setting.findMany()
+
+    for (const row of rows) {
+      const def = SETTING_DEFS[row.key]
+      if (!def) continue
+      map[row.key] = def.type === 'encrypted' ? decrypt(row.value) : row.value
+    }
+  } catch (error) {
+    if (!hasLoggedSettingsFallback) {
+      hasLoggedSettingsFallback = true
+      console.warn('[settings] Database unavailable, using default settings.')
+    }
+  }
+
   return map
 }
 

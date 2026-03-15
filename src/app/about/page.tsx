@@ -4,7 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeSanitize from 'rehype-sanitize'
 
-export const revalidate = 3600
+export const dynamic = 'force-dynamic'
 
 const DEFAULT_ABOUT = `## 你好，我是博主 👋
 
@@ -17,7 +17,7 @@ const DEFAULT_ABOUT = `## 你好，我是博主 👋
 欢迎常来坐坐。`
 
 export default async function AboutPage() {
-  const setting = await prisma.siteSetting.findUnique({ where: { key: 'about_content' } })
+  const setting = await prisma.siteSetting.findUnique({ where: { key: 'about_content' } }).catch(() => null)
   const content = setting?.value || DEFAULT_ABOUT
 
   return (
