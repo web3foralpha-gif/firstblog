@@ -5,7 +5,7 @@ import { getAllPosts } from '@/lib/posts'
 
 export const metadata: Metadata = {
   title: '博客',
-  description: 'Markdown 驱动的静态博客列表页。',
+  description: '写下生活、心情与一些正在发生的小事。',
 }
 
 export const revalidate = 3600
@@ -17,7 +17,7 @@ export default async function BlogPage() {
     <BlogIndexPage
       posts={posts}
       title="博客文章"
-      description="内容来自 content/posts，使用 SSG + ISR 持续更新。"
+      description="写下生活、心情与一些正在发生的小事。"
     />
   )
 }

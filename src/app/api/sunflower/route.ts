@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getStageInfo, hashIP, getClientIP } from '@/lib/sunflower'
 
-function fallbackState(message = '向日葵花园暂时离线，正在恢复中。') {
+function fallbackState(message = '向日葵今天在休息，晚一点再来看看它吧。') {
   return {
     success: false,
     unavailable: true,
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     }
     console.error('Sunflower error:', err)
     return NextResponse.json(
-      fallbackState('向日葵花园暂时无法保存互动，稍后再试。'),
+      fallbackState('向日葵今天先休息一下，稍后再来看看它吧。'),
       { status: 200 }
     )
   }

@@ -33,7 +33,7 @@ const STAGE_DESCRIPTIONS = [
   '盛开啦！感谢所有人的照顾 🌻',
 ]
 
-function buildFallbackState(message = '向日葵花园暂时离线，正在恢复中。'): SunflowerState {
+function buildFallbackState(message = '向日葵今天在休息，晚一点再来看看它吧。'): SunflowerState {
   return {
     stage: 0,
     name: '种子',
@@ -84,7 +84,7 @@ export default function SunflowerWidget() {
 
       if (data) {
         setState(data)
-        setServiceMessage(data.unavailable ? (data.message || '向日葵花园暂时离线，正在恢复中。') : null)
+        setServiceMessage(data.unavailable ? (data.message || '向日葵今天在休息，晚一点再来看看它吧。') : null)
       } else {
         const fallback = buildFallbackState()
         setState(fallback)
@@ -125,8 +125,8 @@ export default function SunflowerWidget() {
 
       if (data.unavailable) {
         setState(data)
-        setServiceMessage(data.message || '向日葵花园暂时无法保存互动，稍后再试。')
-        setFeedback(data.message || '向日葵花园暂时无法保存互动，稍后再试。')
+        setServiceMessage(data.message || '向日葵今天先休息一下，稍后再来看看它吧。')
+        setFeedback(data.message || '向日葵今天先休息一下，稍后再来看看它吧。')
       } else if (data.alreadyDone) {
         setAlreadyDone(true)
         setFeedback(doneText)
@@ -194,7 +194,7 @@ export default function SunflowerWidget() {
             <span className="font-serif font-medium text-[#221e1a] text-base">{currentState.name}阶段</span>
           </div>
           <p className="text-xs text-[#a89880]">{STAGE_DESCRIPTIONS[currentState.stage]}</p>
-          {serviceMessage && (
+          {serviceMessage && !currentState.unavailable && (
             <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-[11px] text-[#9a6a13]">
               {serviceMessage}
             </p>
@@ -236,8 +236,8 @@ export default function SunflowerWidget() {
         {/* 互动按钮 */}
         {currentState.unavailable ? (
           <div className="text-center py-3 px-4 bg-[#faf8f5] rounded-xl border border-[#f0ebe3]">
-            <p className="text-sm text-[#8c7d68]">花园暂时离线，向日葵先陪着你</p>
-            <p className="text-xs text-[#c4b8a7] mt-0.5">数据库恢复后，互动进度会重新开始记录。</p>
+            <p className="text-sm text-[#8c7d68]">向日葵今天在安静晒太阳</p>
+            <p className="text-xs text-[#c4b8a7] mt-0.5">互动功能正在整理中，晚一点再来看看它吧。</p>
           </div>
         ) : alreadyDone ? (
           <div className="text-center py-3 px-4 bg-[#faf8f5] rounded-xl border border-[#f0ebe3]">

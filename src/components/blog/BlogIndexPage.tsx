@@ -13,7 +13,7 @@ type BlogIndexPageProps = {
 export default function BlogIndexPage({
   posts,
   title = '近期文章',
-  description = 'Markdown 驱动 · 静态生成 · 生产环境友好',
+  description = '写下生活里的小事，也留下此刻的心情。',
 }: BlogIndexPageProps) {
   return (
     <div className="min-h-screen bg-[#faf8f5]">
@@ -31,7 +31,7 @@ export default function BlogIndexPage({
             {posts.length === 0 ? (
               <div className="text-center py-20 text-[#a89880]">
                 <p className="text-4xl mb-4">📝</p>
-                <p>还没有 Markdown 文章，去 `content/posts` 放入第一篇吧。</p>
+                <p>还没有公开文章，过几天再来看看吧。</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -55,11 +55,11 @@ export default function BlogIndexPage({
           <aside className="w-full lg:w-64 lg:flex-shrink-0 lg:sticky lg:top-20 space-y-4">
             <SunflowerWidget />
             <div className="rounded-2xl border border-[#f0ebe3] bg-white p-4">
-              <p className="text-xs text-[#c4b8a7] mb-3 font-medium uppercase tracking-wide">博客架构</p>
+              <p className="text-xs text-[#c4b8a7] mb-3 font-medium uppercase tracking-wide">小站角落</p>
               <div className="space-y-2 text-sm text-[#5a4f42]">
-                <p>内容来源：`content/posts`</p>
-                <p>渲染方式：SSG + ISR</p>
-                <p>SEO：RSS / Sitemap / Robots</p>
+                <p>适合慢慢读几篇文章，发一会儿呆。</p>
+                <p>右边的向日葵会记得每一次温柔照顾。</p>
+                <p>如果想留下点什么，留言板一直开着。</p>
               </div>
             </div>
             <div className="rounded-2xl border border-[#f0ebe3] bg-white p-4">
