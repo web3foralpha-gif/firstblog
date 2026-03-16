@@ -1,10 +1,12 @@
-import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
+import { redirect } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 import Header from '@/components/blog/Header'
 import PikachuWidget from '@/components/blog/PikachuWidget'
 import CommentSection from '@/components/blog/CommentSection'
 import ArticleContent from '@/components/blog/ArticleContent'
+import { getPostBySlug } from '@/lib/posts'
+import { getLegacyArticleBySlug, getLegacyArticleTitleBySlug, hasLegacyArticleTokenAccess } from '@/lib/services/legacy-article-service'
 import type { Metadata } from 'next'
 
 export const dynamic = 'force-dynamic'
@@ -16,40 +18,37 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const article = await prisma.article.findUnique({
-    where: { slug },
-    select: { title: true },
-  }).catch(() => null)
-  return { title: article?.title || '文章' }
+  const markdownPost = await getPostBySlug(slug)
+
+  if (markdownPost) {
+    return {
+      title: markdownPost.title,
+      description: markdownPost.description,
+      alternates: {
+        canonical: `/blog/${slug}`,
+      },
+    }
+  }
+
+  const article = await getLegacyArticleTitleBySlug(slug)
+  return { title: article?.title || '文章', description: article?.excerpt || '历史文章内容' }
 }
 
 export default async function ArticlePage({ params, searchParams }: Props) {
   const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams])
-  const article = await prisma.article.findUnique({
-    where: { slug, published: true },
-    include: {
-      comments: {
-        where: { status: 'APPROVED' },
-        orderBy: { createdAt: 'asc' },
-        select: { id: true, nickname: true, email: true, content: true, createdAt: true },
-      },
-    },
-  }).catch(() => null)
+  const markdownPost = await getPostBySlug(slug)
+
+  if (markdownPost) {
+    redirect(`/blog/${slug}`)
+  }
+
+  const article = await getLegacyArticleBySlug(slug)
 
   if (!article) notFound()
 
-  // 验证 token（打赏文章）
   let tokenValid = false
   if (article.accessType === 'PAID' && resolvedSearchParams.token) {
-    const payment = await prisma.payment.findFirst({
-      where: {
-        articleId: article.id,
-        accessToken: resolvedSearchParams.token,
-        status: 'COMPLETED',
-        OR: [{ tokenExpiresAt: null }, { tokenExpiresAt: { gt: new Date() } }],
-      },
-    }).catch(() => null)
-    tokenValid = !!payment
+    tokenValid = await hasLegacyArticleTokenAccess(article.id, resolvedSearchParams.token)
   }
 
   const comments = article.comments.map(c => ({
@@ -62,7 +61,6 @@ export default async function ArticlePage({ params, searchParams }: Props) {
     <div className="min-h-screen bg-[#faf8f5]">
       <Header />
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
-        {/* 文章头部 */}
         <header className="mb-10">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-2xl">{article.mood}</span>
@@ -79,7 +77,6 @@ export default async function ArticlePage({ params, searchParams }: Props) {
           <time className="text-sm text-[#a89880]">{formatDate(article.createdAt)}</time>
         </header>
 
-        {/* 文章内容（含访问控制逻辑） */}
         <ArticleContent
           slug={slug}
           content={article.content}
@@ -90,7 +87,6 @@ export default async function ArticlePage({ params, searchParams }: Props) {
           passwordHint={article.passwordHint}
         />
 
-        {/* 评论区（所有已解锁文章均可评论） */}
         <CommentSection articleId={article.id} comments={comments} />
       </main>
 

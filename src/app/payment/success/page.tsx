@@ -1,7 +1,7 @@
-import { prisma } from '@/lib/prisma'
-import { stripe } from '@/lib/stripe'
 import Link from 'next/link'
 import Header from '@/components/blog/Header'
+import { getSiteUrl } from '@/lib/site'
+import { getPaymentUnlockInfo } from '@/lib/services/payment-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,23 +11,16 @@ export default async function PaymentSuccessPage({
   searchParams: Promise<{ session_id?: string }>
 }) {
   const resolvedSearchParams = await searchParams
+  const siteUrl = getSiteUrl()
   let tokenUrl: string | null = null
   let articleTitle = ''
-  let articleSlug = ''
 
   if (resolvedSearchParams.session_id) {
-    try {
-      const session = await stripe.checkout.sessions.retrieve(resolvedSearchParams.session_id)
-      const payment = await prisma.payment.findUnique({
-        where: { stripeSessionId: session.id },
-        include: { article: { select: { title: true, slug: true } } },
-      })
-      if (payment?.accessToken) {
-        tokenUrl = `/article/${payment.article.slug}?token=${payment.accessToken}`
-        articleTitle = payment.article.title
-        articleSlug = payment.article.slug
-      }
-    } catch {}
+    const unlockInfo = await getPaymentUnlockInfo(resolvedSearchParams.session_id)
+    if (unlockInfo) {
+      tokenUrl = unlockInfo.tokenUrl
+      articleTitle = unlockInfo.articleTitle
+    }
   }
 
   return (
@@ -50,7 +43,7 @@ export default async function PaymentSuccessPage({
             <div className="mt-6 p-4 bg-[#fdf6ee] border border-[#fae8d0] rounded-lg text-left">
               <p className="text-xs text-[#8c7d68] mb-1">你的专属访问链接（请收藏）：</p>
               <p className="text-xs text-[#d4711a] break-all font-mono">
-                {process.env.NEXT_PUBLIC_SITE_URL}{tokenUrl}
+                {siteUrl}{tokenUrl}
               </p>
             </div>
           </>
@@ -60,7 +53,7 @@ export default async function PaymentSuccessPage({
           </p>
         )}
         <div className="mt-8">
-          <Link href="/" className="text-sm text-[#a89880] hover:text-[#d4711a]">← 返回首页</Link>
+          <Link href="/blog" className="text-sm text-[#a89880] hover:text-[#d4711a]">← 返回文章列表</Link>
         </div>
       </main>
     </div>

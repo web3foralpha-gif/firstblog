@@ -7,23 +7,17 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
-    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
-    "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
-    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "lint": "next lint",
-    "db:generate": "node scripts/run-prisma-generate.js",
+    "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed.ts",
     "setup": "node scripts/setup-env.js",
     "db:push": "prisma db push",
-    "db:import:sqlite": "node scripts/import-sqlite-to-postgres.js",
-    "postinstall": "node scripts/run-prisma-generate.js",
-    "prepare": "node scripts/run-prisma-generate.js"
+    "db:import:sqlite": "node scripts/import-sqlite-to-postgres.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.525.0",
@@ -32,6 +26,8 @@
     "@prisma/client": "^5.10.0",
     "@stripe/stripe-js": "^3.0.0",
     "bcryptjs": "^2.4.3",
+    "gray-matter": "^4.0.3",
+    "highlight.js": "^11.11.1",
     "marked": "^17.0.4",
     "next": "^15.5.12",
     "next-auth": "^4.24.6",
@@ -40,13 +36,13 @@
     "react": "^18",
     "react-dom": "^18",
     "react-markdown": "^9.0.1",
+    "rehype-highlight": "^7.0.2",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.0",
     "stripe": "^14.17.0",
     "three": "^0.160.0"
   },
   "devDependencies": {
-    "@opennextjs/cloudflare": "^1.17.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/nodemailer": "^6.4.14",
@@ -57,7 +53,6 @@
     "postcss": "^8",
     "prisma": "^5.10.0",
     "tailwindcss": "^3.3.0",
-    "typescript": "^5",
-    "wrangler": "^4.73.0"
+    "typescript": "^5"
   }
 }

@@ -9,12 +9,12 @@ export default function HeaderClient({ siteName }: { siteName: string }) {
   return (
     <header className="border-b border-[#ddd5c8] bg-[#faf8f5]/90 backdrop-blur sticky top-0 z-30">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-        <Link href="/" className="font-serif text-lg sm:text-xl font-medium text-[#221e1a] tracking-wide hover:text-[#d4711a] transition-colors">
+        <Link href="/blog" className="font-serif text-lg sm:text-xl font-medium text-[#221e1a] tracking-wide hover:text-[#d4711a] transition-colors">
           {siteName}
         </Link>
 
         <nav className="hidden sm:flex items-center gap-5 text-sm text-[#5a4f42]">
-          <Link href="/" className="hover:text-[#d4711a] transition-colors">文章</Link>
+          <Link href="/blog" className="hover:text-[#d4711a] transition-colors">文章</Link>
           <Link href="/about" className="hover:text-[#d4711a] transition-colors">关于</Link>
           <Link href="/guestbook" className="hover:text-[#d4711a] transition-colors">留言板</Link>
         </nav>
@@ -38,7 +38,7 @@ export default function HeaderClient({ siteName }: { siteName: string }) {
 
       {menuOpen && (
         <div className="sm:hidden border-t border-[#ddd5c8] bg-[#faf8f5] px-4 py-3 space-y-1">
-          {[['/', '文章'], ['/about', '关于'], ['/guestbook', '留言板']].map(([href, label]) => (
+          {[['/blog', '文章'], ['/about', '关于'], ['/guestbook', '留言板']].map(([href, label]) => (
             <Link
               key={href}
               href={href}

@@ -6,6 +6,7 @@ type ArticleCardProps = {
   title: string
   excerpt: string | null
   mood: string
+  href?: string
   pinned?: boolean
   accessType: 'PUBLIC' | 'PASSWORD' | 'PAID'
   price: number | null
@@ -18,9 +19,9 @@ const accessBadge = {
   PAID: <span className="badge badge-paid">💰 打赏</span>,
 }
 
-export default function ArticleCard({ slug, title, excerpt, mood, pinned = false, accessType, price, createdAt }: ArticleCardProps) {
+export default function ArticleCard({ slug, title, excerpt, mood, href, pinned = false, accessType, price, createdAt }: ArticleCardProps) {
   return (
-    <Link href={`/article/${slug}`} className="block group">
+    <Link href={href || `/article/${slug}`} className="block group">
       <article className="card px-4 sm:px-6 py-4 sm:py-5 active:scale-[0.99] transition-transform">
         <div className="flex items-start justify-between gap-3 sm:gap-4">
           <div className="flex-1 min-w-0">

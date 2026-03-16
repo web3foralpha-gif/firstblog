@@ -1,6 +1,6 @@
-# 个人博客 · 完整搭建指南
+# 个人博客 · 生产化版本
 
-技术栈：**Next.js 14 + Prisma + PostgreSQL + Tailwind CSS + Stripe + NextAuth.js**
+技术栈：**Next.js 15 + Prisma + PostgreSQL + Markdown Content + Tailwind CSS + Stripe + NextAuth.js**
 
 推荐运行环境：**Node 20 LTS**
 
@@ -67,13 +67,35 @@ npm run db:seed        # 写入示例文章（可选）
 npm run db:migrate
 ```
 
-### 5. 启动开发服务器
+### 5. 编写博客文章
+
+前台博客文章现在统一存放在：
+
+```bash
+content/posts/*.md
+```
+
+支持 Frontmatter：
+
+```md
+---
+title: 我的新文章
+description: SEO 描述
+publishedAt: 2026-03-16
+tags:
+  - nextjs
+  - markdown
+mood: 🌻
+---
+```
+
+### 6. 启动开发服务器
 
 ```bash
 npm run dev
 ```
 
-访问 `http://localhost:3000` 查看博客  
+访问 `http://localhost:3000/blog` 查看博客  
 访问 `http://localhost:3000/admin` 进入后台（用 .env 中的邮箱和密码登录）
 
 ---
@@ -173,6 +195,7 @@ git push -u origin main
 2. New Project → 选择你的仓库 → Import
 3. 在 Environment Variables 中填入所有 `.env` 变量
 4. 将 `DATABASE_URL` 填为 PostgreSQL 连接字符串（见下方）
+5. 构建命令保持默认即可，项目已内置 `prisma generate && next build`
 
 ### 3. 连接 PostgreSQL
 
@@ -221,12 +244,20 @@ DATABASE_URL="你的PostgreSQL连接字符串" npm run db:import:sqlite
 ## 五、项目结构
 
 ```
+content/
+├── posts/                           # Markdown 博客文章
 src/
 ├── app/
-│   ├── page.tsx                    # 首页（文章列表）
+│   ├── page.tsx                    # 根路由，跳转到 /blog
+│   ├── blog/
+│   │   ├── page.tsx                # Markdown 博客列表
+│   │   └── [slug]/page.tsx         # Markdown 博客详情
 │   ├── about/page.tsx              # 关于我
-│   ├── article/[slug]/page.tsx     # 文章详情
+│   ├── article/[slug]/page.tsx     # 旧文章兼容入口
 │   ├── payment/success/page.tsx    # 支付成功
+│   ├── robots.ts                   # robots.txt
+│   ├── sitemap.ts                  # sitemap.xml
+│   ├── rss.xml/route.ts            # RSS
 │   ├── admin/
 │   │   ├── layout.tsx              # 后台布局（鉴权）
 │   │   ├── page.tsx                # 后台概览
@@ -249,6 +280,10 @@ src/
 │   └── admin/                      # 后台组件
 ├── lib/
 │   ├── prisma.ts                   # 数据库客户端
+│   ├── db.ts                       # 数据库保护层
+│   ├── posts.ts                    # Markdown 内容读取
+│   ├── site.ts                     # 站点 URL / SEO 工具
+│   ├── services/                   # 数据访问服务层
 │   ├── auth.ts                     # NextAuth 配置
 │   ├── stripe.ts                   # Stripe 客户端
 │   ├── email.ts                    # 邮件发送
@@ -261,10 +296,27 @@ src/
 
 ---
 
-## 六、常见问题
+## 六、生产化架构说明
+
+1. 公共博客内容改为 `content/posts` 中的 Markdown 文件，不再从数据库读取正文
+2. `/blog` 与 `/blog/[slug]` 使用 `generateStaticParams()` 和 `revalidate`，适合 Vercel 缓存
+3. Prisma Client 改为单例模式，降低开发和 Serverless 场景中的重复连接风险
+4. 构建脚本统一为：
+
+```bash
+prisma generate && next build
+```
+
+5. 已移除 Cloudflare / OpenNext / Wrangler 部署配置，默认面向 Vercel
+6. 已新增 `rss.xml`、`sitemap.xml`、`robots.txt`
+7. 数据库查询被收敛到 `src/lib/services` 和 API 层，前台博客页不再直接访问 Prisma
+
+---
+
+## 七、常见问题
 
 **Q：修改文章后前台没有更新？**  
-A：文章页使用了 ISR 缓存（60秒），编辑文章时会自动触发重新生成。如需立即更新，在 Vercel 控制台重新部署即可。
+A：Markdown 博客页使用了 ISR（1小时）和边缘缓存，提交到 Git 后重新部署即可生效。
 
 **Q：Stripe 支付成功但文章没解锁？**  
 A：检查 `STRIPE_WEBHOOK_SECRET` 是否正确，确认 Webhook 端点已配置且能接收到事件。

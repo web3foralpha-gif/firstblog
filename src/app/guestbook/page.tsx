@@ -1,31 +1,17 @@
-import { prisma } from '@/lib/prisma'
 import Header from '@/components/blog/Header'
 import PikachuWidget from '@/components/blog/PikachuWidget'
 import InlineGuestbookForm from '@/components/blog/InlineGuestbookForm'
 import { formatDate } from '@/lib/utils'
 import { getPublicGuestbookEmail } from '@/lib/guestbook'
+import { getApprovedGuestbookMessages } from '@/lib/services/guestbook-service'
 import type { Metadata } from 'next'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 300
 
 export const metadata: Metadata = { title: '留言板' }
 
 export default async function GuestbookPage() {
-  const messages = await prisma.guestbook.findMany({
-    where: { status: 'APPROVED' },
-    orderBy: [{ pinned: 'desc' }, { pinnedAt: 'desc' }, { createdAt: 'desc' }],
-    select: {
-      id: true,
-      nickname: true,
-      avatar: true,
-      content: true,
-      emoji: true,
-      pinned: true,
-      createdAt: true,
-      email: true,
-      emailVisible: true,
-    },
-  }).catch(() => [])
+  const messages = await getApprovedGuestbookMessages()
 
   return (
     <div className="min-h-screen bg-[#faf8f5]">
