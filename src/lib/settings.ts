@@ -28,6 +28,7 @@ export const SETTING_DEFS: Record<string, {
   'blog.quickLinkGuestbookLabel': { type: 'string', default: '留言板',    public: true,  label: '快速入口二名称' },
   'blog.quickLinkGuestbookHref':  { type: 'string', default: '/guestbook', public: true, label: '快速入口二链接' },
   'blog.aboutContent':   { type: 'string',  default: DEFAULT_ABOUT_CONTENT, public: false, label: '关于页内容' },
+  'about_content':       { type: 'string',  default: DEFAULT_ABOUT_CONTENT, public: true,  label: '关于我页面内容' },
   'blog.footerText':      { type: 'string',  default: '用文字记录生活', public: true, label: '页脚文字' },
   'blog.friendLinksTitle': { type: 'string', default: '友情链接', public: true, label: '友链标题' },
   'blog.friendLinks':     { type: 'string',  default: '', public: true, label: '友情链接列表' },

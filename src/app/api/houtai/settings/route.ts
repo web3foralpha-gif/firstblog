@@ -22,6 +22,7 @@ const MAX_LENGTH_BY_KEY: Record<string, number> = {
   'blog.cornerContent': 4000,
   'blog.friendLinks': 4000,
   'blog.aboutContent': 12000,
+  'about_content': 12000,
   'blog.quickLinkAboutHref': 500,
   'blog.quickLinkGuestbookHref': 500,
 }
@@ -39,6 +40,7 @@ const REVALIDATE_KEYS = new Set([
   'blog.quickLinkGuestbookLabel',
   'blog.quickLinkGuestbookHref',
   'blog.aboutContent',
+  'about_content',
   'blog.footerText',
   'blog.friendLinksTitle',
   'blog.friendLinks',

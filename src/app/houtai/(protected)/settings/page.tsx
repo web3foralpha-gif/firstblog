@@ -2,11 +2,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { PageHeader, Card, useToast, useConfirm } from '@/components/houtai/ui'
 
-type TabId = 'basic' | 'blog' | 'payment' | 'ui' | 'security' | 'ai'
+type TabId = 'basic' | 'blog' | 'about' | 'payment' | 'ui' | 'security' | 'ai'
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: 'basic', label: '基础设置', icon: '🌐' },
   { id: 'blog', label: '博客首页', icon: '📝' },
+  { id: 'about', label: '关于我', icon: '👤' },
   { id: 'payment', label: '支付设置', icon: '💳' },
   { id: 'ui', label: '互动文案', icon: '💬' },
   { id: 'security', label: '安全设置', icon: '🔒' },
@@ -31,6 +32,7 @@ const TAB_KEYS: Record<TabId, string[]> = {
     'blog.friendLinks',
     'blog.themeVariant',
   ],
+  about: ['about_content'],
   payment: ['pay.enabled', 'pay.currency', 'pay.stripePublicKey', 'pay.stripeSecretKey', 'pay.stripeWebhookKey'],
   ui: ['ui.pikaSaluteText', 'ui.pikaClickText', 'ui.pikaPhrases', 'ui.sfWaterText', 'ui.sfFertilizeText', 'ui.sfSunText', 'ui.sfDoneText'],
   security: ['admin.email'],
@@ -283,6 +285,24 @@ export default function SettingsPage() {
                 </FormRow>
               </div>
             </div>
+          </div>
+        )}
+
+        {tab === 'about' && (
+          <div className="space-y-5">
+            <div className="flex gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+              <span>📝</span>
+              <span>「关于我」页面支持 Markdown 格式，保存后前台页面将即时更新。</span>
+            </div>
+            <FormRow label="页面内容">
+              <textarea
+                className="field resize-none font-mono text-xs"
+                rows={16}
+                value={getVal('about_content')}
+                onChange={e => setVal('about_content', e.target.value)}
+                placeholder="介绍一下自己吧…"
+              />
+            </FormRow>
           </div>
         )}
 
