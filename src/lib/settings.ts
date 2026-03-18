@@ -20,6 +20,9 @@ export const SETTING_DEFS: Record<string, {
   'admin.email':          { type: 'string',  default: process.env.ADMIN_EMAIL || '', public: false, label: '管理员邮箱' },
   'admin.passwordHash':   { type: 'encrypted', default: process.env.ADMIN_PASSWORD_HASH || '', public: false, label: '管理员密码 Hash' },
 
+  // 关于我
+  'about_content':        { type: 'string',  default: '',                   public: true,  label: '关于我页面内容' },
+
   // 支付
   'pay.enabled':          { type: 'boolean',   default: 'false', public: false, label: '开启打赏功能' },
   'pay.currency':         { type: 'string',    default: 'cny',   public: false, label: '货币代码' },

@@ -41,7 +41,8 @@ export async function PUT(req: Request) {
   for (const [k, rawValue] of Object.entries(body as Record<string, unknown>)) {
     const def = SETTING_DEFS[k]
     if (!def) continue
-    if (typeof rawValue !== 'string' || rawValue.length > 2000) {
+    const maxLength = k === 'about_content' ? 10000 : 2000
+    if (typeof rawValue !== 'string' || rawValue.length > maxLength) {
       return NextResponse.json({ error: 'Invalid data' }, { status: 400 })
     }
 
@@ -59,7 +60,7 @@ export async function PUT(req: Request) {
   }
 
   await updateSettings(cleaned)
-  if (cleaned['site.title'] !== undefined || cleaned['site.description'] !== undefined) {
+  if (cleaned['site.title'] !== undefined || cleaned['site.description'] !== undefined || cleaned['about_content'] !== undefined) {
     revalidatePath('/', 'layout')
     revalidatePath('/')
     revalidatePath('/about')
