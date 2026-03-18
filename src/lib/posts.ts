@@ -4,6 +4,8 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import matter from 'gray-matter'
 
+import { isDatabaseConfigured, runWithDatabase, prisma } from './db'
+
 export const BLOG_REVALIDATE_SECONDS = 3600
 
 const POSTS_DIRECTORY = path.join(process.cwd(), 'content', 'posts')
@@ -32,6 +34,10 @@ export type BlogPostSummary = {
   tags: string[]
   mood: string
   readingTimeMinutes: number
+  href?: string
+  pinned?: boolean
+  accessType?: string
+  price?: number
 }
 
 export type BlogPost = BlogPostSummary & {
@@ -142,7 +148,7 @@ export async function getAllPostSlugs() {
   return filenames.map(slugFromFilename)
 }
 
-export async function getAllPosts(): Promise<BlogPostSummary[]> {
+async function getMarkdownPostRecords(): Promise<BlogPost[]> {
   const filenames = await getPostFilenames()
 
   const posts = await Promise.all(
@@ -152,16 +158,153 @@ export async function getAllPosts(): Promise<BlogPostSummary[]> {
       const fileContent = await fs.readFile(fullPath, 'utf8')
       const stats = await fs.stat(fullPath)
       const parsed = parsePost(slug, fileContent, stats.birthtime || stats.mtime)
-      const { content, ...summary } = parsed
       const frontmatter = matter(fileContent).data as PostFrontmatter
 
-      return frontmatter.draft ? null : summary
+      return frontmatter.draft ? null : parsed
     }),
   )
 
   return posts
-    .filter((post): post is BlogPostSummary => Boolean(post))
+    .filter((post): post is BlogPost => Boolean(post))
     .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+}
+
+type DatabaseArticleSummary = {
+  slug: string
+  title: string
+  content: string
+  excerpt: string | null
+  mood: string
+  coverImage: string | null
+  accessType: string
+  price: number | null
+  pinned: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+
+function mapDatabaseArticleToSummary(article: DatabaseArticleSummary): BlogPostSummary {
+  const excerpt = normalizeText(article.excerpt) || buildExcerpt(article.content)
+
+  return {
+    slug: article.slug,
+    title: article.title.trim(),
+    excerpt,
+    description: excerpt,
+    publishedAt: article.createdAt.toISOString(),
+    updatedAt: article.updatedAt.toISOString(),
+    coverImage: article.coverImage || undefined,
+    tags: [],
+    mood: normalizeText(article.mood) || '✍️',
+    readingTimeMinutes: estimateReadingTime(article.content),
+    href: `/article/${article.slug}`,
+    pinned: article.pinned,
+    accessType: article.accessType || 'PUBLIC',
+    price: article.price ?? undefined,
+  }
+}
+
+async function getPublishedDatabasePosts() {
+  const articles = await runWithDatabase(
+    async db =>
+      db.article.findMany({
+        where: { published: true },
+        orderBy: [{ pinned: 'desc' }, { pinnedAt: 'desc' }, { createdAt: 'desc' }],
+        select: {
+          slug: true,
+          title: true,
+          content: true,
+          excerpt: true,
+          mood: true,
+          coverImage: true,
+          accessType: true,
+          price: true,
+          pinned: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+    [],
+    'public_database_posts',
+  )
+
+  return articles.map(mapDatabaseArticleToSummary)
+}
+
+export async function syncMarkdownPostsToDatabase(): Promise<void> {
+  if (!isDatabaseConfigured()) return
+
+  const markdownPosts = await getMarkdownPostRecords()
+  if (markdownPosts.length === 0) return
+
+  const slugs = markdownPosts.map(post => post.slug)
+  const existingSlugs = await runWithDatabase(
+    async db => {
+      const existing = await db.article.findMany({
+        where: { slug: { in: slugs } },
+        select: { slug: true },
+      })
+
+      return existing.map(article => article.slug)
+    },
+    [] as string[],
+    'markdown_import_existing',
+  )
+
+  const existingSlugSet = new Set(existingSlugs)
+  const missingPosts = markdownPosts.filter(post => !existingSlugSet.has(post.slug))
+
+  if (missingPosts.length === 0) return
+
+  await runWithDatabase(
+    async () => {
+      await prisma.article.createMany({
+        data: missingPosts.map(post => ({
+          slug: post.slug,
+          title: post.title,
+          content: post.content ?? '',
+          excerpt: post.excerpt,
+          mood: post.mood,
+          coverImage: post.coverImage ?? null,
+          accessType: 'PUBLIC',
+          price: null,
+          pinned: Boolean(post.pinned),
+          published: true,
+          createdAt: new Date(post.publishedAt),
+        })),
+        skipDuplicates: true,
+      })
+    },
+    undefined,
+    'markdown_import_create',
+  )
+}
+
+export async function getAllPosts(): Promise<BlogPostSummary[]> {
+  await syncMarkdownPostsToDatabase()
+
+  const [databasePosts, markdownPosts] = await Promise.all([
+    getPublishedDatabasePosts(),
+    getMarkdownPostRecords(),
+  ])
+
+  const databaseSlugSet = new Set(databasePosts.map(post => post.slug))
+
+  const markdownSummaries = markdownPosts
+    .filter(post => !databaseSlugSet.has(post.slug))
+    .map(({ content, ...summary }) => ({
+      ...summary,
+      href: `/blog/${summary.slug}`,
+    }))
+
+  return [...databasePosts, ...markdownSummaries]
+    .sort((a, b) => {
+      if (Boolean(a.pinned) !== Boolean(b.pinned)) {
+        return a.pinned ? -1 : 1
+      }
+
+      return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+    })
 }
 
 export async function getPostBySlug(slug: string): Promise<BlogPost | null> {

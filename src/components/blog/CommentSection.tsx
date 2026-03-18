@@ -47,45 +47,45 @@ export default function CommentSection({ articleId, comments }: { articleId: str
   return (
     <section className="mt-12">
       <hr className="divider" />
-      <h3 className="font-serif text-xl font-medium mb-6 text-[#221e1a]">
-        评论 <span className="text-[#a89880] font-normal text-base">({comments.length})</span>
+      <h3 className="mb-6 font-serif text-xl font-medium text-[var(--text-primary)]">
+        评论 <span className="text-base font-normal text-[var(--text-subtle)]">({comments.length})</span>
       </h3>
 
       {comments.length === 0 ? (
-        <p className="text-[#a89880] text-sm mb-8">还没有评论，来说第一句话吧 ✍️</p>
+        <p className="mb-8 text-sm text-[var(--text-subtle)]">还没有评论，来说第一句话吧 ✍️</p>
       ) : (
         <div className="space-y-6 mb-10">
           {comments.map(c => (
             <div key={c.id} className="flex gap-4">
-              <div className="w-9 h-9 rounded-full bg-[#faeeda] flex items-center justify-center text-[#d4711a] font-medium text-sm flex-shrink-0">
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-sm font-medium text-[var(--accent)]">
                 {c.nickname[0].toUpperCase()}
               </div>
               <div className="flex-1">
                 <div className="flex items-baseline gap-2 mb-1">
-                  <span className="font-medium text-sm text-[#3d3530]">{c.nickname}</span>
-                  <time className="text-xs text-[#a89880]">{formatDate(c.createdAt)}</time>
+                  <span className="text-sm font-medium text-[var(--text-secondary)]">{c.nickname}</span>
+                  <time className="text-xs text-[var(--text-subtle)]">{formatDate(c.createdAt)}</time>
                 </div>
                 {c.email && (
                   <a
                     href={`mailto:${c.email}`}
-                    className="mb-1 block text-xs text-[#a89880] hover:text-[#d4711a] transition-colors break-all"
+                    className="mb-1 block break-all text-xs text-[var(--text-subtle)] transition-colors hover:text-[var(--accent)]"
                   >
                     {c.email}
                   </a>
                 )}
-                <p className="text-[14px] text-[#5a4f42] leading-relaxed whitespace-pre-wrap">{c.content}</p>
+                <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-[var(--text-secondary)]">{c.content}</p>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      <div className="bg-[#faf8f5] border border-[#ddd5c8] rounded-lg p-6">
-        <h4 className="font-medium text-[15px] mb-4 text-[#3d3530]">留下你的足迹</h4>
+      <div className="rounded-lg border border-[var(--border-color)] bg-[var(--surface-muted-bg)] p-6">
+        <h4 className="mb-4 text-[15px] font-medium text-[var(--text-secondary)]">留下你的足迹</h4>
         <form onSubmit={submit} className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="text-xs text-[#8c7d68] mb-1 block">昵称 *</label>
+              <label className="mb-1 block text-xs text-[var(--text-muted)]">昵称 *</label>
               <input
                 className="input"
                 value={form.nickname}
@@ -95,8 +95,8 @@ export default function CommentSection({ articleId, comments }: { articleId: str
               />
             </div>
             <div>
-              <label className="text-xs text-[#8c7d68] mb-1 block">
-                邮箱 <span className="text-[#c4b8a7]">（可选）</span>
+              <label className="mb-1 block text-xs text-[var(--text-muted)]">
+                邮箱 <span className="text-[var(--text-faint)]">（可选）</span>
               </label>
               <input
                 className="input"
@@ -108,7 +108,7 @@ export default function CommentSection({ articleId, comments }: { articleId: str
             </div>
           </div>
           <div>
-            <label className="text-xs text-[#8c7d68] mb-1 block">评论 *</label>
+            <label className="mb-1 block text-xs text-[var(--text-muted)]">评论 *</label>
             <textarea
               className="input resize-none"
               rows={4}

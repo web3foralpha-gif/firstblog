@@ -7,20 +7,20 @@ export default function HeaderClient({ siteName }: { siteName: string }) {
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
-    <header className="border-b border-[#ddd5c8] bg-[#faf8f5]/90 backdrop-blur sticky top-0 z-30">
+    <header className="sticky top-0 z-30 border-b border-[var(--border-color)] bg-[var(--page-bg-overlay)] backdrop-blur">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-        <Link href="/blog" className="font-serif text-lg sm:text-xl font-medium text-[#221e1a] tracking-wide hover:text-[#d4711a] transition-colors">
+        <Link href="/blog" className="font-serif text-lg sm:text-xl font-medium tracking-wide text-[var(--text-primary)] transition-colors hover:text-[var(--accent)]">
           {siteName}
         </Link>
 
-        <nav className="hidden sm:flex items-center gap-5 text-sm text-[#5a4f42]">
-          <Link href="/blog" className="hover:text-[#d4711a] transition-colors">文章</Link>
-          <Link href="/about" className="hover:text-[#d4711a] transition-colors">关于</Link>
-          <Link href="/guestbook" className="hover:text-[#d4711a] transition-colors">留言板</Link>
+        <nav className="hidden sm:flex items-center gap-5 text-sm text-[var(--text-secondary)]">
+          <Link href="/blog" className="transition-colors hover:text-[var(--accent)]">文章</Link>
+          <Link href="/about" className="transition-colors hover:text-[var(--accent)]">关于</Link>
+          <Link href="/guestbook" className="transition-colors hover:text-[var(--accent)]">留言板</Link>
         </nav>
 
         <button
-          className="sm:hidden p-2 rounded-lg text-[#5a4f42] hover:bg-[#f0ebe3] transition-colors"
+          className="rounded-lg p-2 text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-soft)] sm:hidden"
           onClick={() => setMenuOpen(v => !v)}
           aria-label="菜单"
         >
@@ -37,13 +37,13 @@ export default function HeaderClient({ siteName }: { siteName: string }) {
       </div>
 
       {menuOpen && (
-        <div className="sm:hidden border-t border-[#ddd5c8] bg-[#faf8f5] px-4 py-3 space-y-1">
+        <div className="space-y-1 border-t border-[var(--border-color)] bg-[var(--page-bg)] px-4 py-3 sm:hidden">
           {[['/blog', '文章'], ['/about', '关于'], ['/guestbook', '留言板']].map(([href, label]) => (
             <Link
               key={href}
               href={href}
               onClick={() => setMenuOpen(false)}
-              className="flex items-center px-3 py-2.5 rounded-lg text-sm text-[#5a4f42] hover:bg-[#f0ebe3] hover:text-[#d4711a] transition-colors"
+              className="flex items-center rounded-lg px-3 py-2.5 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--accent)]"
             >
               {label}
             </Link>

@@ -150,9 +150,9 @@ export default function SunflowerWidget() {
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-[#f0ebe3] bg-white p-6 text-center">
+      <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-bg)] p-6 text-center shadow-[0_10px_30px_var(--card-shadow)]">
         <div className="text-3xl mb-2 animate-pulse">🌱</div>
-        <p className="text-xs text-[#a89880]">加载中…</p>
+        <p className="text-xs text-[var(--text-subtle)]">加载中…</p>
       </div>
     )
   }
@@ -160,7 +160,7 @@ export default function SunflowerWidget() {
   const currentState = state ?? buildFallbackState()
 
   return (
-    <div className="rounded-2xl border border-[#f0ebe3] bg-white overflow-hidden">
+    <div className="overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-bg)] shadow-[0_10px_30px_var(--card-shadow)]">
       {/* 升级庆祝横幅 */}
       {justLeveledUp && (
         <div className="bg-gradient-to-r from-yellow-300 via-orange-300 to-yellow-300 text-center py-2 animate-bounce">
@@ -178,7 +178,7 @@ export default function SunflowerWidget() {
           {/* 浮动反馈文字 */}
           {feedback && (
             <div className="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center px-3">
-              <div className="max-w-full animate-bounce rounded-2xl border border-[#f0ebe3] bg-white/90 px-3 py-1 text-center text-xs text-[#5a4f42] shadow-sm">
+              <div className="max-w-full animate-bounce rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-bg)] px-3 py-1 text-center text-xs text-[var(--text-secondary)] shadow-sm">
                 <span className="block max-w-full whitespace-normal break-words">
                   {feedback}
                 </span>
@@ -191,9 +191,9 @@ export default function SunflowerWidget() {
         <div className="text-center mb-4">
           <div className="flex items-center justify-center gap-1.5 mb-1">
             <span className="text-xl">{currentState.emoji}</span>
-            <span className="font-serif font-medium text-[#221e1a] text-base">{currentState.name}阶段</span>
+            <span className="font-serif text-base font-medium text-[var(--text-primary)]">{currentState.name}阶段</span>
           </div>
-          <p className="text-xs text-[#a89880]">{STAGE_DESCRIPTIONS[currentState.stage]}</p>
+          <p className="text-xs text-[var(--text-subtle)]">{STAGE_DESCRIPTIONS[currentState.stage]}</p>
           {serviceMessage && !currentState.unavailable && (
             <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-[11px] text-[#9a6a13]">
               {serviceMessage}
@@ -204,16 +204,16 @@ export default function SunflowerWidget() {
         {/* 进度条 */}
         <div className="mb-4">
           <div className="flex justify-between items-baseline mb-1.5">
-            <span className="text-xs text-[#8c7d68]">
-              已有 <span className="font-medium text-[#d4711a]">{currentState.totalCount}</span> 人照顾
+            <span className="text-xs text-[var(--text-muted)]">
+              已有 <span className="font-medium text-[var(--accent)]">{currentState.totalCount}</span> 人照顾
             </span>
             {!currentState.isMax && (
-              <span className="text-xs text-[#c4b8a7]">
+              <span className="text-xs text-[var(--text-faint)]">
                 还差 {currentState.nextNeeded} 人
               </span>
             )}
           </div>
-          <div className="w-full bg-[#f0ebe3] rounded-full h-2 overflow-hidden">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--surface-soft)]">
             <div
               className="h-2 rounded-full transition-all duration-700 ease-out"
               style={{
@@ -227,22 +227,22 @@ export default function SunflowerWidget() {
           {!currentState.isMax && (
             <div className="flex justify-between mt-1">
               {/* 阶段节点 */}
-              <span className="text-[10px] text-[#c4b8a7]">{currentState.totalCount - currentState.progressCurrent}</span>
-              <span className="text-[10px] text-[#c4b8a7]">{currentState.totalCount - currentState.progressCurrent + currentState.progressMax}</span>
+              <span className="text-[10px] text-[var(--text-faint)]">{currentState.totalCount - currentState.progressCurrent}</span>
+              <span className="text-[10px] text-[var(--text-faint)]">{currentState.totalCount - currentState.progressCurrent + currentState.progressMax}</span>
             </div>
           )}
         </div>
 
         {/* 互动按钮 */}
         {currentState.unavailable ? (
-          <div className="text-center py-3 px-4 bg-[#faf8f5] rounded-xl border border-[#f0ebe3]">
-            <p className="text-sm text-[#8c7d68]">向日葵今天在安静晒太阳</p>
-            <p className="text-xs text-[#c4b8a7] mt-0.5">互动功能正在整理中，晚一点再来看看它吧。</p>
+          <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-muted-bg)] px-4 py-3 text-center">
+            <p className="text-sm text-[var(--text-muted)]">向日葵今天在安静晒太阳</p>
+            <p className="mt-0.5 text-xs text-[var(--text-faint)]">互动功能正在整理中，晚一点再来看看它吧。</p>
           </div>
         ) : alreadyDone ? (
-          <div className="text-center py-3 px-4 bg-[#faf8f5] rounded-xl border border-[#f0ebe3]">
-            <p className="text-sm text-[#a89880]">{doneText}</p>
-            <p className="text-xs text-[#c4b8a7] mt-0.5">感谢你的爱护！</p>
+          <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-muted-bg)] px-4 py-3 text-center">
+            <p className="text-sm text-[var(--text-subtle)]">{doneText}</p>
+            <p className="mt-0.5 text-xs text-[var(--text-faint)]">感谢你的爱护！</p>
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-2">
@@ -251,18 +251,18 @@ export default function SunflowerWidget() {
                 key={a.key}
                 onClick={() => interact(a.key, a.feedback)}
                 disabled={acting}
-                className={`flex flex-col items-center gap-1 py-3 rounded-xl border border-[#f0ebe3] transition-all text-center disabled:opacity-60 ${a.color} active:scale-95`}
+                className={`flex flex-col items-center gap-1 rounded-xl border border-[var(--border-soft)] py-3 text-center transition-all disabled:opacity-60 ${a.color} active:scale-95`}
               >
                 <span className="text-xl leading-none">{a.icon}</span>
-                <span className="text-xs text-[#5a4f42]">{a.label}</span>
+                <span className="text-xs text-[var(--text-secondary)]">{a.label}</span>
               </button>
             ))}
           </div>
         )}
 
         {/* 阶段里程碑展示 */}
-        <div className="mt-4 pt-4 border-t border-[#f0ebe3]">
-          <p className="text-[10px] text-[#c4b8a7] mb-2 text-center">成长历程</p>
+        <div className="mt-4 border-t border-[var(--border-soft)] pt-4">
+          <p className="mb-2 text-center text-[10px] text-[var(--text-faint)]">成长历程</p>
           <div className="flex justify-between items-center">
             {['🌰', '🌱', '🌿', '🍃', '🌼', '🌻'].map((emoji, i) => (
               <div key={i} className="flex flex-col items-center gap-0.5">
@@ -270,7 +270,7 @@ export default function SunflowerWidget() {
                   {emoji}
                 </span>
                 {i < 5 && (
-                  <div className={`w-4 h-px mt-1 ${i < currentState.stage ? 'bg-[#5aaa28]' : 'bg-[#f0ebe3]'}`} />
+                  <div className={`mt-1 h-px w-4 ${i < currentState.stage ? 'bg-[#5aaa28]' : 'bg-[var(--surface-soft)]'}`} />
                 )}
               </div>
             ))}

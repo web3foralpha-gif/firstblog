@@ -2,34 +2,53 @@ import Header from '@/components/blog/Header'
 import ArticleCard from '@/components/blog/ArticleCard'
 import PikachuWidget from '@/components/blog/PikachuWidget'
 import SunflowerWidget from '@/components/blog/SunflowerWidget'
+import SiteFooter from '@/components/blog/SiteFooter'
 import type { BlogPostSummary } from '@/lib/posts'
 
 type BlogIndexPageProps = {
   posts: BlogPostSummary[]
   title?: string
   description?: string
+  cornerTitle?: string
+  cornerLines?: string[]
+  quickLinksTitle?: string
+  aboutLabel?: string
+  aboutHref?: string
+  guestbookLabel?: string
+  guestbookHref?: string
 }
 
 export default function BlogIndexPage({
   posts,
   title = '近期文章',
   description = '写下生活里的小事，也留下此刻的心情。',
+  cornerTitle = '小站角落',
+  cornerLines = [
+    '适合慢慢读几篇文章，发一会儿呆。',
+    '右边的向日葵会记得每一次浇水、施肥和晒太阳。',
+    '如果想留下点什么，留言板一直开着。',
+  ],
+  quickLinksTitle = '快速入口',
+  aboutLabel = '关于我',
+  aboutHref = '/about',
+  guestbookLabel = '留言板',
+  guestbookHref = '/guestbook',
 }: BlogIndexPageProps) {
   return (
-    <div className="min-h-screen bg-[#faf8f5]">
+    <div className="min-h-screen">
       <Header />
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
         <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
           <div className="flex-1 min-w-0 w-full">
             <div className="mb-6 sm:mb-8">
-              <h1 className="font-serif text-2xl sm:text-3xl font-medium text-[#221e1a] mb-1">{title}</h1>
-              <p className="text-sm text-[#a89880]">{description}</p>
-              <p className="text-sm text-[#a89880] mt-1">共 {posts.length} 篇</p>
+              <h1 className="mb-1 font-serif text-2xl font-medium text-[var(--text-primary)] sm:text-3xl">{title}</h1>
+              <p className="text-sm text-[var(--text-subtle)]">{description}</p>
+              <p className="mt-1 text-sm text-[var(--text-subtle)]">共 {posts.length} 篇</p>
             </div>
 
             {posts.length === 0 ? (
-              <div className="text-center py-20 text-[#a89880]">
+              <div className="py-20 text-center text-[var(--text-subtle)]">
                 <p className="text-4xl mb-4">📝</p>
                 <p>还没有公开文章，过几天再来看看吧。</p>
               </div>
@@ -38,13 +57,14 @@ export default function BlogIndexPage({
                 {posts.map(post => (
                   <ArticleCard
                     key={post.slug}
-                    href={`/blog/${post.slug}`}
+                    href={post.href}
                     slug={post.slug}
                     title={post.title}
                     excerpt={post.excerpt}
                     mood={post.mood}
-                    accessType="PUBLIC"
-                    price={null}
+                    pinned={post.pinned}
+                    accessType={(post.accessType || "PUBLIC") as "PUBLIC" | "PASSWORD" | "PAID"}
+                    price={post.price ?? null}
                     createdAt={post.publishedAt}
                   />
                 ))}
@@ -54,22 +74,22 @@ export default function BlogIndexPage({
 
           <aside className="w-full lg:w-64 lg:flex-shrink-0 lg:sticky lg:top-20 space-y-4">
             <SunflowerWidget />
-            <div className="rounded-2xl border border-[#f0ebe3] bg-white p-4">
-              <p className="text-xs text-[#c4b8a7] mb-3 font-medium uppercase tracking-wide">小站角落</p>
-              <div className="space-y-2 text-sm text-[#5a4f42]">
-                <p>适合慢慢读几篇文章，发一会儿呆。</p>
-                <p>右边的向日葵会记得每一次温柔照顾。</p>
-                <p>如果想留下点什么，留言板一直开着。</p>
+            <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-bg)] p-4 shadow-[0_10px_30px_var(--card-shadow)]">
+              <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[var(--text-faint)]">{cornerTitle}</p>
+              <div className="space-y-2 text-sm text-[var(--text-secondary)]">
+                {cornerLines.map((line, index) => (
+                  <p key={`${index}-${line}`}>{line}</p>
+                ))}
               </div>
             </div>
-            <div className="rounded-2xl border border-[#f0ebe3] bg-white p-4">
-              <p className="text-xs text-[#c4b8a7] mb-3 font-medium uppercase tracking-wide">快速入口</p>
+            <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-bg)] p-4 shadow-[0_10px_30px_var(--card-shadow)]">
+              <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[var(--text-faint)]">{quickLinksTitle}</p>
               <div className="space-y-1">
-                <a href="/about" className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[#5a4f42] hover:bg-[#faf8f5] hover:text-[#d4711a] transition-colors">
-                  <span>👋</span> 关于我
+                <a href={aboutHref} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted-bg)] hover:text-[var(--accent)]">
+                  <span>👋</span> {aboutLabel}
                 </a>
-                <a href="/guestbook" className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[#5a4f42] hover:bg-[#faf8f5] hover:text-[#d4711a] transition-colors">
-                  <span>💬</span> 留言板
+                <a href={guestbookHref} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted-bg)] hover:text-[var(--accent)]">
+                  <span>💬</span> {guestbookLabel}
                 </a>
               </div>
             </div>
@@ -77,9 +97,7 @@ export default function BlogIndexPage({
         </div>
       </main>
 
-      <footer className="border-t border-[#ddd5c8] mt-10 sm:mt-16 py-6 sm:py-8 text-center text-xs text-[#c4b8a7]">
-        <p>用文字记录生活 · {new Date().getFullYear()}</p>
-      </footer>
+      <SiteFooter />
 
       <PikachuWidget />
     </div>

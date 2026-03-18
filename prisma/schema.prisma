@@ -5,6 +5,8 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // Recommended: use a pooled DATABASE_URL for Vercel runtime traffic.
+  // Keep a DIRECT_URL in your env for Prisma migrate and db push commands.
 }
 
 model Article {
