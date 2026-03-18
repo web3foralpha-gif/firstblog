@@ -28,22 +28,22 @@ export default function ArticleCard({ slug, title, excerpt, mood, href, pinned =
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <span className="text-lg leading-none flex-shrink-0">{mood}</span>
               {pinned && <span className="badge badge-pinned">📌 置顶</span>}
-              <h2 className="font-serif text-[16px] sm:text-[17px] font-medium text-[#221e1a] group-hover:text-[#d4711a] transition-colors line-clamp-2 sm:truncate">
+              <h2 className="font-serif text-[16px] sm:text-[17px] font-medium text-[var(--text-primary)] transition-colors line-clamp-2 group-hover:text-[var(--accent)] sm:truncate">
                 {title}
               </h2>
             </div>
             {excerpt && (
-              <p className="text-[13px] text-[#8c7d68] leading-relaxed mt-2 line-clamp-2">{excerpt}</p>
+              <p className="mt-2 line-clamp-2 text-[13px] leading-relaxed text-[var(--text-muted)]">{excerpt}</p>
             )}
             <div className="flex items-center flex-wrap gap-2 sm:gap-3 mt-3">
-              <time className="text-[12px] text-[#a89880]">{formatDate(createdAt)}</time>
+              <time className="text-[12px] text-[var(--text-subtle)]">{formatDate(createdAt)}</time>
               {accessBadge[accessType]}
               {accessType === 'PAID' && price && (
-                <span className="text-[12px] text-[#854f0b]">¥{price}</span>
+                <span className="text-[12px] text-[var(--accent-strong)]">¥{price}</span>
               )}
             </div>
           </div>
-          <span className="text-[#c4b8a7] group-hover:text-[#d4711a] transition-colors text-lg mt-1 flex-shrink-0">→</span>
+          <span className="mt-1 flex-shrink-0 text-lg text-[var(--text-faint)] transition-colors group-hover:text-[var(--accent)]">→</span>
         </div>
       </article>
     </Link>

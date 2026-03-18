@@ -5,6 +5,11 @@ const prisma = new PrismaClient()
 
 async function main() {
   console.log('🌱 开始初始化数据...')
+  const aboutContent = `## 你好，我是博主 👋
+
+这是一个记录生活、分享心情的小小角落。
+
+欢迎常来坐坐。`
 
   // 创建示例文章
   await prisma.article.upsert({
@@ -66,16 +71,22 @@ async function main() {
   })
 
   // 关于页面默认内容
+  await prisma.setting.upsert({
+    where: { key: 'blog.aboutContent' },
+    update: {},
+    create: {
+      key: 'blog.aboutContent',
+      value: aboutContent,
+      type: 'string',
+    },
+  })
+
   await prisma.siteSetting.upsert({
     where: { key: 'about_content' },
     update: {},
     create: {
       key: 'about_content',
-      value: `## 你好，我是博主 👋
-
-这是一个记录生活、分享心情的小小角落。
-
-欢迎常来坐坐。`,
+      value: aboutContent,
     },
   })
 

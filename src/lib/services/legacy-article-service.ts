@@ -26,8 +26,8 @@ export type LegacyArticle = {
 export async function getLegacyArticleTitleBySlug(slug: string) {
   return runWithDatabase(
     async db => {
-      const article = await db.article.findUnique({
-        where: { slug },
+      const article = await db.article.findFirst({
+        where: { slug, published: true },
         select: { title: true, excerpt: true },
       })
 
@@ -42,7 +42,7 @@ export async function getLegacyArticleTitleBySlug(slug: string) {
 export async function getLegacyArticleBySlug(slug: string): Promise<LegacyArticle | null> {
   return runWithDatabase(
     async db =>
-      db.article.findUnique({
+      db.article.findFirst({
         where: { slug, published: true },
         include: {
           comments: {

@@ -20,7 +20,7 @@ export default function PageViewTracker() {
 
   useEffect(() => {
     // 排除管理后台页面
-    if (pathname.startsWith('/admin')) return
+    if (pathname.startsWith('/houtai')) return
 
     const sessionId = getSessionId()
     enterTime.current = Date.now()

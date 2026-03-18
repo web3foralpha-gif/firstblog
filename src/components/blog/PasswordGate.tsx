@@ -33,8 +33,8 @@ export default function PasswordGate({
   return (
     <div className="max-w-sm mx-auto text-center py-16 px-4">
       <div className="text-5xl mb-4">🔒</div>
-      <h3 className="font-serif text-xl font-medium mb-2 text-[#221e1a]">此文章已加密</h3>
-      <p className="text-sm text-[#8c7d68] mb-8">请输入密码继续阅读</p>
+      <h3 className="mb-2 font-serif text-xl font-medium text-[var(--text-primary)]">此文章已加密</h3>
+      <p className="mb-8 text-sm text-[var(--text-muted)]">请输入密码继续阅读</p>
 
       <form onSubmit={submit} className="space-y-3">
         <div className="relative">
@@ -48,7 +48,7 @@ export default function PasswordGate({
           />
           {/* 提示标签 */}
           {hint && (
-            <div className="mt-2 flex items-center justify-center gap-1.5 text-xs text-[#a89880]">
+            <div className="mt-2 flex items-center justify-center gap-1.5 text-xs text-[var(--text-subtle)]">
               <span>💡</span>
               <span>密码提示：{hint}</span>
             </div>

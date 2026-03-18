@@ -37,8 +37,8 @@ export default function InlineGuestbookForm() {
     return (
       <div className="card px-8 py-10 text-center mb-10">
         <div className="text-4xl mb-3">🎉</div>
-        <p className="font-medium text-[#3d3530] mb-1">留言已收到！</p>
-        <p className="text-sm text-[#a89880] mb-5">{msg}</p>
+        <p className="mb-1 font-medium text-[var(--text-secondary)]">留言已收到！</p>
+        <p className="mb-5 text-sm text-[var(--text-subtle)]">{msg}</p>
         <button onClick={() => setStatus('idle')} className="btn-secondary text-sm">再写一条</button>
       </div>
     )
@@ -46,14 +46,14 @@ export default function InlineGuestbookForm() {
 
   return (
     <div className="card px-4 sm:px-6 py-5 sm:py-6 mb-10">
-      <h2 className="font-serif text-lg font-medium text-[#221e1a] mb-1">写下你的留言</h2>
-      <p className="text-xs text-[#a89880] mb-5">审核通过后公开展示</p>
+      <h2 className="mb-1 font-serif text-lg font-medium text-[var(--text-primary)]">写下你的留言</h2>
+      <p className="mb-5 text-xs text-[var(--text-subtle)]">审核通过后公开展示</p>
 
       <form onSubmit={submit} className="space-y-4">
         {/* 昵称 + 邮箱 */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="text-xs text-[#8c7d68] mb-1 block">昵称 *</label>
+            <label className="mb-1 block text-xs text-[var(--text-muted)]">昵称 *</label>
             <input
               className="input"
               value={nickname}
@@ -64,7 +64,7 @@ export default function InlineGuestbookForm() {
             />
           </div>
           <div>
-            <label className="text-xs text-[#8c7d68] mb-1 block">邮箱（可选）</label>
+            <label className="mb-1 block text-xs text-[var(--text-muted)]">邮箱（可选）</label>
             <input
               type="email"
               className="input"
@@ -80,11 +80,11 @@ export default function InlineGuestbookForm() {
           <label className="flex items-center gap-2 cursor-pointer select-none">
             <div
               onClick={() => setEmailPublic(p => !p)}
-              className={`w-9 h-5 rounded-full transition-colors flex-shrink-0 relative ${emailPublic ? 'bg-[#d4711a]' : 'bg-[#ddd5c8]'}`}
+              className={`relative h-5 w-9 flex-shrink-0 rounded-full transition-colors ${emailPublic ? 'bg-[var(--accent)]' : 'bg-[var(--border-color)]'}`}
             >
               <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${emailPublic ? 'left-[18px]' : 'left-0.5'}`} />
             </div>
-            <span className="text-xs text-[#5a4f42]">
+            <span className="text-xs text-[var(--text-secondary)]">
               {emailPublic ? '公开邮箱（其他访客可见）' : '不公开邮箱（仅博主可见）'}
             </span>
           </label>
@@ -92,7 +92,7 @@ export default function InlineGuestbookForm() {
 
         {/* 心情 */}
         <div>
-          <p className="text-xs text-[#8c7d68] mb-2">选个心情（可选）</p>
+          <p className="mb-2 text-xs text-[var(--text-muted)]">选个心情（可选）</p>
           <div className="flex flex-wrap gap-2">
             {EMOJIS.map(e => (
               <button
@@ -101,8 +101,8 @@ export default function InlineGuestbookForm() {
                 onClick={() => setSelectedEmoji(selectedEmoji === e ? '' : e)}
                 className={`w-9 h-9 rounded-lg text-lg transition-all ${
                   selectedEmoji === e
-                    ? 'bg-[#fdf6ee] ring-2 ring-[#d4711a] scale-110'
-                    : 'bg-[#faf8f5] hover:bg-[#f0ebe3]'
+                    ? 'scale-110 bg-[var(--accent-soft)] ring-2 ring-[var(--accent)]'
+                    : 'bg-[var(--surface-muted-bg)] hover:bg-[var(--surface-soft)]'
                 }`}
               >
                 {e}
@@ -113,7 +113,7 @@ export default function InlineGuestbookForm() {
 
         {/* 内容 */}
         <div>
-          <label className="text-xs text-[#8c7d68] mb-1 block">留言内容 *</label>
+          <label className="mb-1 block text-xs text-[var(--text-muted)]">留言内容 *</label>
           <textarea
             className="input resize-none"
             rows={4}
@@ -123,7 +123,7 @@ export default function InlineGuestbookForm() {
             maxLength={200}
             required
           />
-          <p className="text-xs text-[#c4b8a7] text-right mt-1">{content.length} / 200</p>
+          <p className="mt-1 text-right text-xs text-[var(--text-faint)]">{content.length} / 200</p>
         </div>
 
         {status === 'error' && <p className="text-sm text-red-500">{msg}</p>}

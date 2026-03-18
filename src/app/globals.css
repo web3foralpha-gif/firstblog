@@ -9,6 +9,107 @@
   --ink-900: #221e1a;
   --accent: #d4711a;
   --accent-light: #fdf6ee;
+  --page-bg: #faf8f5;
+  --page-bg-overlay: rgba(250, 248, 245, 0.92);
+  --page-glow-1: rgba(243, 224, 196, 0.55);
+  --page-glow-2: rgba(250, 240, 223, 0.8);
+  --surface-bg: #ffffff;
+  --surface-muted-bg: #faf8f5;
+  --surface-soft: #f0ebe3;
+  --border-color: #ddd5c8;
+  --border-soft: #f0ebe3;
+  --text-primary: #221e1a;
+  --text-secondary: #5a4f42;
+  --text-muted: #8c7d68;
+  --text-subtle: #a89880;
+  --text-faint: #c4b8a7;
+  --accent-hover: #b05a14;
+  --accent-soft: #fdf6ee;
+  --accent-strong: #854f0b;
+  --accent-shadow: rgba(212, 113, 26, 0.12);
+  --card-shadow: rgba(60, 40, 20, 0.04);
+  --card-shadow-hover: rgba(60, 40, 20, 0.08);
+  --badge-public-bg: #eaf3de;
+  --badge-public-text: #3b6d11;
+  --badge-password-bg: #e6f1fb;
+  --badge-password-text: #185fa5;
+  --badge-paid-bg: #faeeda;
+  --badge-paid-text: #854f0b;
+  --badge-rejected-bg: #fcebeb;
+  --badge-rejected-text: #a32d2d;
+}
+
+.blog-theme {
+  min-height: 100vh;
+  background-color: var(--page-bg);
+  background-image:
+    radial-gradient(circle at top left, var(--page-glow-1) 0, transparent 34%),
+    radial-gradient(circle at bottom right, var(--page-glow-2) 0, transparent 30%);
+  color: var(--text-secondary);
+}
+
+.blog-theme[data-theme='festival'] {
+  --page-bg: #fff7ef;
+  --page-bg-overlay: rgba(255, 247, 239, 0.95);
+  --page-glow-1: rgba(255, 205, 164, 0.52);
+  --page-glow-2: rgba(232, 55, 55, 0.1);
+  --surface-bg: #ffffff;
+  --surface-muted-bg: #fff2e5;
+  --surface-soft: #f8e0d4;
+  --border-color: #e8c1b1;
+  --border-soft: #f3d6cb;
+  --text-primary: #561919;
+  --text-secondary: #7b2f25;
+  --text-muted: #9d5848;
+  --text-subtle: #b0705f;
+  --text-faint: #ca9f92;
+  --accent: #cf2c2c;
+  --accent-hover: #a71d1d;
+  --accent-soft: #fff0e4;
+  --accent-strong: #9c1c1c;
+  --accent-shadow: rgba(207, 44, 44, 0.14);
+  --card-shadow: rgba(149, 31, 31, 0.05);
+  --card-shadow-hover: rgba(149, 31, 31, 0.11);
+  --badge-public-bg: #fff0d8;
+  --badge-public-text: #91561a;
+  --badge-password-bg: #ffe4e1;
+  --badge-password-text: #a33a3a;
+  --badge-paid-bg: #ffe8bc;
+  --badge-paid-text: #965b11;
+  --badge-rejected-bg: #fde8e8;
+  --badge-rejected-text: #b63232;
+}
+
+.blog-theme[data-theme='memorial'] {
+  --page-bg: #f4f4f4;
+  --page-bg-overlay: rgba(244, 244, 244, 0.95);
+  --page-glow-1: rgba(210, 210, 210, 0.45);
+  --page-glow-2: rgba(232, 232, 232, 0.78);
+  --surface-bg: #ffffff;
+  --surface-muted-bg: #f0f0f0;
+  --surface-soft: #e3e3e3;
+  --border-color: #cfcfcf;
+  --border-soft: #dfdfdf;
+  --text-primary: #111111;
+  --text-secondary: #2f2f2f;
+  --text-muted: #555555;
+  --text-subtle: #6f6f6f;
+  --text-faint: #9a9a9a;
+  --accent: #1b1b1b;
+  --accent-hover: #000000;
+  --accent-soft: #efefef;
+  --accent-strong: #3b3b3b;
+  --accent-shadow: rgba(27, 27, 27, 0.1);
+  --card-shadow: rgba(30, 30, 30, 0.04);
+  --card-shadow-hover: rgba(30, 30, 30, 0.09);
+  --badge-public-bg: #ececec;
+  --badge-public-text: #383838;
+  --badge-password-bg: #e6e6e6;
+  --badge-password-text: #353535;
+  --badge-paid-bg: #e4e4e4;
+  --badge-paid-text: #2f2f2f;
+  --badge-rejected-bg: #efefef;
+  --badge-rejected-text: #555555;
 }
 
 @layer base {
@@ -35,7 +136,7 @@
     font-family: 'Noto Serif SC', Georgia, serif;
     font-size: 17px;
     line-height: 1.9;
-    color: #3d3530;
+    color: var(--text-secondary);
   }
 
   .prose-blog h2 {
@@ -43,7 +144,7 @@
     font-weight: 500;
     margin: 2rem 0 1rem;
     padding-bottom: 0.5rem;
-    border-bottom: 1px solid #ddd5c8;
+    border-bottom: 1px solid var(--border-color);
   }
 
   .prose-blog h3 {
@@ -67,14 +168,14 @@
     border-left: 3px solid var(--accent);
     margin: 1.5rem 0;
     padding: 0.5rem 0 0.5rem 1.25rem;
-    color: #5a4f42;
+    color: var(--text-secondary);
     font-style: italic;
   }
 
   .prose-blog code {
     font-family: 'Fira Code', monospace;
     font-size: 14px;
-    background: #f0ebe3;
+    background: var(--surface-soft);
     padding: 2px 6px;
     border-radius: 3px;
   }
@@ -160,7 +261,7 @@
   }
 
   .prose-blog .rich-style-block--color-default {
-    color: #3d3530;
+    color: var(--text-secondary);
   }
 
   .prose-blog .rich-style-block--color-amber {
@@ -205,14 +306,15 @@
 
   /* 卡片样式 */
   .card {
-    background: white;
-    border: 1px solid #ddd5c8;
+    background: var(--surface-bg);
+    border: 1px solid var(--border-color);
     border-radius: 8px;
-    transition: box-shadow 0.2s, transform 0.2s;
+    box-shadow: 0 4px 12px var(--card-shadow);
+    transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
   }
 
   .card:hover {
-    box-shadow: 0 4px 20px rgba(60, 40, 20, 0.08);
+    box-shadow: 0 8px 24px var(--card-shadow-hover);
     transform: translateY(-2px);
   }
 
@@ -233,7 +335,7 @@
   }
 
   .btn-primary:hover {
-    background: #b05a14;
+    background: var(--accent-hover);
   }
 
   .btn-primary:active {
@@ -242,12 +344,12 @@
 
   .btn-secondary {
     background: transparent;
-    color: var(--ink-800);
+    color: var(--text-secondary);
     padding: 10px 20px;
     border-radius: 6px;
     font-size: 14px;
     font-weight: 400;
-    border: 1px solid #c4b8a7;
+    border: 1px solid var(--text-faint);
     transition: background 0.2s;
     cursor: pointer;
     display: inline-flex;
@@ -256,26 +358,26 @@
   }
 
   .btn-secondary:hover {
-    background: #f0ebe3;
+    background: var(--surface-soft);
   }
 
   /* 表单输入 */
   .input {
     width: 100%;
     padding: 10px 14px;
-    border: 1px solid #ddd5c8;
+    border: 1px solid var(--border-color);
     border-radius: 6px;
     font-size: 14px;
     font-family: inherit;
-    background: white;
-    color: #3d3530;
+    background: var(--surface-bg);
+    color: var(--text-secondary);
     transition: border-color 0.2s, box-shadow 0.2s;
     outline: none;
   }
 
   .input:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(212, 113, 26, 0.12);
+    box-shadow: 0 0 0 3px var(--accent-shadow);
   }
 
   /* 标签/徽章 */
@@ -290,44 +392,44 @@
   }
 
   .badge-public {
-    background: #eaf3de;
-    color: #3b6d11;
+    background: var(--badge-public-bg);
+    color: var(--badge-public-text);
   }
 
   .badge-password {
-    background: #e6f1fb;
-    color: #185fa5;
+    background: var(--badge-password-bg);
+    color: var(--badge-password-text);
   }
 
   .badge-paid {
-    background: #faeeda;
-    color: #854f0b;
+    background: var(--badge-paid-bg);
+    color: var(--badge-paid-text);
   }
 
   .badge-pending {
-    background: #faeeda;
-    color: #854f0b;
+    background: var(--badge-paid-bg);
+    color: var(--badge-paid-text);
   }
 
   .badge-approved {
-    background: #eaf3de;
-    color: #3b6d11;
+    background: var(--badge-public-bg);
+    color: var(--badge-public-text);
   }
 
   .badge-pinned {
-    background: #faeeda;
-    color: #854f0b;
+    background: var(--badge-paid-bg);
+    color: var(--badge-paid-text);
   }
 
   .badge-rejected {
-    background: #fcebeb;
-    color: #a32d2d;
+    background: var(--badge-rejected-bg);
+    color: var(--badge-rejected-text);
   }
 
   /* 分割线 */
   .divider {
     border: none;
-    border-top: 1px solid #ddd5c8;
+    border-top: 1px solid var(--border-color);
     margin: 2rem 0;
   }
 

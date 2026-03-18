@@ -1,6 +1,7 @@
 import { prisma } from './prisma'
 import { encrypt, decrypt } from './encrypt'
 import { hasValidDatabaseUrl } from './database-url'
+import { DEFAULT_ABOUT_CONTENT } from './content-defaults'
 
 let hasLoggedSettingsFallback = false
 
@@ -17,11 +18,22 @@ export const SETTING_DEFS: Record<string, {
   'site.pageSize':        { type: 'number',  default: '10',                public: false, label: '每页文章数' },
   'site.commentReview':   { type: 'boolean', default: 'true',              public: false, label: '评论需要审核' },
   'site.guestbookReview': { type: 'boolean', default: 'true',              public: false, label: '留言需要审核' },
+  'blog.homeTitle':       { type: 'string',  default: '博客文章',          public: true,  label: '博客首页标题' },
+  'blog.homeDescription': { type: 'string',  default: '写下生活、心情与一些正在发生的小事。', public: true, label: '博客首页副标题' },
+  'blog.cornerTitle':     { type: 'string',  default: '小站角落',          public: true,  label: '小站角落标题' },
+  'blog.cornerContent':   { type: 'string',  default: '适合慢慢读几篇文章，发一会儿呆。\n右边的向日葵会记得每一次浇水、施肥和晒太阳。\n如果想留下点什么，留言板一直开着。', public: true, label: '小站角落文案' },
+  'blog.quickLinksTitle': { type: 'string',  default: '快速入口',         public: true,  label: '快速入口标题' },
+  'blog.quickLinkAboutLabel': { type: 'string', default: '关于我',        public: true,  label: '快速入口一名称' },
+  'blog.quickLinkAboutHref':  { type: 'string', default: '/about',        public: true,  label: '快速入口一链接' },
+  'blog.quickLinkGuestbookLabel': { type: 'string', default: '留言板',    public: true,  label: '快速入口二名称' },
+  'blog.quickLinkGuestbookHref':  { type: 'string', default: '/guestbook', public: true, label: '快速入口二链接' },
+  'blog.aboutContent':   { type: 'string',  default: DEFAULT_ABOUT_CONTENT, public: false, label: '关于页内容' },
+  'blog.footerText':      { type: 'string',  default: '用文字记录生活', public: true, label: '页脚文字' },
+  'blog.friendLinksTitle': { type: 'string', default: '友情链接', public: true, label: '友链标题' },
+  'blog.friendLinks':     { type: 'string',  default: '', public: true, label: '友情链接列表' },
+  'blog.themeVariant':    { type: 'string',  default: 'warm', public: true, label: '前台主题' },
   'admin.email':          { type: 'string',  default: process.env.ADMIN_EMAIL || '', public: false, label: '管理员邮箱' },
   'admin.passwordHash':   { type: 'encrypted', default: process.env.ADMIN_PASSWORD_HASH || '', public: false, label: '管理员密码 Hash' },
-
-  // 关于我
-  'about_content':        { type: 'string',  default: '',                   public: true,  label: '关于我页面内容' },
 
   // 支付
   'pay.enabled':          { type: 'boolean',   default: 'false', public: false, label: '开启打赏功能' },
@@ -29,12 +41,21 @@ export const SETTING_DEFS: Record<string, {
   'pay.stripePublicKey':  { type: 'string',    default: '',      public: false, label: 'Stripe 公钥' },
   'pay.stripeSecretKey':  { type: 'encrypted', default: '',      public: false, label: 'Stripe 私钥' },
   'pay.stripeWebhookKey': { type: 'encrypted', default: '',      public: false, label: 'Stripe Webhook 密钥' },
+  'pay.cryptoEnabled':    { type: 'boolean',   default: 'false', public: false, label: '开启数字货币打赏' },
+  'pay.cryptoNetworks':   { type: 'string',    default: 'USDT-TRC20|USDT-ERC20|BTC|ETH|SOL', public: false, label: '数字货币网络列表' },
+  'pay.cryptoUsdCnyRate': { type: 'number',    default: '7.20',  public: false, label: 'USDT 参考汇率' },
+  'pay.cryptoBTCAddress': { type: 'string',    default: '',      public: false, label: 'BTC 收款地址' },
+  'pay.cryptoETHAddress': { type: 'string',    default: '',      public: false, label: 'ETH 收款地址' },
+  'pay.cryptoSOLAddress': { type: 'string',    default: '',      public: false, label: 'SOL 收款地址' },
+  'pay.cryptoUSDTTRC20Address': { type: 'string', default: '',   public: false, label: 'USDT-TRC20 收款地址' },
+  'pay.cryptoUSDTERC20Address': { type: 'string', default: '',   public: false, label: 'USDT-ERC20 收款地址' },
+  'pay.cryptoTips':       { type: 'string',    default: '转账后请提交交易哈希，博主确认后会发放解锁链接。', public: true, label: '数字货币打赏提示' },
 
   // 互动文案
   'ui.pikaSaluteText':    { type: 'string', default: '忠诚！',       public: true, label: '皮卡丘悬停文字' },
   'ui.pikaClickText':     { type: 'string', default: '⚡ 电击！',    public: true, label: '皮卡丘点击文字（备选）' },
   'ui.pikaPhrases':       { type: 'string', default: '皮卡～皮卡丘！|你好呀～ ⚡|皮皮～！|电击！⚡⚡|皮卡丘！❤️|要一起玩吗？', public: true, label: '点击台词（| 分隔）' },
-  'ui.sfWaterText':       { type: 'string', default: '滋润了！🌊',   public: true, label: '向日葵浇水反馈' },
+  'ui.sfWaterText':       { type: 'string', default: '滋润了！🌊', public: true, label: '向日葵浇水反馈' },
   'ui.sfFertilizeText':   { type: 'string', default: '营养充足！✨', public: true, label: '向日葵施肥反馈' },
   'ui.sfSunText':         { type: 'string', default: '沐浴阳光！🌤', public: true, label: '向日葵晒太阳反馈' },
   'ui.sfDoneText':        { type: 'string', default: '你已经照顾过向日葵啦 🌸', public: true, label: '向日葵重复互动提示' },
@@ -47,6 +68,14 @@ export const SETTING_DEFS: Record<string, {
   'mascot.systemPrompt':    { type: 'string',    default: '',                          public: false, label: '系统提示词（留空用默认）' },
   'mascot.chatEnabled':     { type: 'boolean',   default: 'true',                      public: true,  label: '显示聊天入口' },
   'mascot.chatPlaceholder': { type: 'string',    default: '问问皮卡丘…',              public: true,  label: '输入框占位文字' },
+  'mascot.mode':            { type: 'string',    default: 'twin',                      public: true,  label: '助手模式（pet/twin）' },
+  'mascot.personaName':     { type: 'string',    default: '我的数字分身',              public: true,  label: '分身名称' },
+  'mascot.panelTitle':      { type: 'string',    default: '数字分身',                  public: true,  label: '对话面板标题' },
+  'mascot.greeting':        { type: 'string',    default: '你好，我会带着你的风格陪访客聊天。', public: true, label: '欢迎语' },
+  'mascot.quickPrompts':    { type: 'string',    default: '介绍一下你自己|最近推荐读哪篇文章|你现在在忙什么', public: true, label: '快捷提问（| 分隔）' },
+  'mascot.identityProfile': { type: 'string',    default: '',                          public: false, label: '数字分身身份资料' },
+  'mascot.knowledgeBase':   { type: 'string',    default: '',                          public: false, label: '数字分身知识库' },
+  'mascot.replyStyle':      { type: 'string',    default: '自然、真诚、像真人，不要油腻，不要夸张，不知道就坦白。', public: false, label: '回复风格' },
 }
 
 function buildDefaultSettings(): Record<string, string> {
@@ -74,11 +103,20 @@ export async function getAllSettings(): Promise<Record<string, string>> {
 
   try {
     const rows = await prisma.setting.findMany()
+    let hasAboutContentSetting = false
 
     for (const row of rows) {
       const def = SETTING_DEFS[row.key]
       if (!def) continue
+      if (row.key === 'blog.aboutContent') hasAboutContentSetting = true
       map[row.key] = def.type === 'encrypted' ? decrypt(row.value) : row.value
+    }
+
+    if (!hasAboutContentSetting) {
+      const legacyAbout = await prisma.siteSetting.findUnique({ where: { key: 'about_content' } })
+      if (legacyAbout?.value?.trim()) {
+        map['blog.aboutContent'] = legacyAbout.value
+      }
     }
   } catch (error) {
     if (!hasLoggedSettingsFallback) {

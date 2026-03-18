@@ -1,10 +1,12 @@
 import { notFound } from 'next/navigation'
 import { redirect } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
+import BlogTheme from '@/components/blog/BlogTheme'
 import Header from '@/components/blog/Header'
 import PikachuWidget from '@/components/blog/PikachuWidget'
 import CommentSection from '@/components/blog/CommentSection'
 import ArticleContent from '@/components/blog/ArticleContent'
+import SiteFooter from '@/components/blog/SiteFooter'
 import { getPostBySlug } from '@/lib/posts'
 import { getLegacyArticleBySlug, getLegacyArticleTitleBySlug, hasLegacyArticleTokenAccess } from '@/lib/services/legacy-article-service'
 import type { Metadata } from 'next'
@@ -18,31 +20,38 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const markdownPost = await getPostBySlug(slug)
+  const article = await getLegacyArticleTitleBySlug(slug)
 
-  if (markdownPost) {
+  if (article) {
     return {
-      title: markdownPost.title,
-      description: markdownPost.description,
-      alternates: {
-        canonical: `/blog/${slug}`,
-      },
+      title: article.title,
+      description: article.excerpt || '历史文章内容',
     }
   }
 
-  const article = await getLegacyArticleTitleBySlug(slug)
-  return { title: article?.title || '文章', description: article?.excerpt || '历史文章内容' }
+  const markdownPost = await getPostBySlug(slug)
+  if (!markdownPost) {
+    return { title: '文章', description: '历史文章内容' }
+  }
+
+  return {
+    title: markdownPost.title,
+    description: markdownPost.description,
+    alternates: {
+      canonical: `/blog/${slug}`,
+    },
+  }
 }
 
 export default async function ArticlePage({ params, searchParams }: Props) {
   const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams])
-  const markdownPost = await getPostBySlug(slug)
-
-  if (markdownPost) {
-    redirect(`/blog/${slug}`)
-  }
-
   const article = await getLegacyArticleBySlug(slug)
+  if (!article) {
+    const markdownPost = await getPostBySlug(slug)
+    if (markdownPost) {
+      redirect(`/blog/${slug}`)
+    }
+  }
 
   if (!article) notFound()
 
@@ -58,42 +67,42 @@ export default async function ArticlePage({ params, searchParams }: Props) {
   }))
 
   return (
-    <div className="min-h-screen bg-[#faf8f5]">
-      <Header />
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
-        <header className="mb-10">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-2xl">{article.mood}</span>
-            {article.accessType === 'PASSWORD' && (
-              <span className="badge badge-password">🔒 加密文章</span>
-            )}
-            {article.accessType === 'PAID' && (
-              <span className="badge badge-paid">💰 打赏文章</span>
-            )}
-          </div>
-          <h1 className="font-serif text-2xl sm:text-3xl font-medium text-[#221e1a] leading-snug mb-3">
-            {article.title}
-          </h1>
-          <time className="text-sm text-[#a89880]">{formatDate(article.createdAt)}</time>
-        </header>
+    <BlogTheme>
+      <div className="min-h-screen">
+        <Header />
+        <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+          <header className="mb-10">
+            <div className="mb-3 flex items-center gap-2">
+              <span className="text-2xl">{article.mood}</span>
+              {article.accessType === 'PASSWORD' && (
+                <span className="badge badge-password">🔒 加密文章</span>
+              )}
+              {article.accessType === 'PAID' && (
+                <span className="badge badge-paid">💰 打赏文章</span>
+              )}
+            </div>
+            <h1 className="mb-3 font-serif text-2xl font-medium leading-snug text-[var(--text-primary)] sm:text-3xl">
+              {article.title}
+            </h1>
+            <time className="text-sm text-[var(--text-subtle)]">{formatDate(article.createdAt)}</time>
+          </header>
 
-        <ArticleContent
-          slug={slug}
-          content={article.content}
-          accessType={article.accessType as 'PUBLIC' | 'PASSWORD' | 'PAID'}
-          price={article.price}
-          title={article.title}
-          tokenValid={tokenValid}
-          passwordHint={article.passwordHint}
-        />
+          <ArticleContent
+            slug={slug}
+            content={article.content}
+            accessType={article.accessType as 'PUBLIC' | 'PASSWORD' | 'PAID'}
+            price={article.price}
+            title={article.title}
+            tokenValid={tokenValid}
+            passwordHint={article.passwordHint}
+          />
 
-        <CommentSection articleId={article.id} comments={comments} />
-      </main>
+          <CommentSection articleId={article.id} comments={comments} />
+        </main>
 
-      <footer className="border-t border-[#ddd5c8] mt-10 sm:mt-16 py-6 sm:py-8 text-center text-xs text-[#c4b8a7]">
-        <p>用文字记录生活 · {new Date().getFullYear()}</p>
-      </footer>
-          <PikachuWidget />
-    </div>
+        <SiteFooter compact />
+        <PikachuWidget />
+      </div>
+    </BlogTheme>
   )
 }

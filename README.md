@@ -30,13 +30,22 @@ cp .env.example .env
 
 ```
 DATABASE_URL="postgresql://postgres:password@localhost:5432/blog?schema=public"
+DIRECT_URL="postgresql://postgres:password@localhost:5432/blog?schema=public"
 NEXTAUTH_SECRET="随机字符串，运行 openssl rand -base64 32 生成"
 NEXTAUTH_URL="http://localhost:3000"
 ADMIN_PASSWORD="你的管理员密码"
 ADMIN_EMAIL="你的管理员邮箱"
 NEXT_PUBLIC_SITE_URL="http://localhost:3000"
 NEXT_PUBLIC_SITE_NAME="我的小站"
+SETTINGS_ENCRYPTION_KEY="64位十六进制随机字符串"
+SUNFLOWER_IP_SALT="任意随机字符串"
 ```
+
+说明：
+
+- `DATABASE_URL`：应用运行时连接串，推荐填连接池 URL
+- `DIRECT_URL`：Prisma 迁移时使用，推荐填数据库直连 URL
+- 如果你本地只有一个 Postgres 连接串，`DIRECT_URL` 可以先和 `DATABASE_URL` 相同
 
 Stripe 和邮件配置可先留空，基础功能照常运行。
 
@@ -96,7 +105,7 @@ npm run dev
 ```
 
 访问 `http://localhost:3000/blog` 查看博客  
-访问 `http://localhost:3000/admin` 进入后台（用 .env 中的邮箱和密码登录）
+访问 `http://localhost:3000/admin/login` 进入后台登录页（用 `.env` 中的邮箱和密码登录）
 
 ---
 
@@ -177,7 +186,7 @@ EMAIL_PASS="xxxx xxxx xxxx xxxx"   # 应用专用密码（16位）
 
 ---
 
-## 四、部署到 Vercel
+## 四、部署到 Vercel（推荐：Vercel + Supabase / Neon）
 
 ### 1. 推送到 GitHub
 
@@ -194,18 +203,38 @@ git push -u origin main
 1. 登录 [vercel.com](https://vercel.com)
 2. New Project → 选择你的仓库 → Import
 3. 在 Environment Variables 中填入所有 `.env` 变量
-4. 将 `DATABASE_URL` 填为 PostgreSQL 连接字符串（见下方）
+4. 至少先配置下面这些关键变量
 5. 构建命令保持默认即可，项目已内置 `prisma generate && next build`
+
+```env
+DATABASE_URL=你的运行时 PostgreSQL 连接串
+DIRECT_URL=你的数据库直连串
+NEXTAUTH_SECRET=随机长字符串
+NEXTAUTH_URL=https://你的域名.vercel.app
+ADMIN_EMAIL=你的后台登录邮箱
+ADMIN_PASSWORD=你的后台登录密码
+NEXT_PUBLIC_SITE_URL=https://你的域名.vercel.app
+SETTINGS_ENCRYPTION_KEY=64位十六进制随机字符串
+SUNFLOWER_IP_SALT=任意随机字符串
+```
 
 ### 3. 连接 PostgreSQL
 
-**选项 A：Vercel Marketplace 数据库（推荐）**
-1. Vercel 项目 → Storage / Marketplace → 选择 Prisma Postgres、Neon 或 Supabase
-2. 将集成自动注入的 Postgres 连接串同步到 `DATABASE_URL`
-
-**选项 B：Supabase / Neon（免费套餐更慷慨）**
+**选项 A：Supabase / Neon（推荐）**
 1. 注册 [neon.tech](https://neon.tech) 或 [supabase.com](https://supabase.com)
-2. 创建项目，复制 Connection String
+2. 创建项目，复制两条连接串
+3. 将运行时连接串填到 `DATABASE_URL`
+4. 将数据库直连串填到 `DIRECT_URL`
+
+说明：
+
+- `DATABASE_URL` 推荐使用连接池 URL，更适合 Vercel Serverless
+- `DIRECT_URL` 推荐使用直连 URL，适合 `prisma migrate deploy`
+
+**选项 B：Vercel Marketplace 数据库**
+1. Vercel 项目 → Storage / Marketplace → 选择 Prisma Postgres、Neon 或 Supabase
+2. 把集成后的连接串同步到 `DATABASE_URL`
+3. 如果平台提供直连串，再同步到 `DIRECT_URL`
 
 仓库已经默认使用 PostgreSQL，无需再改 `schema.prisma`。
 
@@ -219,7 +248,13 @@ npm i -g vercel
 vercel env pull .env.production.local
 
 # 运行迁移
-DATABASE_URL="你的生产PostgreSQL连接字符串" npx prisma migrate deploy
+DIRECT_URL="你的生产数据库直连串" npx prisma migrate deploy
+```
+
+如果你暂时只有一条连接串，也可以先这样：
+
+```bash
+DATABASE_URL="你的 PostgreSQL 连接串" npx prisma migrate deploy
 ```
 
 ### 5. 迁移旧版本地 SQLite 数据（如果你以前用过 `prisma/dev.db`）
@@ -238,6 +273,34 @@ DATABASE_URL="你的PostgreSQL连接字符串" npm run db:import:sqlite
 2. URL 填：`https://你的域名.vercel.app/api/payments/webhook`
 3. 选择事件：`checkout.session.completed`、`checkout.session.expired`
 4. 复制 Signing secret 到 Vercel 环境变量 `STRIPE_WEBHOOK_SECRET`
+
+### 7. 后台登录入口
+
+生产环境后台请直接访问：
+
+```text
+https://你的域名/admin/login
+```
+
+登录使用的是你自己配置的：
+
+- `ADMIN_EMAIL`
+- `ADMIN_PASSWORD`
+
+如果你访问下面这个地址返回：
+
+```text
+/api/auth/providers
+There is a problem with the server configuration.
+```
+
+通常说明至少有一项没配好：
+
+- `NEXTAUTH_SECRET`
+- `NEXTAUTH_URL`
+- `ADMIN_EMAIL`
+- `ADMIN_PASSWORD`
+- `DATABASE_URL`
 
 ---
 
@@ -301,6 +364,7 @@ src/
 1. 公共博客内容改为 `content/posts` 中的 Markdown 文件，不再从数据库读取正文
 2. `/blog` 与 `/blog/[slug]` 使用 `generateStaticParams()` 和 `revalidate`，适合 Vercel 缓存
 3. Prisma Client 改为单例模式，降低开发和 Serverless 场景中的重复连接风险
+   说明：单例只能减少单实例内的重复创建，生产环境仍推荐使用 Postgres 连接池 URL
 4. 构建脚本统一为：
 
 ```bash
@@ -328,5 +392,9 @@ A：检查垃圾邮件文件夹；确认 Gmail 应用密码正确；部分服务
 A：安装 [Docker](https://docker.com)，运行：
 ```bash
 docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=password postgres
-DATABASE_URL="postgresql://postgres:password@localhost:5432/blog"
+DATABASE_URL="postgresql://postgres:password@localhost:5432/blog?schema=public"
+DIRECT_URL="postgresql://postgres:password@localhost:5432/blog?schema=public"
 ```
+
+**Q：访问 `/admin` 或 `/api/auth/providers` 报服务器配置错误怎么办？**  
+A：优先检查 `NEXTAUTH_SECRET`、`NEXTAUTH_URL`、`ADMIN_EMAIL`、`ADMIN_PASSWORD`、`DATABASE_URL` 是否都已在 Vercel 中配置；后台入口建议直接访问 `/admin/login`。

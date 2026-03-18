@@ -22,8 +22,8 @@ export async function GET() {
       post => `
         <item>
           <title>${escapeXml(post.title)}</title>
-          <link>${absoluteUrl(`/blog/${post.slug}`)}</link>
-          <guid>${absoluteUrl(`/blog/${post.slug}`)}</guid>
+          <link>${absoluteUrl(post.href || `/article/${post.slug}`)}</link>
+          <guid>${absoluteUrl(post.href || `/article/${post.slug}`)}</guid>
           <pubDate>${new Date(post.publishedAt).toUTCString()}</pubDate>
           <description>${escapeXml(post.description)}</description>
         </item>`,
@@ -35,7 +35,7 @@ export async function GET() {
   <channel>
     <title>${escapeXml(siteName)}</title>
     <link>${siteUrl}</link>
-    <description>${escapeXml(`${siteName} 的 Markdown 博客订阅源`)}</description>
+    <description>${escapeXml(`${siteName} 的博客订阅源`)}</description>
     ${items}
   </channel>
 </rss>`

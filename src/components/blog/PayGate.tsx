@@ -34,11 +34,11 @@ export default function PayGate({
   return (
     <div className="max-w-sm mx-auto text-center py-16">
       <div className="text-5xl mb-4">☕</div>
-      <h3 className="font-serif text-xl font-medium mb-2 text-[#221e1a]">打赏解锁</h3>
-      <p className="text-sm text-[#8c7d68] mb-1">
-        本文需要打赏 <span className="text-[#d4711a] font-medium">¥{price}</span> 解锁
+      <h3 className="mb-2 font-serif text-xl font-medium text-[var(--text-primary)]">打赏解锁</h3>
+      <p className="mb-1 text-sm text-[var(--text-muted)]">
+        本文需要打赏 <span className="font-medium text-[var(--accent)]">¥{price}</span> 解锁
       </p>
-      <p className="text-xs text-[#a89880] mb-8">支付成功后将向你的邮箱发送永久访问链接</p>
+      <p className="mb-8 text-xs text-[var(--text-subtle)]">支付成功后将向你的邮箱发送永久访问链接</p>
 
       <form onSubmit={pay} className="space-y-3">
         <input
@@ -55,7 +55,7 @@ export default function PayGate({
         </button>
       </form>
 
-      <p className="text-xs text-[#c4b8a7] mt-6">由 Stripe 提供安全支付</p>
+      <p className="mt-6 text-xs text-[var(--text-faint)]">由 Stripe 提供安全支付</p>
     </div>
   )
 }
