@@ -1,0 +1,1938 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>xmap.top — 时空留言地图</title>
+    <meta
+      name="description"
+      content="xmap.top 是一个带有时空胶囊留言功能的未来地图应用，让记忆在地理坐标与未来时刻重新相遇。"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    />
+    <style>
+      :root {
+        --bg: #0a0c14;
+        --bg-soft: #101625;
+        --bg-panel: rgba(16, 22, 37, 0.68);
+        --line: rgba(255, 255, 255, 0.08);
+        --line-strong: rgba(255, 255, 255, 0.16);
+        --text: #f4f7ff;
+        --muted: rgba(230, 236, 255, 0.72);
+        --accent: #a5d8ff;
+        --accent-strong: #7b2cbf;
+        --accent-soft: #86f7dd;
+        --accent-pink: #ffb3ec;
+        --shadow: 0 24px 60px rgba(4, 8, 20, 0.46);
+        --shadow-soft: 0 18px 36px rgba(8, 12, 28, 0.28);
+        --radius-xl: 32px;
+        --radius-lg: 24px;
+        --radius-md: 18px;
+        --container: min(1180px, calc(100vw - 32px));
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Quicksand", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 15% 20%, rgba(123, 44, 191, 0.28), transparent 28%),
+          radial-gradient(circle at 82% 18%, rgba(165, 216, 255, 0.22), transparent 24%),
+          radial-gradient(circle at 50% 110%, rgba(255, 179, 236, 0.18), transparent 28%),
+          linear-gradient(180deg, #0a0c14 0%, #0d1020 52%, #090b13 100%);
+        overflow-x: hidden;
+      }
+
+      body::before,
+      body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: -2;
+      }
+
+      body::before {
+        background:
+          linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+        background-size: 72px 72px;
+        mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
+        opacity: 0.32;
+      }
+
+      body::after {
+        background:
+          radial-gradient(circle at center, rgba(165, 216, 255, 0.14), transparent 34%),
+          radial-gradient(circle at 35% 65%, rgba(123, 44, 191, 0.12), transparent 30%);
+        filter: blur(56px);
+        z-index: -3;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      img {
+        max-width: 100%;
+      }
+
+      .container {
+        width: var(--container);
+        margin: 0 auto;
+      }
+
+      .glass-panel {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.05));
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 16px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--muted);
+        font-size: 0.9rem;
+        letter-spacing: 0.04em;
+      }
+
+      .float-card {
+        animation: floatCard 7s ease-in-out infinite;
+      }
+
+      .float-card.delay-1 {
+        animation-delay: -1.6s;
+      }
+
+      .float-card.delay-2 {
+        animation-delay: -3.2s;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 26px 0 12px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 14px;
+        font-size: 1rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .brand-mark {
+        width: 44px;
+        height: 44px;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+        color: var(--text);
+        background:
+          linear-gradient(135deg, rgba(165, 216, 255, 0.9), rgba(123, 44, 191, 0.8)),
+          rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        box-shadow: 0 14px 30px rgba(123, 44, 191, 0.25);
+      }
+
+      .nav {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        color: rgba(244, 247, 255, 0.72);
+      }
+
+      .nav a {
+        position: relative;
+        font-weight: 600;
+      }
+
+      .nav a::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        bottom: -6px;
+        width: 100%;
+        height: 2px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--accent), var(--accent-pink));
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 0.25s ease;
+      }
+
+      .nav a:hover::after,
+      .nav a:focus-visible::after {
+        transform: scaleX(1);
+      }
+
+      .ghost-link {
+        padding: 12px 18px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: var(--shadow-soft);
+        font-weight: 700;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.03fr) minmax(0, 0.97fr);
+        gap: 42px;
+        align-items: center;
+        padding: 44px 0 52px;
+      }
+
+      .hero-copy {
+        position: relative;
+        z-index: 1;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 16px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: var(--accent);
+        font-size: 0.88rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .eyebrow::before {
+        content: "";
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, var(--accent-soft), var(--accent));
+        box-shadow: 0 0 18px rgba(134, 247, 221, 0.85);
+      }
+
+      h1 {
+        margin: 22px 0 18px;
+        font-size: clamp(3rem, 6vw, 5.4rem);
+        line-height: 0.98;
+        letter-spacing: -0.05em;
+      }
+
+      .hero-title-glow {
+        display: block;
+        background: linear-gradient(115deg, #f7fbff 5%, #a5d8ff 42%, #ffb3ec 88%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        text-shadow: 0 0 34px rgba(165, 216, 255, 0.14);
+      }
+
+      .subtitle {
+        margin: 0 0 18px;
+        font-size: clamp(1.2rem, 2vw, 1.55rem);
+        color: rgba(233, 240, 255, 0.9);
+        font-weight: 600;
+      }
+
+      .hero-copy p {
+        margin: 0;
+        max-width: 620px;
+        color: var(--muted);
+        font-size: 1.04rem;
+        line-height: 1.9;
+      }
+
+      .cta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-top: 28px;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        min-width: 180px;
+        padding: 16px 22px;
+        border-radius: 18px;
+        font-weight: 700;
+        transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+      }
+
+      .button:hover,
+      .button:focus-visible {
+        transform: translateY(-3px);
+      }
+
+      .button.primary {
+        color: #08111c;
+        background: linear-gradient(135deg, var(--accent), #d6f0ff 55%, var(--accent-soft));
+        box-shadow: 0 18px 38px rgba(165, 216, 255, 0.28);
+      }
+
+      .button.secondary {
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.06);
+        box-shadow: var(--shadow-soft);
+      }
+
+      .hero-stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+        margin-top: 30px;
+      }
+
+      .stat-card {
+        position: relative;
+        padding: 18px 18px 16px;
+        border-radius: 24px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.05));
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: var(--shadow-soft);
+        overflow: hidden;
+      }
+
+      .stat-card::after {
+        content: "";
+        position: absolute;
+        inset: auto -15% -55% auto;
+        width: 110px;
+        height: 110px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(165, 216, 255, 0.24), transparent 66%);
+      }
+
+      .stat-number {
+        display: block;
+        font-size: 1.42rem;
+        font-weight: 700;
+        color: var(--text);
+      }
+
+      .stat-label {
+        display: block;
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .hero-visual {
+        position: relative;
+        min-height: 620px;
+        perspective: 1600px;
+      }
+
+      .globe-panel {
+        position: absolute;
+        inset: 54px 22px 54px 22px;
+        padding: 22px;
+        border-radius: 36px;
+        overflow: hidden;
+        transform-style: preserve-3d;
+      }
+
+      .globe-panel::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.14), transparent 36%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 36%);
+        pointer-events: none;
+      }
+
+      .visual-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        position: relative;
+        z-index: 2;
+      }
+
+      .visual-top .pill {
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .visual-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: rgba(244, 247, 255, 0.82);
+        font-weight: 700;
+      }
+
+      .visual-status span {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--accent-soft);
+        box-shadow: 0 0 16px rgba(134, 247, 221, 0.85);
+      }
+
+      .globe-stage {
+        position: relative;
+        display: grid;
+        place-items: center;
+        height: calc(100% - 74px);
+        margin-top: 12px;
+        transform-style: preserve-3d;
+      }
+
+      .globe-wrap {
+        position: relative;
+        width: min(100%, 390px);
+        aspect-ratio: 1;
+        display: grid;
+        place-items: center;
+        transform-style: preserve-3d;
+        animation: stageTilt 9s ease-in-out infinite;
+      }
+
+      .orbit-ring {
+        position: absolute;
+        inset: 10%;
+        border-radius: 50%;
+        border: 1px solid rgba(165, 216, 255, 0.24);
+        transform-style: preserve-3d;
+      }
+
+      .orbit-ring.one {
+        transform: rotateX(74deg) rotateY(18deg);
+        animation: orbitSpin 15s linear infinite;
+      }
+
+      .orbit-ring.two {
+        inset: 4%;
+        border-color: rgba(255, 179, 236, 0.2);
+        transform: rotateX(82deg) rotateZ(36deg);
+        animation: orbitSpinReverse 18s linear infinite;
+      }
+
+      .orbit-ring.three {
+        inset: 18%;
+        border-style: dashed;
+        border-color: rgba(134, 247, 221, 0.18);
+        transform: rotateY(78deg);
+        animation: orbitSpin 11s linear infinite;
+      }
+
+      .globe-shadow {
+        position: absolute;
+        width: 70%;
+        height: 70%;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(123, 44, 191, 0.26), rgba(4, 8, 20, 0.02) 72%);
+        filter: blur(42px);
+        transform: translateY(26%) rotateX(78deg) scale(1.18, 0.48);
+      }
+
+      .globe {
+        position: relative;
+        width: 76%;
+        aspect-ratio: 1;
+        border-radius: 50%;
+        transform-style: preserve-3d;
+        background:
+          radial-gradient(circle at 34% 26%, rgba(247, 251, 255, 0.75), rgba(165, 216, 255, 0.32) 18%, rgba(123, 44, 191, 0.1) 50%, transparent 60%),
+          linear-gradient(145deg, rgba(165, 216, 255, 0.72), rgba(123, 44, 191, 0.86));
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        box-shadow:
+          inset -18px -24px 44px rgba(7, 11, 24, 0.48),
+          inset 18px 18px 40px rgba(255, 255, 255, 0.12),
+          0 22px 54px rgba(15, 22, 44, 0.48);
+        animation: globeRotate 18s linear infinite, globeLift 8s ease-in-out infinite;
+        overflow: hidden;
+      }
+
+      .globe::before,
+      .globe::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+      }
+
+      .globe::before {
+        background:
+          radial-gradient(circle at 74% 30%, rgba(255, 255, 255, 0.35), transparent 20%),
+          linear-gradient(120deg, transparent 24%, rgba(255, 255, 255, 0.2) 50%, transparent 78%);
+        mix-blend-mode: screen;
+      }
+
+      .globe::after {
+        inset: 6%;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+      }
+
+      .latitude,
+      .longitude,
+      .continent,
+      .marker {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform-style: preserve-3d;
+      }
+
+      .latitude {
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 50%;
+        transform: translate(-50%, -50%) rotateX(76deg);
+      }
+
+      .latitude.lat-1 {
+        width: 88%;
+        height: 88%;
+      }
+
+      .latitude.lat-2 {
+        width: 76%;
+        height: 76%;
+      }
+
+      .latitude.lat-3 {
+        width: 58%;
+        height: 58%;
+      }
+
+      .longitude {
+        width: 88%;
+        height: 88%;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 50%;
+      }
+
+      .longitude.lon-1 {
+        transform: translate(-50%, -50%) rotateY(18deg);
+      }
+
+      .longitude.lon-2 {
+        transform: translate(-50%, -50%) rotateY(62deg);
+      }
+
+      .longitude.lon-3 {
+        transform: translate(-50%, -50%) rotateY(112deg);
+      }
+
+      .continent {
+        background: linear-gradient(140deg, rgba(212, 244, 255, 0.92), rgba(255, 179, 236, 0.68));
+        opacity: 0.8;
+        filter: drop-shadow(0 0 14px rgba(165, 216, 255, 0.2));
+      }
+
+      .continent.c-1 {
+        width: 28%;
+        height: 18%;
+        transform: translate(-112%, -68%) rotate(-14deg);
+        clip-path: polygon(6% 24%, 30% 0%, 80% 8%, 100% 48%, 82% 92%, 32% 100%, 0% 56%);
+      }
+
+      .continent.c-2 {
+        width: 18%;
+        height: 24%;
+        transform: translate(24%, -4%) rotate(18deg);
+        clip-path: polygon(14% 0%, 72% 6%, 100% 34%, 84% 100%, 18% 92%, 0% 38%);
+      }
+
+      .continent.c-3 {
+        width: 12%;
+        height: 16%;
+        transform: translate(-28%, 36%) rotate(-22deg);
+        clip-path: polygon(12% 0%, 94% 16%, 82% 100%, 4% 90%, 0% 24%);
+      }
+
+      .marker {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: radial-gradient(circle, #ffffff 0%, var(--accent) 45%, rgba(165, 216, 255, 0.16) 100%);
+        box-shadow:
+          0 0 0 6px rgba(165, 216, 255, 0.16),
+          0 0 26px rgba(165, 216, 255, 0.75);
+      }
+
+      .marker::before {
+        content: "";
+        position: absolute;
+        inset: -10px;
+        border-radius: 50%;
+        border: 1px solid rgba(165, 216, 255, 0.22);
+        animation: pulseRing 2.8s ease-out infinite;
+      }
+
+      .marker.m-1 {
+        transform: translate(-125%, -72%);
+      }
+
+      .marker.m-2 {
+        transform: translate(52%, -22%);
+        background: radial-gradient(circle, #ffffff 0%, var(--accent-pink) 50%, rgba(255, 179, 236, 0.18) 100%);
+        box-shadow:
+          0 0 0 6px rgba(255, 179, 236, 0.14),
+          0 0 24px rgba(255, 179, 236, 0.62);
+      }
+
+      .marker.m-3 {
+        transform: translate(-18%, 56%);
+        background: radial-gradient(circle, #ffffff 0%, var(--accent-soft) 52%, rgba(134, 247, 221, 0.18) 100%);
+        box-shadow:
+          0 0 0 6px rgba(134, 247, 221, 0.14),
+          0 0 24px rgba(134, 247, 221, 0.62);
+      }
+
+      .floating-note {
+        position: absolute;
+        padding: 14px 16px;
+        border-radius: 20px;
+        min-width: 170px;
+        box-shadow: var(--shadow-soft);
+      }
+
+      .floating-note strong {
+        display: block;
+        font-size: 0.95rem;
+        margin-bottom: 8px;
+      }
+
+      .floating-note span {
+        color: var(--muted);
+        font-size: 0.85rem;
+        line-height: 1.6;
+      }
+
+      .note-top {
+        top: 12px;
+        right: -6px;
+      }
+
+      .note-bottom {
+        bottom: 18px;
+        left: -10px;
+      }
+
+      .visual-footer {
+        position: absolute;
+        left: 22px;
+        right: 22px;
+        bottom: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        z-index: 2;
+      }
+
+      .visual-metric strong {
+        display: block;
+        font-size: 1.45rem;
+      }
+
+      .visual-metric span {
+        color: var(--muted);
+        font-size: 0.88rem;
+      }
+
+      .pulse-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: rgba(244, 247, 255, 0.84);
+        font-size: 0.9rem;
+        font-weight: 600;
+      }
+
+      .pulse-pill::before {
+        content: "";
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--accent-soft);
+        box-shadow: 0 0 18px rgba(134, 247, 221, 0.85);
+        animation: pulseDot 1.8s ease-in-out infinite;
+      }
+
+      .section {
+        padding: 36px 0 20px;
+      }
+
+      .section-heading {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        margin-bottom: 28px;
+        max-width: 720px;
+      }
+
+      .section-heading .section-kicker {
+        color: var(--accent);
+        font-size: 0.9rem;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .section-heading h2 {
+        margin: 0;
+        font-size: clamp(2rem, 4vw, 3.25rem);
+        line-height: 1.08;
+        letter-spacing: -0.04em;
+      }
+
+      .section-heading p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 1rem;
+        line-height: 1.9;
+      }
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .feature-card {
+        position: relative;
+        padding: 24px;
+        border-radius: 28px;
+        overflow: hidden;
+        transition: transform 0.28s ease, border-color 0.28s ease;
+      }
+
+      .feature-card:hover {
+        transform: translateY(-6px) rotateX(3deg);
+        border-color: rgba(165, 216, 255, 0.24);
+      }
+
+      .feature-card::after {
+        content: "";
+        position: absolute;
+        inset: auto -10% -42% auto;
+        width: 140px;
+        height: 140px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(255, 179, 236, 0.18), transparent 62%);
+      }
+
+      .feature-icon {
+        width: 56px;
+        height: 56px;
+        display: grid;
+        place-items: center;
+        border-radius: 18px;
+        font-size: 1.2rem;
+        color: #0a0c14;
+        background: linear-gradient(135deg, var(--accent), rgba(255, 179, 236, 0.94));
+        box-shadow: 0 14px 24px rgba(165, 216, 255, 0.24);
+      }
+
+      .feature-card h3 {
+        margin: 18px 0 10px;
+        font-size: 1.16rem;
+      }
+
+      .feature-card p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.8;
+        font-size: 0.96rem;
+      }
+
+      .tag-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 16px;
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: rgba(244, 247, 255, 0.78);
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .echo-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+        gap: 20px;
+        align-items: stretch;
+      }
+
+      .echo-map,
+      .echo-aside,
+      .signup-panel {
+        border-radius: 32px;
+      }
+
+      .echo-map {
+        padding: 20px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .echo-map::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(circle at 20% 18%, rgba(165, 216, 255, 0.08), transparent 20%),
+          radial-gradient(circle at 82% 24%, rgba(255, 179, 236, 0.09), transparent 20%);
+        pointer-events: none;
+      }
+
+      .echo-header {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        align-items: center;
+        margin-bottom: 18px;
+      }
+
+      .echo-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .echo-title strong {
+        display: block;
+        font-size: 1rem;
+      }
+
+      .echo-title span {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .map-surface {
+        position: relative;
+        min-height: 460px;
+        border-radius: 28px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background:
+          radial-gradient(circle at 72% 34%, rgba(165, 216, 255, 0.12), transparent 22%),
+          radial-gradient(circle at 30% 76%, rgba(123, 44, 191, 0.18), transparent 28%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+      }
+
+      .map-surface::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+        background-size: 40px 40px;
+        opacity: 0.54;
+      }
+
+      .map-surface::after {
+        content: "";
+        position: absolute;
+        inset: 12% 10%;
+        border-radius: 32px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        transform: rotate(-10deg);
+        opacity: 0.48;
+      }
+
+      .map-chip {
+        position: absolute;
+        padding: 10px 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(10, 12, 20, 0.44);
+        backdrop-filter: blur(12px);
+        color: rgba(244, 247, 255, 0.82);
+        font-size: 0.84rem;
+        font-weight: 700;
+        z-index: 2;
+      }
+
+      .map-chip.city {
+        top: 24px;
+        left: 22px;
+      }
+
+      .map-chip.binding {
+        top: 28px;
+        right: 22px;
+      }
+
+      .route-line {
+        position: absolute;
+        left: 16%;
+        top: 63%;
+        width: 36%;
+        height: 2px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, rgba(165, 216, 255, 0.08), rgba(165, 216, 255, 0.92));
+        transform: rotate(-18deg);
+        box-shadow: 0 0 18px rgba(165, 216, 255, 0.36);
+        z-index: 1;
+      }
+
+      .route-line::after {
+        content: "";
+        position: absolute;
+        right: -4px;
+        top: 50%;
+        width: 8px;
+        height: 8px;
+        transform: translateY(-50%);
+        border-radius: 50%;
+        background: var(--accent);
+      }
+
+      .geofence {
+        position: absolute;
+        left: 56%;
+        top: 44%;
+        width: 180px;
+        height: 180px;
+        border-radius: 50%;
+        border: 1px solid rgba(165, 216, 255, 0.4);
+        transform: translate(-50%, -50%);
+        z-index: 1;
+        animation: zonePulse 3.8s ease-in-out infinite;
+      }
+
+      .geofence::before,
+      .geofence::after {
+        content: "";
+        position: absolute;
+        inset: 16px;
+        border-radius: 50%;
+        border: 1px solid rgba(165, 216, 255, 0.18);
+      }
+
+      .geofence::after {
+        inset: 34px;
+      }
+
+      .geofence-label {
+        position: absolute;
+        left: 56%;
+        top: calc(44% + 112px);
+        transform: translateX(-50%);
+        color: var(--accent);
+        font-size: 0.88rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        z-index: 2;
+      }
+
+      .beacon {
+        position: absolute;
+        left: 56%;
+        top: 44%;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        background: radial-gradient(circle, #ffffff 0%, var(--accent) 55%, rgba(165, 216, 255, 0.08) 100%);
+        box-shadow:
+          0 0 0 10px rgba(165, 216, 255, 0.12),
+          0 0 34px rgba(165, 216, 255, 0.72);
+        z-index: 3;
+      }
+
+      .beacon::before {
+        content: "";
+        position: absolute;
+        inset: -16px;
+        border-radius: 50%;
+        border: 1px solid rgba(165, 216, 255, 0.24);
+        animation: pulseRing 2.6s ease-out infinite;
+      }
+
+      .walker {
+        position: absolute;
+        left: 18%;
+        top: 70%;
+        z-index: 4;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        animation: walkIn 8s ease-in-out infinite;
+      }
+
+      .walker-avatar {
+        width: 52px;
+        height: 52px;
+        display: grid;
+        place-items: center;
+        border-radius: 18px;
+        font-size: 1.3rem;
+        color: #0a0c14;
+        background: linear-gradient(135deg, #ffffff, var(--accent-pink));
+        box-shadow: 0 16px 28px rgba(255, 179, 236, 0.28);
+      }
+
+      .walker-label {
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: rgba(244, 247, 255, 0.88);
+        font-size: 0.88rem;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .message-popup {
+        position: absolute;
+        right: 24px;
+        bottom: 28px;
+        width: min(330px, calc(100% - 48px));
+        padding: 18px 18px 20px;
+        border-radius: 24px;
+        background: linear-gradient(180deg, rgba(11, 16, 30, 0.86), rgba(23, 28, 48, 0.62));
+        border: 1px solid rgba(165, 216, 255, 0.18);
+        box-shadow: 0 24px 56px rgba(6, 9, 20, 0.48);
+        z-index: 5;
+        transform-origin: bottom right;
+        animation: popupReveal 8s ease-in-out infinite;
+      }
+
+      .message-meta {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        color: var(--accent);
+        background: rgba(165, 216, 255, 0.08);
+        font-size: 0.8rem;
+        font-weight: 700;
+      }
+
+      .message-popup h3 {
+        margin: 14px 0 10px;
+        font-size: 1.12rem;
+      }
+
+      .message-popup p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.75;
+        font-size: 0.95rem;
+      }
+
+      .signal-bars {
+        position: absolute;
+        left: 26px;
+        bottom: 26px;
+        display: flex;
+        gap: 6px;
+        z-index: 2;
+      }
+
+      .signal-bars span {
+        display: block;
+        width: 8px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), var(--accent));
+        animation: signalRise 1.8s ease-in-out infinite;
+      }
+
+      .signal-bars span:nth-child(1) {
+        height: 18px;
+      }
+
+      .signal-bars span:nth-child(2) {
+        height: 26px;
+        animation-delay: 0.2s;
+      }
+
+      .signal-bars span:nth-child(3) {
+        height: 34px;
+        animation-delay: 0.4s;
+      }
+
+      .echo-aside {
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+
+      .aside-card {
+        padding: 20px;
+        border-radius: 26px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .aside-card h3 {
+        margin: 0 0 12px;
+        font-size: 1.12rem;
+      }
+
+      .aside-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.95rem;
+        line-height: 1.8;
+      }
+
+      .step-list {
+        display: grid;
+        gap: 14px;
+        margin-top: 8px;
+      }
+
+      .step {
+        display: grid;
+        grid-template-columns: 44px minmax(0, 1fr);
+        gap: 14px;
+        align-items: start;
+      }
+
+      .step-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        display: grid;
+        place-items: center;
+        color: #0a0c14;
+        background: linear-gradient(135deg, var(--accent), var(--accent-soft));
+      }
+
+      .step strong {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 0.98rem;
+      }
+
+      .step span {
+        color: var(--muted);
+        line-height: 1.7;
+        font-size: 0.92rem;
+      }
+
+      .mini-metrics {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .mini-metric {
+        padding: 16px;
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .mini-metric strong {
+        display: block;
+        font-size: 1.2rem;
+      }
+
+      .mini-metric span {
+        display: block;
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 0.88rem;
+        line-height: 1.6;
+      }
+
+      .footer-shell {
+        padding: 44px 0 36px;
+      }
+
+      .signup-panel {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(320px, 0.95fr);
+        gap: 24px;
+        padding: 28px;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .signup-panel::before {
+        content: "";
+        position: absolute;
+        inset: auto -10% -44% auto;
+        width: 280px;
+        height: 280px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(165, 216, 255, 0.2), transparent 60%);
+        pointer-events: none;
+      }
+
+      .signup-copy h2 {
+        margin: 12px 0 14px;
+        font-size: clamp(2rem, 4vw, 3rem);
+        line-height: 1.08;
+        letter-spacing: -0.04em;
+      }
+
+      .signup-copy p {
+        margin: 0;
+        color: var(--muted);
+        max-width: 560px;
+        line-height: 1.9;
+      }
+
+      .signup-form {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .signup-form label {
+        font-weight: 700;
+        color: rgba(244, 247, 255, 0.92);
+      }
+
+      .input-shell {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px 10px 16px;
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+      }
+
+      .input-shell i {
+        color: var(--accent);
+      }
+
+      .input-shell input {
+        flex: 1;
+        min-width: 0;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: var(--text);
+        font: inherit;
+      }
+
+      .input-shell input::placeholder {
+        color: rgba(244, 247, 255, 0.45);
+      }
+
+      .signup-form button {
+        border: 0;
+        outline: 0;
+        padding: 14px 18px;
+        border-radius: 16px;
+        color: #0a0c14;
+        background: linear-gradient(135deg, var(--accent), #ffffff);
+        font: inherit;
+        font-weight: 800;
+        cursor: pointer;
+        transition: transform 0.25s ease, box-shadow 0.25s ease;
+        box-shadow: 0 16px 30px rgba(165, 216, 255, 0.28);
+      }
+
+      .signup-form button:hover,
+      .signup-form button:focus-visible {
+        transform: translateY(-2px);
+      }
+
+      .helper-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        color: rgba(244, 247, 255, 0.58);
+        font-size: 0.84rem;
+        line-height: 1.6;
+      }
+
+      .signup-feedback {
+        min-height: 1.5em;
+        margin: 0;
+        color: var(--accent-soft);
+        font-weight: 700;
+      }
+
+      .footer-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        align-items: center;
+        padding-top: 18px;
+        color: rgba(244, 247, 255, 0.54);
+        font-size: 0.88rem;
+      }
+
+      .footer-links {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+
+      @keyframes floatCard {
+        0%,
+        100% {
+          transform: translate3d(0, 0, 0);
+        }
+        50% {
+          transform: translate3d(0, -10px, 0);
+        }
+      }
+
+      @keyframes globeRotate {
+        0% {
+          transform: rotateX(18deg) rotateY(0deg);
+        }
+        100% {
+          transform: rotateX(18deg) rotateY(360deg);
+        }
+      }
+
+      @keyframes globeLift {
+        0%,
+        100% {
+          translate: 0 0;
+        }
+        50% {
+          translate: 0 -10px;
+        }
+      }
+
+      @keyframes orbitSpin {
+        0% {
+          rotate: 0deg;
+        }
+        100% {
+          rotate: 360deg;
+        }
+      }
+
+      @keyframes orbitSpinReverse {
+        0% {
+          rotate: 360deg;
+        }
+        100% {
+          rotate: 0deg;
+        }
+      }
+
+      @keyframes stageTilt {
+        0%,
+        100% {
+          transform: rotateX(7deg) rotateY(-10deg);
+        }
+        50% {
+          transform: rotateX(-3deg) rotateY(12deg);
+        }
+      }
+
+      @keyframes pulseRing {
+        0% {
+          opacity: 0;
+          transform: scale(0.76);
+        }
+        35% {
+          opacity: 0.6;
+        }
+        100% {
+          opacity: 0;
+          transform: scale(1.42);
+        }
+      }
+
+      @keyframes pulseDot {
+        0%,
+        100% {
+          opacity: 0.8;
+          transform: scale(0.96);
+        }
+        50% {
+          opacity: 1;
+          transform: scale(1.12);
+        }
+      }
+
+      @keyframes zonePulse {
+        0%,
+        100% {
+          transform: translate(-50%, -50%) scale(0.96);
+          opacity: 0.82;
+        }
+        50% {
+          transform: translate(-50%, -50%) scale(1.04);
+          opacity: 1;
+        }
+      }
+
+      @keyframes walkIn {
+        0%,
+        15% {
+          transform: translate(0, 0);
+        }
+        50%,
+        70% {
+          transform: translate(180px, -106px);
+        }
+        100% {
+          transform: translate(180px, -106px);
+        }
+      }
+
+      @keyframes popupReveal {
+        0%,
+        24% {
+          opacity: 0;
+          transform: translateY(14px) scale(0.94);
+        }
+        38%,
+        84% {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+        100% {
+          opacity: 0.96;
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      @keyframes signalRise {
+        0%,
+        100% {
+          opacity: 0.45;
+          transform: scaleY(0.84);
+        }
+        50% {
+          opacity: 1;
+          transform: scaleY(1.12);
+        }
+      }
+
+      @media (max-width: 1120px) {
+        .hero,
+        .echo-layout,
+        .signup-panel {
+          grid-template-columns: 1fr;
+        }
+
+        .hero-visual {
+          min-height: 560px;
+        }
+
+        .feature-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 760px) {
+        :root {
+          --container: min(100vw - 24px, 100%);
+        }
+
+        .topbar {
+          flex-wrap: wrap;
+          justify-content: center;
+        }
+
+        .nav {
+          order: 3;
+          width: 100%;
+          justify-content: center;
+          flex-wrap: wrap;
+        }
+
+        .hero {
+          padding-top: 28px;
+        }
+
+        .hero-copy,
+        .section-heading,
+        .signup-copy {
+          text-align: center;
+          margin-inline: auto;
+        }
+
+        .cta-row,
+        .helper-row,
+        .footer-meta,
+        .footer-links {
+          justify-content: center;
+        }
+
+        .hero-stats,
+        .feature-grid,
+        .mini-metrics {
+          grid-template-columns: 1fr;
+        }
+
+        .globe-panel {
+          inset: 30px 0 26px;
+        }
+
+        .floating-note {
+          display: none;
+        }
+
+        .visual-footer,
+        .echo-header,
+        .helper-row,
+        .footer-meta {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .visual-footer,
+        .footer-meta {
+          align-items: center;
+          text-align: center;
+        }
+
+        .map-surface {
+          min-height: 520px;
+        }
+
+        .map-chip.binding {
+          top: auto;
+          right: 18px;
+          bottom: 22px;
+        }
+
+        .walker {
+          animation: walkInMobile 8s ease-in-out infinite;
+        }
+      }
+
+      @media (max-width: 540px) {
+        .button,
+        .ghost-link {
+          width: 100%;
+        }
+
+        .input-shell {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .message-popup {
+          right: 14px;
+          bottom: 100px;
+          width: calc(100% - 28px);
+        }
+
+        .route-line {
+          width: 44%;
+        }
+
+        .geofence {
+          width: 154px;
+          height: 154px;
+        }
+
+        .geofence-label {
+          top: calc(44% + 96px);
+        }
+
+        .walker-avatar {
+          width: 46px;
+          height: 46px;
+        }
+      }
+
+      @keyframes walkInMobile {
+        0%,
+        15% {
+          transform: translate(0, 0);
+        }
+        50%,
+        70% {
+          transform: translate(124px, -98px);
+        }
+        100% {
+          transform: translate(124px, -98px);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="container topbar">
+      <a class="brand" href="#top" aria-label="xmap.top 首页">
+        <span class="brand-mark"><i class="fa-solid fa-earth-asia"></i></span>
+        <span>xmap.top</span>
+      </a>
+      <nav class="nav" aria-label="页面导航">
+        <a href="#features">功能亮点</a>
+        <a href="#echo-demo">时空回响</a>
+        <a href="#signup">内测预约</a>
+      </nav>
+      <a class="ghost-link" href="#signup">获取 Beta Invite</a>
+    </header>
+
+    <main id="top">
+      <section class="container hero">
+        <div class="hero-copy">
+          <span class="eyebrow">Future Map Capsule</span>
+          <h1>
+            <span class="hero-title-glow">xmap.top —</span>
+            <span class="hero-title-glow">时空留言地图</span>
+          </h1>
+          <p class="subtitle">埋下记忆，在未来的某个坐标重逢。</p>
+          <p>
+            让地图不止记录位置，也记录心情、约定与未说出口的话。把留言埋在地球表面的一点，
+            当好友重新走近那片 500 米范围，过去的你会像动漫里的时空彩蛋一样，轻轻弹窗出现。
+          </p>
+          <div class="cta-row">
+            <a class="button primary" href="#signup">
+              <i class="fa-solid fa-location-dot"></i>
+              开始埋下胶囊
+            </a>
+            <a class="button secondary" href="#echo-demo">
+              <i class="fa-solid fa-wand-magic-sparkles"></i>
+              观看时空回响
+            </a>
+          </div>
+          <div class="hero-stats">
+            <article class="stat-card float-card">
+              <span class="stat-number">500m</span>
+              <span class="stat-label">智能地理围栏触发半径</span>
+            </article>
+            <article class="stat-card float-card delay-1">
+              <span class="stat-number">1:1</span>
+              <span class="stat-label">好友手机号绑定关系</span>
+            </article>
+            <article class="stat-card float-card delay-2">
+              <span class="stat-number">3D</span>
+              <span class="stat-label">动漫风未来地球界面</span>
+            </article>
+          </div>
+        </div>
+
+        <div class="hero-visual">
+          <div class="globe-panel glass-panel">
+            <div class="visual-top">
+              <span class="pill">
+                <i class="fa-solid fa-bolt"></i>
+                Live Time-Capsule Sync
+              </span>
+              <div class="visual-status"><span></span> 当前在线</div>
+            </div>
+
+            <div class="globe-stage">
+              <div class="globe-wrap">
+                <div class="globe-shadow"></div>
+                <div class="orbit-ring one"></div>
+                <div class="orbit-ring two"></div>
+                <div class="orbit-ring three"></div>
+                <div class="globe" aria-hidden="true">
+                  <span class="latitude lat-1"></span>
+                  <span class="latitude lat-2"></span>
+                  <span class="latitude lat-3"></span>
+                  <span class="longitude lon-1"></span>
+                  <span class="longitude lon-2"></span>
+                  <span class="longitude lon-3"></span>
+                  <span class="continent c-1"></span>
+                  <span class="continent c-2"></span>
+                  <span class="continent c-3"></span>
+                  <span class="marker m-1"></span>
+                  <span class="marker m-2"></span>
+                  <span class="marker m-3"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="visual-footer">
+              <div class="visual-metric">
+                <strong>03:14</strong>
+                <span>未来坐标同步中</span>
+              </div>
+              <div class="pulse-pill">Seoul / Hangzhou / Paris</div>
+            </div>
+          </div>
+
+          <div class="floating-note note-top glass-panel float-card">
+            <strong>2031 Capsule</strong>
+            <span>“如果你走到这条街口，替我看看晚风还在不在。”</span>
+          </div>
+
+          <div class="floating-note note-bottom glass-panel float-card delay-2">
+            <strong>Memory Ping</strong>
+            <span>好友重新进入地理围栏后，留言自动回响。</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="container section" id="features">
+        <div class="section-heading">
+          <span class="section-kicker">Features</span>
+          <h2>把地点、关系和未来时间，做成一张会发光的地图</h2>
+          <p>
+            不是普通打卡，也不是即时聊天，而是一种延迟抵达的情绪交互。每个功能点都围绕“在未来某个坐标重逢”来设计。
+          </p>
+        </div>
+
+        <div class="feature-grid">
+          <article class="feature-card glass-panel float-card">
+            <div class="feature-icon"><i class="fa-solid fa-capsules"></i></div>
+            <h3>坐标留言·时空胶囊</h3>
+            <p>
+              在任意地图坐标埋下图文留言、心情片段或未来提醒，把一条信息从“现在”送到下一次靠近它的时刻。
+            </p>
+            <div class="tag-row">
+              <span class="tag">地图埋点</span>
+              <span class="tag">未来解锁</span>
+            </div>
+          </article>
+
+          <article class="feature-card glass-panel float-card delay-1">
+            <div class="feature-icon"><i class="fa-solid fa-draw-circle"></i></div>
+            <h3>500米地理围栏触发</h3>
+            <p>
+              系统自动检测好友是否进入目标点位周边 500 米范围，在合适的瞬间让过去留下的话自然弹出，不打扰也不迟到。
+            </p>
+            <div class="tag-row">
+              <span class="tag">精确触发</span>
+              <span class="tag">轻提醒</span>
+            </div>
+          </article>
+
+          <article class="feature-card glass-panel float-card delay-2">
+            <div class="feature-icon"><i class="fa-solid fa-mobile-screen-button"></i></div>
+            <h3>好友手机号绑定</h3>
+            <p>
+              用手机号完成轻量关系绑定，让留言不再飘向陌生人，而是只在你想让 TA 看见的时候，准确送达给那个好友。
+            </p>
+            <div class="tag-row">
+              <span class="tag">熟人关系</span>
+              <span class="tag">安心送达</span>
+            </div>
+          </article>
+
+          <article class="feature-card glass-panel float-card delay-1">
+            <div class="feature-icon"><i class="fa-solid fa-globe"></i></div>
+            <h3>3D动漫地球</h3>
+            <p>
+              柔和霓虹、玻璃卡片与轻微 3D 透视结合成未来感动漫 UI，让地图界面像一颗漂浮在夜空中的记忆星球。
+            </p>
+            <div class="tag-row">
+              <span class="tag">Pastel Neon</span>
+              <span class="tag">Glass UI</span>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="container section" id="echo-demo">
+        <div class="section-heading">
+          <span class="section-kicker">时空回响</span>
+          <h2>当 TA 重新走进 500 米半径，过去写下的那句话会自己出现</h2>
+          <p>
+            下面这个演示模拟好友手机号已经绑定，系统持续监听地理位置。当好友进入设定半径，时空胶囊自动回响并弹出提醒。
+          </p>
+        </div>
+
+        <div class="echo-layout">
+          <section class="echo-map glass-panel" aria-label="时空回响地图演示">
+            <div class="echo-header">
+              <div class="echo-title">
+                <span class="brand-mark"><i class="fa-solid fa-radar"></i></span>
+                <div>
+                  <strong>Echo Trigger Monitor</strong>
+                  <span>杭州西湖 · geofence live scene</span>
+                </div>
+              </div>
+              <span class="pill">
+                <i class="fa-solid fa-satellite-dish"></i>
+                Radius Watch Active
+              </span>
+            </div>
+
+            <div class="map-surface">
+              <div class="map-chip city">西湖·断桥坐标已埋藏</div>
+              <div class="map-chip binding">
+                <i class="fa-solid fa-link"></i>
+                +86 138****2107 已绑定
+              </div>
+              <div class="route-line" aria-hidden="true"></div>
+              <div class="geofence" aria-hidden="true"></div>
+              <div class="geofence-label">500m 地理围栏</div>
+              <div class="beacon" aria-hidden="true"></div>
+
+              <div class="walker">
+                <span class="walker-avatar"><i class="fa-solid fa-person-walking"></i></span>
+                <span class="walker-label">好友 · 林夏 接近中</span>
+              </div>
+
+              <article class="message-popup glass-panel">
+                <span class="message-meta">
+                  <i class="fa-solid fa-clock-rotate-left"></i>
+                  2023.11 埋下的留言已触发
+                </span>
+                <h3>“等你再次路过这里，就替那时的我看看晚霞。”</h3>
+                <p>
+                  三年前我把这句话埋在西湖边。今天你走进这里，它终于在正确的时间、正确的坐标里重新出现。
+                </p>
+              </article>
+
+              <div class="signal-bars" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+          </section>
+
+          <aside class="echo-aside glass-panel">
+            <article class="aside-card">
+              <h3>触发流程</h3>
+              <div class="step-list">
+                <div class="step">
+                  <div class="step-icon"><i class="fa-solid fa-user-group"></i></div>
+                  <div>
+                    <strong>1. 绑定好友关系</strong>
+                    <span>通过手机号完成轻量确认，让时空胶囊只对特定对象生效。</span>
+                  </div>
+                </div>
+                <div class="step">
+                  <div class="step-icon"><i class="fa-solid fa-location-crosshairs"></i></div>
+                  <div>
+                    <strong>2. 设定地图坐标</strong>
+                    <span>选择你们共享的地点，写下一句只属于未来某次重逢的话。</span>
+                  </div>
+                </div>
+                <div class="step">
+                  <div class="step-icon"><i class="fa-solid fa-comment-dots"></i></div>
+                  <div>
+                    <strong>3. 进入范围自动弹出</strong>
+                    <span>当系统检测到进入 500 米半径，过去的留言以卡片形式轻柔出现。</span>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article class="aside-card">
+              <h3>这个 Demo 想传达的感觉</h3>
+              <p>
+                xmap.top 不只是工具，更像把现实地点变成情绪舞台。每一次回响都不是通知轰炸，而是带一点等待、浪漫和命中注定的抵达感。
+              </p>
+            </article>
+
+            <div class="mini-metrics">
+              <div class="mini-metric">
+                <strong>24/7</strong>
+                <span>后台静默检测进入半径事件</span>
+              </div>
+              <div class="mini-metric">
+                <strong>Past → Future</strong>
+                <span>把旧留言投递到未来的相遇时刻</span>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <footer class="container footer-shell" id="signup">
+      <section class="signup-panel glass-panel">
+        <div class="signup-copy">
+          <span class="section-kicker">Email Signup</span>
+          <h2>把第一句未来留言，留给未来会抵达的人。</h2>
+          <p>
+            留下邮箱，获取 xmap.top 的内测资格、产品更新和首批功能开放通知。我们会优先邀请想把地图做成“记忆入口”的用户。
+          </p>
+        </div>
+
+        <form class="signup-form" id="signup-form">
+          <label for="email">邮箱地址</label>
+          <div class="input-shell">
+            <i class="fa-solid fa-envelope"></i>
+            <input id="email" name="email" type="email" placeholder="you@example.com" required />
+            <button type="submit">预约内测</button>
+          </div>
+          <div class="helper-row">
+            <span>只发送内测邀请与重要上新，不做营销轰炸。</span>
+            <span>hello@xmap.top</span>
+          </div>
+          <p class="signup-feedback" id="signup-feedback" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <div class="footer-meta">
+        <span>© 2026 xmap.top · Futuristic map app with time-capsule echoes.</span>
+        <div class="footer-links">
+          <a href="#top">Top</a>
+          <a href="#features">Features</a>
+          <a href="#echo-demo">Demo</a>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      const form = document.getElementById("signup-form");
+      const feedback = document.getElementById("signup-feedback");
+
+      form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        const emailInput = document.getElementById("email");
+        feedback.textContent = emailInput.value
+          ? "已收到你的预约，我们会在内测开放时把邀请发送到这个邮箱。"
+          : "请输入邮箱后再提交。";
+        form.reset();
+      });
+    </script>
+  </body>
+</html>
