@@ -19,29 +19,34 @@ export default async function SiteFooter({ compact = false }: SiteFooterProps) {
 
   return (
     <footer className={`border-t border-[var(--border-color)] ${compact ? 'mt-10 sm:mt-14' : 'mt-12 sm:mt-16'} py-6 sm:py-8`}>
-      <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 text-center sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:text-left">
-        <p className="text-xs text-[var(--text-faint)]">
-          {resolvedFooterText} · {year}
-        </p>
-
-        {links.length > 0 && (
-          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 sm:justify-end">
-            <span className="text-[11px] uppercase tracking-[0.22em] text-[var(--text-faint)]">
-              {resolvedLinksTitle}
-            </span>
-            {links.map(link => (
-              <a
-                key={`${link.label}-${link.href}`}
-                href={link.href}
-                target={link.href.startsWith('http') ? '_blank' : undefined}
-                rel={link.href.startsWith('http') ? 'noreferrer' : undefined}
-                className="text-xs text-[var(--text-subtle)] transition-colors hover:text-[var(--accent)]"
-              >
-                {link.label}
-              </a>
-            ))}
+      <div className="mx-auto max-w-5xl px-4 sm:px-6">
+        <div className="theme-panel-soft flex flex-col gap-4 px-5 py-5 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
+          <div>
+            <p className="text-xs uppercase tracking-[0.26em] text-[var(--text-faint)]">Footer Note</p>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">
+              {resolvedFooterText} · {year}
+            </p>
           </div>
-        )}
+
+          {links.length > 0 && (
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 sm:justify-end">
+              <span className="text-[11px] uppercase tracking-[0.22em] text-[var(--text-faint)]">
+                {resolvedLinksTitle}
+              </span>
+              {links.map(link => (
+                <a
+                  key={`${link.label}-${link.href}`}
+                  href={link.href}
+                  target={link.href.startsWith('http') ? '_blank' : undefined}
+                  rel={link.href.startsWith('http') ? 'noreferrer' : undefined}
+                  className="rounded-full border border-[var(--border-soft)] bg-white/45 px-3 py-1.5 text-xs text-[var(--text-subtle)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </footer>
   )

@@ -74,7 +74,7 @@ export default function BlogIndexPage({
 
           <aside className="w-full lg:w-64 lg:flex-shrink-0 lg:sticky lg:top-20 space-y-4">
             <SunflowerWidget />
-            <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-bg)] p-4 shadow-[0_10px_30px_var(--card-shadow)]">
+            <div className="theme-panel-soft p-4">
               <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[var(--text-faint)]">{cornerTitle}</p>
               <div className="space-y-2 text-sm text-[var(--text-secondary)]">
                 {cornerLines.map((line, index) => (
@@ -82,13 +82,13 @@ export default function BlogIndexPage({
                 ))}
               </div>
             </div>
-            <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-bg)] p-4 shadow-[0_10px_30px_var(--card-shadow)]">
+            <div className="theme-panel-soft p-4">
               <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[var(--text-faint)]">{quickLinksTitle}</p>
               <div className="space-y-1">
-                <a href={aboutHref} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted-bg)] hover:text-[var(--accent)]">
+                <a href={aboutHref} className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--nav-pill-hover)] hover:text-[var(--accent)]">
                   <span>👋</span> {aboutLabel}
                 </a>
-                <a href={guestbookHref} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted-bg)] hover:text-[var(--accent)]">
+                <a href={guestbookHref} className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--nav-pill-hover)] hover:text-[var(--accent)]">
                   <span>💬</span> {guestbookLabel}
                 </a>
               </div>

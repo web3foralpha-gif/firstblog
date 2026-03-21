@@ -27,7 +27,10 @@ model Article {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   comments     Comment[]
+  aggregate    ArticleAggregate?
+  interactions ArticleInteraction[]
   payments     Payment[]
+  reactions    ArticleReactionState[]
   @@index([published, pinned, createdAt])
 }
 
@@ -47,13 +50,71 @@ model Media {
 model Comment {
   id        String   @id @default(cuid())
   articleId String
+  visitorId String?
+  sessionId String?
   nickname  String
   email     String?
   content   String
+  ipAddress String?
+  ipRegion  String?
+  ipCity    String?
+  referrer  String?
+  userAgent String?
   status    String   @default("PENDING")
   createdAt DateTime @default(now())
   article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
   @@index([articleId, status])
+  @@index([visitorId, createdAt])
+}
+
+model ArticleAggregate {
+  articleId           String   @id
+  viewCount           Int      @default(0)
+  qualifiedViewCount  Int      @default(0)
+  uniqueVisitorCount  Int      @default(0)
+  likeCount           Int      @default(0)
+  shareCount          Int      @default(0)
+  shareLinkCount      Int      @default(0)
+  shareImageCount     Int      @default(0)
+  commentCount        Int      @default(0)
+  updatedAt           DateTime @updatedAt
+  article             Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+}
+
+model ArticleInteraction {
+  id          String   @id @default(cuid())
+  articleId   String
+  visitorId   String
+  sessionId   String?
+  type        String
+  channel     String?
+  path        String?
+  duration    Int?
+  scrollDepth Int?
+  referrer    String?
+  ipAddress   String?
+  ipRegion    String?
+  ipCity      String?
+  userAgent   String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  article     Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([articleId, type, createdAt])
+  @@index([visitorId, createdAt])
+  @@index([sessionId, articleId, type])
+}
+
+model ArticleReactionState {
+  articleId  String
+  visitorId  String
+  liked      Boolean  @default(false)
+  likedAt    DateTime?
+  updatedAt  DateTime @updatedAt
+  article    Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, visitorId])
+  @@index([articleId, liked])
 }
 
 model Payment {
@@ -103,14 +164,19 @@ model Guestbook {
 model PageView {
   id        String   @id @default(cuid())
   sessionId String
+  visitorId String?
+  articleId String?
   ipAddress String?
   ipRegion  String?
   ipCity    String?
   path      String
+  referrer  String?
   enteredAt DateTime @default(now())
   duration  Int?
   userAgent String?
   @@index([sessionId])
+  @@index([visitorId])
+  @@index([articleId])
   @@index([enteredAt])
 }
 

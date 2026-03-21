@@ -1,17 +1,21 @@
-export type BlogThemeVariant = 'warm' | 'festival' | 'memorial'
+export type BlogThemeVariant = 'warm' | 'festival' | 'memorial' | 'aurora' | 'ocean' | 'rose'
 
 export type BlogLink = {
   label: string
   href: string
 }
 
-const BLOG_THEME_SET = new Set<BlogThemeVariant>(['warm', 'festival', 'memorial'])
+const BLOG_THEME_SET = new Set<BlogThemeVariant>(['warm', 'festival', 'memorial', 'aurora', 'ocean', 'rose'])
 
 function normalizeLinkHref(rawHref: string) {
   const href = rawHref.trim()
 
   if (!href) return ''
   if (href.startsWith('/')) return href
+  if (/^mailto:/i.test(href)) return href
+  if (/^tel:/i.test(href)) return href
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(href)) return `mailto:${href}`
+  if (/^\+?[0-9()\-\s]{6,}$/.test(href)) return `tel:${href.replace(/\s+/g, '')}`
   if (/^https?:\/\//i.test(href)) return href
 
   return ''

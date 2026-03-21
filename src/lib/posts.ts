@@ -4,6 +4,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import matter from 'gray-matter'
 
+import { getRestrictedArticlePreview, normalizeArticleAccessType } from './article-access'
 import { isDatabaseConfigured, runWithDatabase, prisma } from './db'
 
 export const BLOG_REVALIDATE_SECONDS = 3600
@@ -184,7 +185,9 @@ type DatabaseArticleSummary = {
 }
 
 function mapDatabaseArticleToSummary(article: DatabaseArticleSummary): BlogPostSummary {
-  const excerpt = normalizeText(article.excerpt) || buildExcerpt(article.content)
+  const accessType = normalizeArticleAccessType(article.accessType)
+  const restrictedPreview = getRestrictedArticlePreview(accessType, article.price)
+  const excerpt = restrictedPreview || normalizeText(article.excerpt) || buildExcerpt(article.content)
 
   return {
     slug: article.slug,
@@ -199,7 +202,7 @@ function mapDatabaseArticleToSummary(article: DatabaseArticleSummary): BlogPostS
     readingTimeMinutes: estimateReadingTime(article.content),
     href: `/article/${article.slug}`,
     pinned: article.pinned,
-    accessType: article.accessType || 'PUBLIC',
+    accessType,
     price: article.price ?? undefined,
   }
 }

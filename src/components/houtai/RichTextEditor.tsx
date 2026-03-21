@@ -63,6 +63,7 @@ const SUPPORTED_FORMATS = [
   'font',
   'size',
   'align',
+  'indent',
   'blockquote',
   'list',
   'link',
@@ -70,7 +71,7 @@ const SUPPORTED_FORMATS = [
   'uploadedVideo',
 ] as const
 
-const BRUSH_FORMAT_KEYS = ['bold', 'italic', 'underline', 'strike', 'color', 'font', 'size', 'align', 'header'] as const
+const BRUSH_FORMAT_KEYS = ['bold', 'italic', 'underline', 'strike', 'color', 'font', 'size', 'align', 'indent', 'header'] as const
 const INLINE_PREFERENCE_KEYS = ['font', 'size', 'color'] as const
 type InlinePreferenceKey = (typeof INLINE_PREFERENCE_KEYS)[number]
 
@@ -93,6 +94,11 @@ if (!globalThis.__blogRichEditorRegistered) {
   const SizeStyle = Quill.import('attributors/style/size') as any
   const AlignClass = Quill.import('attributors/class/align') as any
   const BlockEmbed = Quill.import('blots/block/embed') as any
+  const Parchment = Quill.import('parchment') as any
+  const IndentStyle = new Parchment.StyleAttributor('indent', 'text-indent', {
+    scope: Parchment.Scope.BLOCK,
+    whitelist: ['2em'],
+  })
 
   FontClass.whitelist = ['serif', 'sans', 'song', 'hei', 'mono']
   SizeStyle.whitelist = ['12px', '14px', '16px', '18px', '24px']
@@ -100,6 +106,7 @@ if (!globalThis.__blogRichEditorRegistered) {
   Quill.register(FontClass, true)
   Quill.register(SizeStyle, true)
   Quill.register(AlignClass, true)
+  Quill.register(IndentStyle, true)
 
   class UploadedVideoBlot extends BlockEmbed {
     static blotName = 'uploadedVideo'
@@ -208,6 +215,18 @@ function IconMore() {
       <circle cx="4" cy="10" r="1.5" />
       <circle cx="10" cy="10" r="1.5" />
       <circle cx="16" cy="10" r="1.5" />
+    </svg>
+  )
+}
+
+function IconIndent() {
+  return (
+    <svg viewBox="0 0 20 20" className="h-4 w-4 fill-none stroke-current stroke-[1.7]">
+      <path d="M4 5h12" />
+      <path d="M4 9h8" />
+      <path d="M4 13h12" />
+      <path d="M4 17h8" />
+      <path d="m11 9 4 4-4 4" />
     </svg>
   )
 }
@@ -542,6 +561,15 @@ export default function RichTextEditor({ value, onChange, placeholder = '写下�
     })
   }
 
+  function toggleFirstLineIndent() {
+    withEditor(quill => {
+      const current = normalizeFormatValue(quill.getFormat(quill.getSelection(true) || undefined), 'indent', '')
+      quill.format('indent', current === '2em' ? false : '2em', Quill.sources.USER)
+      restoreRememberedInlineFormats(quill)
+      setShowMorePanel(false)
+    })
+  }
+
   function clearFormat() {
     withEditor(quill => {
       const range = quill.getSelection(true)
@@ -557,6 +585,7 @@ export default function RichTextEditor({ value, onChange, placeholder = '写下�
         quill.format('font', false, Quill.sources.USER)
         quill.format('size', false, Quill.sources.USER)
         quill.format('align', false, Quill.sources.USER)
+        quill.format('indent', false, Quill.sources.USER)
         quill.format('header', false, Quill.sources.USER)
         quill.format('blockquote', false, Quill.sources.USER)
         quill.format('list', false, Quill.sources.USER)
@@ -605,7 +634,7 @@ export default function RichTextEditor({ value, onChange, placeholder = '写下�
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-[#f0ebe3] pb-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#c4b8a7]">Rich Editor</p>
-            <h3 className="mt-1 text-sm font-semibold text-[#221e1a]">公众号风格富文本工具栏</h3>
+            <h3 className="mt-1 text-sm font-semibold text-[#221e1a]">富文本工具栏</h3>
           </div>
           <div className="rounded-full bg-[#faf8f5] px-3 py-1 text-[11px] text-[#8c7d68]">
             {brushState.active ? '格式刷已就绪，去选中目标文字即可套用格式' : '颜色、字号和字体会延续到新行，减少重复设置'}
@@ -715,6 +744,15 @@ export default function RichTextEditor({ value, onChange, placeholder = '写下�
             <IconAutoFormat />
           </ToolbarButton>
 
+          <ToolbarButton
+            label="首行缩进"
+            title={normalizeFormatValue(formats, 'indent', '') === '2em' ? '取消首行缩进' : '首行缩进 2 字符'}
+            active={normalizeFormatValue(formats, 'indent', '') === '2em'}
+            onClick={toggleFirstLineIndent}
+          >
+            <IconIndent />
+          </ToolbarButton>
+
           <div className="relative">
             <ToolbarButton
               label="更多"
@@ -740,6 +778,9 @@ export default function RichTextEditor({ value, onChange, placeholder = '写下�
                   <button type="button" onClick={() => applyAlign('')} className="rounded-xl bg-[#faf8f5] px-3 py-2 text-left text-sm text-[#5a4f42] hover:bg-[#fdf6ee]">左对齐</button>
                   <button type="button" onClick={() => applyAlign('center')} className="rounded-xl bg-[#faf8f5] px-3 py-2 text-left text-sm text-[#5a4f42] hover:bg-[#fdf6ee]">居中</button>
                   <button type="button" onClick={() => applyAlign('right')} className="rounded-xl bg-[#faf8f5] px-3 py-2 text-left text-sm text-[#5a4f42] hover:bg-[#fdf6ee]">右对齐</button>
+                  <button type="button" onClick={toggleFirstLineIndent} className="rounded-xl bg-[#faf8f5] px-3 py-2 text-left text-sm text-[#5a4f42] hover:bg-[#fdf6ee]">
+                    {normalizeFormatValue(formats, 'indent', '') === '2em' ? '取消首行缩进' : '首行缩进'}
+                  </button>
                   <button type="button" onClick={clearFormat} className="rounded-xl bg-[#faf8f5] px-3 py-2 text-left text-sm text-[#5a4f42] hover:bg-[#fdf6ee]">清除格式</button>
                   <button
                     type="button"

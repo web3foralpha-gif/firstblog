@@ -13,6 +13,7 @@ function sanitize(v: string): string {
 }
 
 const MAX_LENGTH_BY_KEY: Record<string, number> = {
+  'site.favicon': 1000,
   'mascot.systemPrompt': 12000,
   'mascot.identityProfile': 20000,
   'mascot.knowledgeBase': 30000,
@@ -29,6 +30,7 @@ const MAX_LENGTH_BY_KEY: Record<string, number> = {
 const REVALIDATE_KEYS = new Set([
   'site.title',
   'site.description',
+  'site.favicon',
   'blog.homeTitle',
   'blog.homeDescription',
   'blog.cornerTitle',

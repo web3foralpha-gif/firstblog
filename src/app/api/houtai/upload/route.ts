@@ -1,4 +1,4 @@
-import { put } from '@vercel/blob'
+import { handleUpload, type HandleUploadBody } from '@vercel/blob/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/middleware'
 import { prisma } from '@/lib/prisma'
@@ -22,14 +22,14 @@ type UploadBlob = Blob & {
   size: number
 }
 
-type PreparedUpload = {
-  strategy: 'direct'
-  uploadUrl: string
-  publicUrl: string
-  key: string
-  filename: string
+type MediaKind = 'IMAGE' | 'VIDEO'
+
+type UploadClientPayload = {
+  pathname: string
+  originalName: string
   mimeType: string
-  type: 'IMAGE' | 'VIDEO'
+  size: number
+  type: MediaKind
 }
 
 function inferContentType(filename: string, contentType: string) {
@@ -83,12 +83,53 @@ async function createMediaRecord(input: {
   mimeType: string
   type: 'IMAGE' | 'VIDEO'
 }) {
-  const media = await prisma.media.create({ data: input })
+  let media
+  try {
+    media = await prisma.media.upsert({
+      where: { key: input.key },
+      update: input,
+      create: input,
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '未知错误'
+    throw new Error(`媒体记录写入失败：${message}`)
+  }
+
+  return media
+}
+
+function mediaResponse(media: { id: string; url: string; type: string }) {
   return NextResponse.json({
-    url: input.url,
+    url: media.url,
     mediaId: media.id,
-    type: input.type,
+    type: media.type,
   })
+}
+
+function parseClientPayload(clientPayload: string | null): UploadClientPayload | null {
+  if (!clientPayload) return null
+
+  try {
+    const parsed = JSON.parse(clientPayload) as Partial<UploadClientPayload>
+    if (
+      typeof parsed.pathname !== 'string' ||
+      typeof parsed.originalName !== 'string' ||
+      typeof parsed.mimeType !== 'string' ||
+      typeof parsed.size !== 'number' ||
+      (parsed.type !== 'IMAGE' && parsed.type !== 'VIDEO')
+    ) {
+      return null
+    }
+
+    return parsed as UploadClientPayload
+  } catch {
+    return null
+  }
+}
+
+function isSafeUploadPath(pathname: string, type: MediaKind) {
+  const expectedPrefix = type === 'IMAGE' ? 'images/' : 'videos/'
+  return pathname.startsWith(expectedPrefix) && /^[a-z0-9/_\-.]+$/i.test(pathname)
 }
 
 async function handleMultipart(req: NextRequest) {
@@ -112,7 +153,7 @@ async function handleMultipart(req: NextRequest) {
     { filename: originalName, contentType: mimeType }
   )
 
-  return createMediaRecord({
+  const media = await createMediaRecord({
     filename: stored.filename,
     originalName,
     url: stored.url,
@@ -121,57 +162,8 @@ async function handleMultipart(req: NextRequest) {
     mimeType,
     type: validation.isImage ? 'IMAGE' : 'VIDEO',
   })
-}
 
-async function handlePrepareUpload(body: { filename?: string; contentType?: string; size?: number }) {
-  const originalName = (body.filename || 'upload').trim() || 'upload'
-  const mimeType = inferContentType(originalName, body.contentType || '')
-  const size = Number(body.size || 0)
-  const validation = validateFile(mimeType, size)
-
-  if ('error' in validation) {
-    return NextResponse.json({ error: validation.error }, { status: 400 })
-  }
-
-  // Vercel Blob 直传
-  if (isBlobConfigured()) {
-    const key = generateKey(originalName, validation.isImage ? 'images' : 'videos')
-    const blob = await put(key, Buffer.alloc(0), {
-      contentType: mimeType,
-      access: 'public',
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-    })
-    
-    return NextResponse.json({
-      strategy: 'direct',
-      uploadUrl: blob.url,
-      publicUrl: blob.url,
-      key,
-      filename: key.split('/').pop() || key,
-      mimeType,
-      type: validation.isImage ? 'IMAGE' : 'VIDEO',
-    })
-  }
-
-  if (!isR2Configured()) {
-    return NextResponse.json({
-      strategy: 'multipart',
-      type: validation.isImage ? 'IMAGE' : 'VIDEO',
-    })
-  }
-
-  const key = generateKey(originalName, validation.isImage ? 'images' : 'videos')
-  const prepared: PreparedUpload = {
-    strategy: 'direct',
-    uploadUrl: await getPresignedUploadUrl(key, mimeType),
-    publicUrl: buildR2PublicUrl(key),
-    key,
-    filename: key.split('/').pop() || key,
-    mimeType,
-    type: validation.isImage ? 'IMAGE' : 'VIDEO',
-  }
-
-  return NextResponse.json(prepared)
+  return mediaResponse(media)
 }
 
 async function handleCompleteUpload(body: {
@@ -187,7 +179,7 @@ async function handleCompleteUpload(body: {
     return NextResponse.json({ error: '上传确认参数不完整' }, { status: 400 })
   }
 
-  return createMediaRecord({
+  const media = await createMediaRecord({
     key: body.key,
     filename: body.filename,
     originalName: body.originalName,
@@ -196,41 +188,141 @@ async function handleCompleteUpload(body: {
     mimeType: body.mimeType,
     type: body.type,
   })
+
+  return mediaResponse(media)
 }
 
-async function handleJson(req: NextRequest) {
-  const body = await req.json()
-  const mode = typeof body?.mode === 'string' ? body.mode : 'prepare'
-
-  if (mode === 'prepare') {
-    return handlePrepareUpload(body)
+async function handleBlobClientUpload(req: NextRequest, body: HandleUploadBody) {
+  if (!isBlobConfigured()) {
+    return NextResponse.json({ error: '站点未配置 Vercel Blob，请联系管理员' }, { status: 503 })
   }
 
-  if (mode === 'complete') {
-    return handleCompleteUpload(body)
+  if (body.type === 'blob.generate-client-token') {
+    const { error } = await requireAdmin()
+    if (error) return error
   }
 
-  return NextResponse.json({ error: '无效的上传模式' }, { status: 400 })
+  const json = await handleUpload({
+    request: req,
+    body,
+    onBeforeGenerateToken: async (pathname, clientPayload) => {
+      const parsedPayload = parseClientPayload(clientPayload)
+      if (!parsedPayload) {
+        throw new Error('上传参数无效')
+      }
+
+      if (parsedPayload.pathname !== pathname) {
+        throw new Error('上传路径校验失败')
+      }
+
+      if (!isSafeUploadPath(pathname, parsedPayload.type)) {
+        throw new Error('上传路径不安全')
+      }
+
+      const validation = validateFile(parsedPayload.mimeType, parsedPayload.size)
+      if ('error' in validation) {
+        throw new Error(validation.error)
+      }
+
+      return {
+        allowedContentTypes: [parsedPayload.mimeType],
+        maximumSizeInBytes: parsedPayload.type === 'IMAGE' ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE,
+        addRandomSuffix: false,
+        allowOverwrite: false,
+        tokenPayload: JSON.stringify(parsedPayload),
+      }
+    },
+    onUploadCompleted: async ({ blob, tokenPayload }) => {
+      const parsedPayload = parseClientPayload(tokenPayload ?? null)
+      const type: MediaKind =
+        parsedPayload?.type ||
+        (blob.contentType.startsWith('video/') ? 'VIDEO' : 'IMAGE')
+
+      await createMediaRecord({
+        key: blob.pathname,
+        filename: blob.pathname.split('/').pop() || blob.pathname,
+        originalName: parsedPayload?.originalName || blob.pathname.split('/').pop() || 'upload',
+        url: blob.url,
+        size: parsedPayload?.size || 0,
+        mimeType: blob.contentType || parsedPayload?.mimeType || 'application/octet-stream',
+        type,
+      })
+    },
+  })
+
+  return NextResponse.json(json)
 }
 
-export async function POST(req: NextRequest) {
+async function handleJson(req: NextRequest, body: unknown) {
+  const eventType = typeof (body as { type?: unknown })?.type === 'string' ? (body as { type: string }).type : ''
+  if (eventType === 'blob.generate-client-token' || eventType === 'blob.upload-completed') {
+    return handleBlobClientUpload(req, body as HandleUploadBody)
+  }
+
   const { error } = await requireAdmin()
   if (error) return error
 
+  const mode = typeof (body as { mode?: unknown })?.mode === 'string' ? (body as { mode: string }).mode : ''
+
+  if (mode === 'complete') {
+    return handleCompleteUpload(body as Parameters<typeof handleCompleteUpload>[0])
+  }
+
+  if (mode === 'prepare') {
+    const originalName = (body as { filename?: string })?.filename || 'upload'
+    const mimeType = inferContentType(originalName, (body as { contentType?: string })?.contentType || '')
+    const size = Number((body as { size?: number })?.size || 0)
+    const validation = validateFile(mimeType, size)
+
+    if ('error' in validation) {
+      return NextResponse.json({ error: validation.error }, { status: 400 })
+    }
+
+    if (isBlobConfigured()) {
+      return NextResponse.json({ error: '旧上传接口已停用，请刷新页面后重试' }, { status: 409 })
+    }
+
+    if (!isR2Configured()) {
+      return NextResponse.json({
+        strategy: 'multipart',
+        type: validation.isImage ? 'IMAGE' : 'VIDEO',
+      })
+    }
+
+    const key = generateKey(originalName, validation.isImage ? 'images' : 'videos')
+    return NextResponse.json({
+      strategy: 'direct',
+      uploadUrl: await getPresignedUploadUrl(key, mimeType),
+      publicUrl: buildR2PublicUrl(key),
+      key,
+      filename: key.split('/').pop() || key,
+      mimeType,
+      type: validation.isImage ? 'IMAGE' : 'VIDEO',
+    })
+  }
+
+  return NextResponse.json({ error: '无效的上传请求' }, { status: 400 })
+}
+
+export async function POST(req: NextRequest) {
   const contentType = req.headers.get('content-type') || ''
 
   try {
     if (contentType.includes('multipart/form-data')) {
+      const { error } = await requireAdmin()
+      if (error) return error
       return await handleMultipart(req)
     }
 
     if (contentType.includes('application/json')) {
-      return await handleJson(req)
+      const body = await req.json()
+      return await handleJson(req, body)
     }
 
     return NextResponse.json({ error: '不支持的上传请求' }, { status: 400 })
   } catch (err) {
+    const message = err instanceof Error ? err.message : '未知错误'
     console.error('[admin/upload] upload failed:', err)
-    return NextResponse.json({ error: '上传失败，请稍后重试' }, { status: 500 })
+    return NextResponse.json({ error: `上传失败：${message}` }, { status: 500 })
   }
 }

@@ -1,17 +1,7 @@
 'use client'
 import { useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
-
-// 生成或复用匿名 sessionId（存 sessionStorage，关闭标签即失效）
-function getSessionId(): string {
-  if (typeof sessionStorage === 'undefined') return 'ssr'
-  let id = sessionStorage.getItem('_sid')
-  if (!id) {
-    id = Math.random().toString(36).slice(2) + Date.now().toString(36)
-    sessionStorage.setItem('_sid', id)
-  }
-  return id
-}
+import { getSafeReferrer, getSessionId, getVisitorId } from '@/lib/visitor'
 
 export default function PageViewTracker() {
   const pathname = usePathname()
@@ -23,6 +13,7 @@ export default function PageViewTracker() {
     if (pathname.startsWith('/houtai')) return
 
     const sessionId = getSessionId()
+    const visitorId = getVisitorId()
     enterTime.current = Date.now()
     currentPath.current = pathname
 
@@ -30,7 +21,7 @@ export default function PageViewTracker() {
     fetch('/api/pageview', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId, path: pathname, action: 'enter' }),
+      body: JSON.stringify({ sessionId, visitorId, path: pathname, action: 'enter', referrer: getSafeReferrer() }),
     }).catch(() => {})
 
     // 离开时上报停留时长
@@ -40,6 +31,7 @@ export default function PageViewTracker() {
       // 用 sendBeacon 保证页面关闭时也能发出
       const payload = JSON.stringify({
         sessionId,
+        visitorId,
         path: currentPath.current,
         action: 'leave',
         duration,

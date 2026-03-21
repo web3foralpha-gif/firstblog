@@ -1,12 +1,14 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import FileUploader from '@/components/houtai/FileUploader'
 import { PageHeader, Card, useToast, useConfirm } from '@/components/houtai/ui'
 
-type TabId = 'basic' | 'blog' | 'payment' | 'ui' | 'security' | 'ai'
+type TabId = 'basic' | 'blog' | 'about' | 'payment' | 'ui' | 'security' | 'ai'
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: 'basic', label: '基础设置', icon: '🌐' },
   { id: 'blog', label: '博客首页', icon: '📝' },
+  { id: 'about', label: '关于页', icon: '👤' },
   { id: 'payment', label: '支付设置', icon: '💳' },
   { id: 'ui', label: '互动文案', icon: '💬' },
   { id: 'security', label: '安全设置', icon: '🔒' },
@@ -14,7 +16,7 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
 ]
 
 const TAB_KEYS: Record<TabId, string[]> = {
-  basic: ['site.title', 'site.description', 'site.pageSize', 'site.commentReview', 'site.guestbookReview'],
+  basic: ['site.title', 'site.description', 'site.favicon', 'site.pageSize', 'site.commentReview', 'site.guestbookReview'],
   blog: [
     'blog.homeTitle',
     'blog.homeDescription',
@@ -25,11 +27,19 @@ const TAB_KEYS: Record<TabId, string[]> = {
     'blog.quickLinkAboutHref',
     'blog.quickLinkGuestbookLabel',
     'blog.quickLinkGuestbookHref',
-    'blog.aboutContent',
     'blog.footerText',
     'blog.friendLinksTitle',
     'blog.friendLinks',
     'blog.themeVariant',
+  ],
+  about: [
+    'blog.aboutTitle',
+    'blog.aboutSubtitle',
+    'blog.aboutAvatar',
+    'blog.aboutCoverImage',
+    'blog.aboutContent',
+    'blog.aboutContactsTitle',
+    'blog.aboutContacts',
   ],
   payment: ['pay.enabled', 'pay.currency', 'pay.stripePublicKey', 'pay.stripeSecretKey', 'pay.stripeWebhookKey'],
   ui: ['ui.pikaSaluteText', 'ui.pikaClickText', 'ui.pikaPhrases', 'ui.sfWaterText', 'ui.sfFertilizeText', 'ui.sfSunText', 'ui.sfDoneText'],
@@ -65,6 +75,81 @@ function FormRow({ label, hint, children }: { label: string; hint?: string; chil
       </div>
       <div>{children}</div>
     </div>
+  )
+}
+
+function ImageSettingField({
+  label,
+  hint,
+  value,
+  onChange,
+  uploadLabel,
+}: {
+  label: string
+  hint?: string
+  value: string
+  onChange: (value: string) => void
+  uploadLabel: string
+}) {
+  const [showUploader, setShowUploader] = useState(false)
+
+  return (
+    <FormRow label={label} hint={hint}>
+      <div className="space-y-3">
+        {value ? (
+          <div className="overflow-hidden rounded-2xl border border-[#ddd5c8] bg-white">
+            <img src={value} alt={label} className="max-h-64 w-full object-cover" />
+          </div>
+        ) : null}
+
+        <input
+          className="field font-mono text-xs"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder="https://..."
+          maxLength={1000}
+        />
+
+        {showUploader ? (
+          <div className="rounded-2xl border border-[#eadfce] bg-[#faf8f5] p-3">
+            <FileUploader
+              accept="image"
+              label={uploadLabel}
+              onSuccess={({ url }) => {
+                onChange(url)
+                setShowUploader(false)
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowUploader(false)}
+              className="mt-2 text-xs text-[#a89880] hover:text-[#5a4f42]"
+            >
+              取消上传
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setShowUploader(true)}
+              className="rounded-xl border border-[#ddd5c8] bg-white px-3 py-2 text-sm text-[#5a4f42] transition-colors hover:border-[#d4711a] hover:text-[#d4711a]"
+            >
+              上传图片
+            </button>
+            {value ? (
+              <button
+                type="button"
+                onClick={() => onChange('')}
+                className="rounded-xl border border-[#f1d0cb] bg-[#fff7f6] px-3 py-2 text-sm text-[#b4533b] transition-colors hover:border-[#dc8c7c]"
+              >
+                清空
+              </button>
+            ) : null}
+          </div>
+        )}
+      </div>
+    </FormRow>
   )
 }
 
@@ -192,6 +277,13 @@ export default function SettingsPage() {
             <FormRow label="SEO 描述">
               <textarea className="field resize-none" rows={3} value={getVal('site.description')} onChange={e => setVal('site.description', e.target.value)} maxLength={300} />
             </FormRow>
+            <ImageSettingField
+              label="标签页图标"
+              hint="会显示在浏览器标签页，建议上传 256x256 以上的 PNG、ICO 或 SVG 正方形图标"
+              value={getVal('site.favicon')}
+              onChange={value => setVal('site.favicon', value)}
+              uploadLabel="上传标签页图标（建议正方形）"
+            />
             <FormRow label="每页文章数">
               <input type="number" min={1} max={50} className="field w-24" value={getVal('site.pageSize')} onChange={e => setVal('site.pageSize', e.target.value)} />
             </FormRow>
@@ -246,18 +338,8 @@ export default function SettingsPage() {
             </div>
 
             <div className="pt-2 border-t border-slate-100">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">关于页、页脚与主题</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">页脚与主题</p>
               <div className="mt-4 space-y-5">
-                <FormRow label="关于页内容" hint="支持 Markdown，会展示在 /about 页面">
-                  <textarea
-                    className="field resize-y min-h-[280px] font-mono text-xs"
-                    rows={14}
-                    value={getVal('blog.aboutContent')}
-                    onChange={e => setVal('blog.aboutContent', e.target.value)}
-                    placeholder="介绍一下自己吧..."
-                    maxLength={12000}
-                  />
-                </FormRow>
                 <FormRow label="页脚文字">
                   <input className="field" value={getVal('blog.footerText')} onChange={e => setVal('blog.footerText', e.target.value)} maxLength={80} />
                 </FormRow>
@@ -274,12 +356,86 @@ export default function SettingsPage() {
                     maxLength={4000}
                   />
                 </FormRow>
-                <FormRow label="前台主题" hint="可随时切换为日常、节庆或悼念风格">
+                <FormRow label="前台主题" hint="可切换为暖色、喜庆、黑白、极光、海洋或玫瑰风格">
                   <select className="field" value={getVal('blog.themeVariant')} onChange={e => setVal('blog.themeVariant', e.target.value)}>
                     <option value="warm">暖色日常</option>
                     <option value="festival">过年喜庆</option>
                     <option value="memorial">悼念黑白</option>
+                    <option value="aurora">极光梦境</option>
+                    <option value="ocean">海盐蓝调</option>
+                    <option value="rose">玫瑰晚霞</option>
                   </select>
+                </FormRow>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab === 'about' && (
+          <div className="space-y-6">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">关于页</p>
+              <div className="mt-4 space-y-5">
+                <FormRow label="页面标题" hint="会显示在 /about 页的大标题位置">
+                  <input
+                    className="field"
+                    value={getVal('blog.aboutTitle')}
+                    onChange={e => setVal('blog.aboutTitle', e.target.value)}
+                    placeholder="关于我"
+                    maxLength={120}
+                  />
+                </FormRow>
+                <FormRow label="页面副标题" hint="显示在标题下方，可写一句介绍或欢迎语">
+                  <input
+                    className="field"
+                    value={getVal('blog.aboutSubtitle')}
+                    onChange={e => setVal('blog.aboutSubtitle', e.target.value)}
+                    placeholder="写给偶然路过这里的你。"
+                    maxLength={300}
+                  />
+                </FormRow>
+                <ImageSettingField
+                  label="头像"
+                  hint="建议使用正方形图片，会显示在关于页顶部信息区"
+                  value={getVal('blog.aboutAvatar')}
+                  onChange={value => setVal('blog.aboutAvatar', value)}
+                  uploadLabel="上传头像（建议 800x800 以上的正方形图片）"
+                />
+                <ImageSettingField
+                  label="头图"
+                  hint="显示在关于页顶部横幅区域，建议使用宽图"
+                  value={getVal('blog.aboutCoverImage')}
+                  onChange={value => setVal('blog.aboutCoverImage', value)}
+                  uploadLabel="上传头图（建议 1600x900 以上）"
+                />
+                <FormRow label="页面内容" hint="支持 Markdown，会展示在 /about 页面正文区域">
+                  <textarea
+                    className="field resize-y min-h-[320px] font-mono text-xs"
+                    rows={16}
+                    value={getVal('blog.aboutContent')}
+                    onChange={e => setVal('blog.aboutContent', e.target.value)}
+                    placeholder="介绍一下自己吧..."
+                    maxLength={12000}
+                  />
+                </FormRow>
+                <FormRow label="联系区标题" hint="显示在社交链接模块的标题位置">
+                  <input
+                    className="field"
+                    value={getVal('blog.aboutContactsTitle')}
+                    onChange={e => setVal('blog.aboutContactsTitle', e.target.value)}
+                    placeholder="社交与联系方式"
+                    maxLength={120}
+                  />
+                </FormRow>
+                <FormRow label="社交与联系方式" hint="每行一条，格式：名称|链接。支持 https://、mailto:、tel:">
+                  <textarea
+                    className="field resize-y min-h-[160px] font-mono text-xs"
+                    rows={8}
+                    value={getVal('blog.aboutContacts')}
+                    onChange={e => setVal('blog.aboutContacts', e.target.value)}
+                    placeholder={'邮箱|mailto:hello@example.com\n微信频道|https://example.com\n电话|tel:+8613800000000'}
+                    maxLength={4000}
+                  />
                 </FormRow>
               </div>
             </div>

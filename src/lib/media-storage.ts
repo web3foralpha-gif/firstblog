@@ -21,15 +21,20 @@ export async function storeUploadedMedia(file: UploadSource, folder: MediaFolder
 
   // 优先使用 Vercel Blob
   if (isBlobConfigured()) {
-    const blob = await put(key, file, {
-      contentType,
-      access: 'public',
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-    })
-    return {
-      key,
-      url: blob.url,
-      filename: key.split('/').pop() || key,
+    try {
+      const blob = await put(key, file, {
+        contentType,
+        access: 'public',
+        token: process.env.BLOB_READ_WRITE_TOKEN,
+      })
+      return {
+        key,
+        url: blob.url,
+        filename: key.split('/').pop() || key,
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '未知错误'
+      throw new Error(`Blob 存储上传失败：${message}`)
     }
   }
 
@@ -37,11 +42,16 @@ export async function storeUploadedMedia(file: UploadSource, folder: MediaFolder
   if (isR2Configured()) {
     const { uploadToR2 } = await import('./r2')
     const body = Buffer.from(await file.arrayBuffer())
-    await uploadToR2(key, body, contentType)
-    return {
-      key,
-      url: buildR2PublicUrl(key),
-      filename: key.split('/').pop() || key,
+    try {
+      await uploadToR2(key, body, contentType)
+      return {
+        key,
+        url: buildR2PublicUrl(key),
+        filename: key.split('/').pop() || key,
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '未知错误'
+      throw new Error(`R2 存储上传失败：${message}`)
     }
   }
 

@@ -1,11 +1,14 @@
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 
+import ArticleEngagementBar from '@/components/blog/ArticleEngagementBar'
 import BlogTheme from '@/components/blog/BlogTheme'
 import Header from '@/components/blog/Header'
 import MarkdownContent from '@/components/blog/MarkdownContent'
 import PikachuWidget from '@/components/blog/PikachuWidget'
 import SiteFooter from '@/components/blog/SiteFooter'
+import { getRestrictedArticlePreview } from '@/lib/article-access'
+import { getArticleEngagementSeedBySlug } from '@/lib/article-engagement'
 import { getAllPostSlugs, getPostBySlug, syncMarkdownPostsToDatabase } from '@/lib/posts'
 import { getLegacyArticleTitleBySlug } from '@/lib/services/legacy-article-service'
 import { absoluteUrl } from '@/lib/site'
@@ -28,9 +31,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const legacyArticle = await getLegacyArticleTitleBySlug(slug)
   if (legacyArticle) {
+    const description = getRestrictedArticlePreview(legacyArticle.accessType, legacyArticle.price) || legacyArticle.excerpt || '文章详情'
+
     return {
       title: legacyArticle.title,
-      description: legacyArticle.excerpt || '文章详情',
+      description,
       alternates: {
         canonical: `/article/${slug}`,
       },
@@ -78,6 +83,8 @@ export default async function BlogPostPage({ params }: Props) {
     notFound()
   }
 
+  const engagement = await getArticleEngagementSeedBySlug(slug)
+
   return (
     <BlogTheme>
       <div className="min-h-screen">
@@ -120,6 +127,17 @@ export default async function BlogPostPage({ params }: Props) {
           )}
 
           <MarkdownContent content={post.content} />
+
+          {engagement ? (
+            <ArticleEngagementBar
+              articleId={engagement.articleId}
+              slug={slug}
+              title={post.title}
+              sharePath={`/blog/${slug}`}
+              commentsCount={engagement.summary.commentCount}
+              initialSummary={engagement.summary}
+            />
+          ) : null}
 
           <div className="mt-12 border-t border-[var(--border-color)] pt-6">
             <a href="/blog" className="text-sm text-[var(--text-subtle)] transition-colors hover:text-[var(--accent)]">

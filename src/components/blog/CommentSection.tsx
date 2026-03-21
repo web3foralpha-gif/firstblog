@@ -1,6 +1,8 @@
 'use client'
 import { useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
+import { getSafeReferrer, getSessionId, getVisitorId } from '@/lib/visitor'
 
 type Comment = {
   id: string
@@ -11,6 +13,7 @@ type Comment = {
 }
 
 export default function CommentSection({ articleId, comments }: { articleId: string; comments: Comment[] }) {
+  const pathname = usePathname()
   const [form, setForm] = useState({ nickname: '', email: '', content: '' })
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [msg, setMsg] = useState('')
@@ -27,7 +30,14 @@ export default function CommentSection({ articleId, comments }: { articleId: str
       const res = await fetch('/api/comments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, articleId }),
+        body: JSON.stringify({
+          ...form,
+          articleId,
+          visitorId: getVisitorId(),
+          sessionId: getSessionId(),
+          path: pathname,
+          referrer: getSafeReferrer(),
+        }),
       })
       const data = await res.json().catch(() => null)
       if (!res.ok) {
@@ -45,7 +55,7 @@ export default function CommentSection({ articleId, comments }: { articleId: str
   }
 
   return (
-    <section className="mt-12">
+    <section id="comments" className="mt-12">
       <hr className="divider" />
       <h3 className="mb-6 font-serif text-xl font-medium text-[var(--text-primary)]">
         评论 <span className="text-base font-normal text-[var(--text-subtle)]">({comments.length})</span>

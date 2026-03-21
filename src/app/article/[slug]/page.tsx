@@ -2,12 +2,15 @@ import { notFound } from 'next/navigation'
 import { redirect } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 import BlogTheme from '@/components/blog/BlogTheme'
+import ArticleEngagementBar from '@/components/blog/ArticleEngagementBar'
 import Header from '@/components/blog/Header'
 import PikachuWidget from '@/components/blog/PikachuWidget'
 import CommentSection from '@/components/blog/CommentSection'
 import ArticleContent from '@/components/blog/ArticleContent'
 import SiteFooter from '@/components/blog/SiteFooter'
+import { getRestrictedArticlePreview } from '@/lib/article-access'
 import { getPostBySlug } from '@/lib/posts'
+import { getArticleEngagementSummary } from '@/lib/article-engagement'
 import { getLegacyArticleBySlug, getLegacyArticleTitleBySlug, hasLegacyArticleTokenAccess } from '@/lib/services/legacy-article-service'
 import type { Metadata } from 'next'
 
@@ -23,9 +26,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const article = await getLegacyArticleTitleBySlug(slug)
 
   if (article) {
+    const description = getRestrictedArticlePreview(article.accessType, article.price) || article.excerpt || '历史文章内容'
+
     return {
       title: article.title,
-      description: article.excerpt || '历史文章内容',
+      description,
     }
   }
 
@@ -65,6 +70,7 @@ export default async function ArticlePage({ params, searchParams }: Props) {
     email: c.email ?? undefined,
     createdAt: c.createdAt.toISOString(),
   }))
+  const engagement = await getArticleEngagementSummary(article.id)
 
   return (
     <BlogTheme>
@@ -95,6 +101,16 @@ export default async function ArticlePage({ params, searchParams }: Props) {
             title={article.title}
             tokenValid={tokenValid}
             passwordHint={article.passwordHint}
+          />
+
+          <ArticleEngagementBar
+            articleId={article.id}
+            slug={slug}
+            title={article.title}
+            sharePath={`/article/${slug}`}
+            commentsCount={comments.length}
+            initialSummary={engagement}
+            showCommentLink
           />
 
           <CommentSection articleId={article.id} comments={comments} />

@@ -3,13 +3,18 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 let r2Client: S3Client | null = null
 
+function hasRealValue(value: string | undefined) {
+  if (!value) return false
+  return !value.includes('your-') && !value.includes('xxxxxxxx')
+}
+
 export function isR2Configured() {
   return Boolean(
-    process.env.R2_ACCOUNT_ID &&
-    process.env.R2_ACCESS_KEY_ID &&
-    process.env.R2_SECRET_ACCESS_KEY &&
-    process.env.R2_BUCKET_NAME &&
-    process.env.R2_PUBLIC_URL
+    hasRealValue(process.env.R2_ACCOUNT_ID) &&
+    hasRealValue(process.env.R2_ACCESS_KEY_ID) &&
+    hasRealValue(process.env.R2_SECRET_ACCESS_KEY) &&
+    hasRealValue(process.env.R2_BUCKET_NAME) &&
+    hasRealValue(process.env.R2_PUBLIC_URL)
   )
 }
 

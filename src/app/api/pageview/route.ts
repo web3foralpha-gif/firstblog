@@ -12,7 +12,7 @@ function getClientIP(req: NextRequest): string {
 // body: { sessionId, path, action: 'enter' | 'leave', duration? }
 export async function POST(req: NextRequest) {
   try {
-    const { sessionId, path, action, duration } = await req.json()
+    const { sessionId, visitorId, articleId, path, action, duration, referrer } = await req.json()
     if (!sessionId || !path || !action) return NextResponse.json({ ok: false })
 
     const ip = getClientIP(req)
@@ -23,10 +23,13 @@ export async function POST(req: NextRequest) {
       await prisma.pageView.create({
         data: {
           sessionId,
+          visitorId: typeof visitorId === 'string' ? visitorId : null,
+          articleId: typeof articleId === 'string' ? articleId : null,
           ipAddress: ip,
           ipRegion:  geo?.region || null,
           ipCity:    geo?.city   || null,
           path,
+          referrer: typeof referrer === 'string' ? referrer.slice(0, 500) : null,
           userAgent: ua.slice(0, 200),
         },
       })

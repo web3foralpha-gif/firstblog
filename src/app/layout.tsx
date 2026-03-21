@@ -18,6 +18,7 @@ export const viewport: Viewport = {
 export async function generateMetadata(): Promise<Metadata> {
   const siteTitle = (await getSetting('site.title')).trim() || '我的小站'
   const siteDescription = (await getSetting('site.description')).trim() || '记录生活，分享心情'
+  const siteFavicon = (await getSetting('site.favicon')).trim()
   const siteUrl = getSiteUrl()
 
   return {
@@ -48,6 +49,11 @@ export async function generateMetadata(): Promise<Metadata> {
       capable: true,
       statusBarStyle: 'default',
     },
+    icons: siteFavicon ? {
+      icon: [{ url: siteFavicon }],
+      shortcut: [{ url: siteFavicon }],
+      apple: [{ url: siteFavicon }],
+    } : undefined,
   }
 }
 

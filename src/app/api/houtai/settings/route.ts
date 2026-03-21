@@ -13,6 +13,7 @@ function sanitize(v: string): string {
 }
 
 const MAX_LENGTH_BY_KEY: Record<string, number> = {
+  'site.favicon': 1000,
   'mascot.systemPrompt': 12000,
   'mascot.identityProfile': 20000,
   'mascot.knowledgeBase': 30000,
@@ -21,7 +22,13 @@ const MAX_LENGTH_BY_KEY: Record<string, number> = {
   'pay.cryptoTips': 4000,
   'blog.cornerContent': 4000,
   'blog.friendLinks': 4000,
+  'blog.aboutTitle': 120,
+  'blog.aboutSubtitle': 300,
+  'blog.aboutAvatar': 1000,
+  'blog.aboutCoverImage': 1000,
   'blog.aboutContent': 12000,
+  'blog.aboutContactsTitle': 120,
+  'blog.aboutContacts': 4000,
   'blog.quickLinkAboutHref': 500,
   'blog.quickLinkGuestbookHref': 500,
 }
@@ -29,6 +36,7 @@ const MAX_LENGTH_BY_KEY: Record<string, number> = {
 const REVALIDATE_KEYS = new Set([
   'site.title',
   'site.description',
+  'site.favicon',
   'blog.homeTitle',
   'blog.homeDescription',
   'blog.cornerTitle',
@@ -38,7 +46,13 @@ const REVALIDATE_KEYS = new Set([
   'blog.quickLinkAboutHref',
   'blog.quickLinkGuestbookLabel',
   'blog.quickLinkGuestbookHref',
+  'blog.aboutTitle',
+  'blog.aboutSubtitle',
+  'blog.aboutAvatar',
+  'blog.aboutCoverImage',
   'blog.aboutContent',
+  'blog.aboutContactsTitle',
+  'blog.aboutContacts',
   'blog.footerText',
   'blog.friendLinksTitle',
   'blog.friendLinks',

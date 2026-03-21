@@ -28,7 +28,7 @@ export async function getLegacyArticleTitleBySlug(slug: string) {
     async db => {
       const article = await db.article.findFirst({
         where: { slug, published: true },
-        select: { title: true, excerpt: true },
+        select: { title: true, excerpt: true, accessType: true, price: true },
       })
 
       if (!article) return null

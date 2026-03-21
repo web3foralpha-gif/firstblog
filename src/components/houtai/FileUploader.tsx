@@ -1,5 +1,6 @@
 'use client'
 
+import { upload as blobUpload } from '@vercel/blob/client'
 import { useCallback, useRef, useState } from 'react'
 
 type UploadResult = {
@@ -8,25 +9,39 @@ type UploadResult = {
   type: 'IMAGE' | 'VIDEO'
 }
 
-type PrepareUploadResult =
-  | {
-      strategy: 'multipart'
-      type: 'IMAGE' | 'VIDEO'
-    }
-  | {
-      strategy: 'direct'
-      uploadUrl: string
-      publicUrl: string
-      key: string
-      filename: string
-      mimeType: string
-      type: 'IMAGE' | 'VIDEO'
-    }
-
 type UploaderProps = {
   accept?: 'image' | 'video' | 'both'
   onSuccess: (result: UploadResult) => void
   label?: string
+}
+
+function buildUploadPath(file: File, type: 'IMAGE' | 'VIDEO') {
+  const ext = file.name.includes('.') ? file.name.split('.').pop()?.toLowerCase() || '' : ''
+  const safeExt = ext.replace(/[^a-z0-9]/gi, '')
+  const folder = type === 'IMAGE' ? 'images' : 'videos'
+  const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID().replace(/-/g, '')
+    : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+
+  return `${folder}/${id}${safeExt ? `.${safeExt}` : ''}`
+}
+
+function inferMimeType(file: File) {
+  if (file.type) return file.type
+
+  const ext = file.name.split('.').pop()?.toLowerCase()
+  const byExt: Record<string, string> = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    mp4: 'video/mp4',
+    webm: 'video/webm',
+    mov: 'video/quicktime',
+  }
+
+  return ext ? byExt[ext] || '' : ''
 }
 
 function uploadWithXhr<T>({
@@ -114,39 +129,21 @@ export default function FileUploader({ accept = 'both', onSuccess, label }: Uplo
     })
   }, [])
 
-  const prepareUpload = useCallback(async (file: File) => {
-    const res = await fetch('/api/houtai/upload', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        mode: 'prepare',
-        filename: file.name,
-        contentType: file.type,
-        size: file.size,
-      }),
-    })
-
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      throw new Error(String(data?.error || '上传初始化失败'))
-    }
-
-    return data as PrepareUploadResult
-  }, [])
-
-  const completeDirectUpload = useCallback(async (file: File, prepared: Extract<PrepareUploadResult, { strategy: 'direct' }>) => {
+  const finalizeUpload = useCallback(async (input: {
+    key: string
+    filename: string
+    originalName: string
+    url: string
+    size: number
+    mimeType: string
+    type: 'IMAGE' | 'VIDEO'
+  }) => {
     const res = await fetch('/api/houtai/upload', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         mode: 'complete',
-        key: prepared.key,
-        filename: prepared.filename,
-        originalName: file.name,
-        url: prepared.publicUrl,
-        size: file.size,
-        mimeType: prepared.mimeType,
-        type: prepared.type,
+        ...input,
       }),
     })
 
@@ -157,37 +154,77 @@ export default function FileUploader({ accept = 'both', onSuccess, label }: Uplo
     return data as UploadResult
   }, [])
 
-  const uploadDirect = useCallback(async (file: File, prepared: Extract<PrepareUploadResult, { strategy: 'direct' }>) => {
-    setModeLabel('direct')
-    await uploadWithXhr({
-      method: 'PUT',
-      url: prepared.uploadUrl,
-      body: file,
-      responseType: 'text',
-      headers: { 'Content-Type': prepared.mimeType },
-      withCredentials: false,
-      onProgress: setProgress,
-    })
-    return completeDirectUpload(file, prepared)
-  }, [completeDirectUpload])
+  const uploadBlob = useCallback(async (file: File) => {
+    const mimeType = inferMimeType(file)
+    const type = mimeType.startsWith('video/') ? 'VIDEO' : 'IMAGE'
+    const pathname = buildUploadPath(file, type)
+    const controller = new AbortController()
+    let stalled = true
+    const stallTimer = window.setTimeout(() => {
+      if (stalled) {
+        controller.abort(new Error('直传超时'))
+      }
+    }, 12000)
 
-  const upload = useCallback(async (file: File) => {
+    setModeLabel('direct')
+    try {
+      const blob = await blobUpload(pathname, file, {
+        access: 'public',
+        handleUploadUrl: '/api/houtai/upload',
+        contentType: mimeType || undefined,
+        multipart: file.size >= 5 * 1024 * 1024,
+        abortSignal: controller.signal,
+        clientPayload: JSON.stringify({
+          pathname,
+          originalName: file.name,
+          mimeType,
+          size: file.size,
+          type,
+        }),
+        onUploadProgress: event => {
+          if (event.percentage > 0) {
+            stalled = false
+            window.clearTimeout(stallTimer)
+          }
+          setProgress(Math.round(event.percentage))
+        },
+      })
+
+      stalled = false
+      window.clearTimeout(stallTimer)
+
+      return finalizeUpload({
+        key: blob.pathname,
+        filename: blob.pathname.split('/').pop() || blob.pathname,
+        originalName: file.name,
+        url: blob.url,
+        size: file.size,
+        mimeType: blob.contentType || mimeType,
+        type,
+      })
+    } finally {
+      window.clearTimeout(stallTimer)
+    }
+  }, [finalizeUpload])
+
+  const runUpload = useCallback(async (file: File) => {
     setError('')
     setProgress(0)
 
     try {
-      const prepared = await prepareUpload(file)
       let result: UploadResult
+      const mimeType = inferMimeType(file)
+      const shouldUseServerUpload = !mimeType || mimeType.startsWith('image/')
 
-      if (prepared.strategy === 'direct') {
+      if (shouldUseServerUpload) {
+        result = await uploadMultipart(file)
+      } else {
         try {
-          result = await uploadDirect(file, prepared)
+          result = await uploadBlob(file)
         } catch (directError) {
-          console.warn('[FileUploader] direct upload failed, fallback to server upload', directError)
+          console.warn('[FileUploader] blob upload failed, fallback to server upload', directError)
           result = await uploadMultipart(file)
         }
-      } else {
-        result = await uploadMultipart(file)
       }
 
       setProgress(100)
@@ -198,11 +235,11 @@ export default function FileUploader({ accept = 'both', onSuccess, label }: Uplo
       setError(err instanceof Error ? err.message : '上传失败')
       setProgress(null)
     }
-  }, [onSuccess, prepareUpload, uploadDirect, uploadMultipart])
+  }, [onSuccess, uploadBlob, uploadMultipart])
 
   function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return
-    void upload(files[0])
+    void runUpload(files[0])
   }
 
   return (
