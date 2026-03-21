@@ -15,11 +15,14 @@ export type LegacyArticle = {
   slug: string
   title: string
   content: string
+  excerpt?: string | null
   mood: string
+  coverImage?: string | null
   accessType: string
   price: number | null
   passwordHint: string | null
   createdAt: Date
+  updatedAt: Date
   comments: LegacyComment[]
 }
 
@@ -28,7 +31,7 @@ export async function getLegacyArticleTitleBySlug(slug: string) {
     async db => {
       const article = await db.article.findFirst({
         where: { slug, published: true },
-        select: { title: true, excerpt: true, accessType: true, price: true },
+        select: { title: true, excerpt: true, coverImage: true, accessType: true, price: true, createdAt: true, updatedAt: true },
       })
 
       if (!article) return null

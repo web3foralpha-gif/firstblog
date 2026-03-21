@@ -16,7 +16,19 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
 ]
 
 const TAB_KEYS: Record<TabId, string[]> = {
-  basic: ['site.title', 'site.description', 'site.favicon', 'site.pageSize', 'site.commentReview', 'site.guestbookReview'],
+  basic: [
+    'site.title',
+    'site.description',
+    'site.keywords',
+    'site.favicon',
+    'site.googleVerification',
+    'site.bingVerification',
+    'site.baiduVerification',
+    'site.yandexVerification',
+    'site.pageSize',
+    'site.commentReview',
+    'site.guestbookReview',
+  ],
   blog: [
     'blog.homeTitle',
     'blog.homeDescription',
@@ -277,6 +289,9 @@ export default function SettingsPage() {
             <FormRow label="SEO 描述">
               <textarea className="field resize-none" rows={3} value={getVal('site.description')} onChange={e => setVal('site.description', e.target.value)} maxLength={300} />
             </FormRow>
+            <FormRow label="SEO 关键词" hint="用英文逗号分隔，例如：Web3, 区块链, 个人博客">
+              <input className="field" value={getVal('site.keywords')} onChange={e => setVal('site.keywords', e.target.value)} maxLength={500} />
+            </FormRow>
             <ImageSettingField
               label="标签页图标"
               hint="会显示在浏览器标签页，建议上传 256x256 以上的 PNG、ICO 或 SVG 正方形图标"
@@ -284,6 +299,23 @@ export default function SettingsPage() {
               onChange={value => setVal('site.favicon', value)}
               uploadLabel="上传标签页图标（建议正方形）"
             />
+            <div className="pt-2 border-t border-slate-100">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">站长平台验证</p>
+              <div className="mt-4 space-y-5">
+                <FormRow label="Google 验证码" hint="填写 Search Console 提供的 content 值，不用粘贴整段 meta 标签">
+                  <input className="field font-mono text-xs" value={getVal('site.googleVerification')} onChange={e => setVal('site.googleVerification', e.target.value)} placeholder="google-site-verification=..." maxLength={300} />
+                </FormRow>
+                <FormRow label="Bing 验证码" hint="填写 Bing Webmaster Tools 提供的 content 值">
+                  <input className="field font-mono text-xs" value={getVal('site.bingVerification')} onChange={e => setVal('site.bingVerification', e.target.value)} placeholder="xxxxxxxx" maxLength={300} />
+                </FormRow>
+                <FormRow label="百度验证码" hint="填写百度站长平台要求的 content 值">
+                  <input className="field font-mono text-xs" value={getVal('site.baiduVerification')} onChange={e => setVal('site.baiduVerification', e.target.value)} placeholder="codeva-xxxxxxxx" maxLength={300} />
+                </FormRow>
+                <FormRow label="Yandex 验证码" hint="如果不用可留空">
+                  <input className="field font-mono text-xs" value={getVal('site.yandexVerification')} onChange={e => setVal('site.yandexVerification', e.target.value)} placeholder="xxxxxxxx" maxLength={300} />
+                </FormRow>
+              </div>
+            </div>
             <FormRow label="每页文章数">
               <input type="number" min={1} max={50} className="field w-24" value={getVal('site.pageSize')} onChange={e => setVal('site.pageSize', e.target.value)} />
             </FormRow>

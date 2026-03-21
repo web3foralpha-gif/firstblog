@@ -7,11 +7,13 @@ import Header from '@/components/blog/Header'
 import MarkdownContent from '@/components/blog/MarkdownContent'
 import PikachuWidget from '@/components/blog/PikachuWidget'
 import SiteFooter from '@/components/blog/SiteFooter'
+import StructuredData from '@/components/StructuredData'
 import { getRestrictedArticlePreview } from '@/lib/article-access'
 import { getArticleEngagementSeedBySlug } from '@/lib/article-engagement'
 import { getAllPostSlugs, getPostBySlug, syncMarkdownPostsToDatabase } from '@/lib/posts'
 import { getLegacyArticleTitleBySlug } from '@/lib/services/legacy-article-service'
 import { absoluteUrl } from '@/lib/site'
+import { buildArticleSchema, buildBreadcrumbSchema, buildSeoImageCandidates, getSiteSeoData } from '@/lib/seo'
 import { formatDate } from '@/lib/utils'
 
 export const revalidate = 3600
@@ -29,15 +31,36 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
   await syncMarkdownPostsToDatabase()
 
-  const legacyArticle = await getLegacyArticleTitleBySlug(slug)
+  const [legacyArticle, site] = await Promise.all([
+    getLegacyArticleTitleBySlug(slug),
+    getSiteSeoData(),
+  ])
   if (legacyArticle) {
     const description = getRestrictedArticlePreview(legacyArticle.accessType, legacyArticle.price) || legacyArticle.excerpt || '文章详情'
+    const images = buildSeoImageCandidates(legacyArticle.coverImage, site.coverImage, site.authorImage, site.favicon)
 
     return {
       title: legacyArticle.title,
       description,
       alternates: {
         canonical: `/article/${slug}`,
+      },
+      openGraph: {
+        type: 'article',
+        title: legacyArticle.title,
+        description,
+        url: absoluteUrl(`/article/${slug}`),
+        siteName: site.siteName,
+        locale: 'zh_CN',
+        publishedTime: legacyArticle.createdAt.toISOString(),
+        modifiedTime: legacyArticle.updatedAt.toISOString(),
+        images: images.length > 0 ? images.map(url => ({ url })) : undefined,
+      },
+      twitter: {
+        card: images.length > 0 ? 'summary_large_image' : 'summary',
+        title: legacyArticle.title,
+        description,
+        images: images.length > 0 ? images : undefined,
       },
     }
   }
@@ -50,6 +73,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     }
   }
 
+  const images = buildSeoImageCandidates(post.coverImage, site.coverImage, site.authorImage, site.favicon)
+
   return {
     title: post.title,
     description: post.description,
@@ -61,9 +86,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: post.title,
       description: post.description,
       url: absoluteUrl(`/blog/${post.slug}`),
+      siteName: site.siteName,
+      locale: 'zh_CN',
       publishedTime: post.publishedAt,
       modifiedTime: post.updatedAt || post.publishedAt,
-      images: post.coverImage ? [{ url: absoluteUrl(post.coverImage) }] : undefined,
+      images: images.length > 0 ? images.map(url => ({ url })) : undefined,
+    },
+    twitter: {
+      card: images.length > 0 ? 'summary_large_image' : 'summary',
+      title: post.title,
+      description: post.description,
+      images: images.length > 0 ? images : undefined,
     },
   }
 }
@@ -83,10 +116,35 @@ export default async function BlogPostPage({ params }: Props) {
     notFound()
   }
 
-  const engagement = await getArticleEngagementSeedBySlug(slug)
+  const [site, engagement] = await Promise.all([
+    getSiteSeoData(),
+    getArticleEngagementSeedBySlug(slug),
+  ])
+  const description = post.description
+  const breadcrumbs = buildBreadcrumbSchema([
+    { name: '博客', path: '/blog' },
+    { name: post.title, path: `/blog/${slug}` },
+  ])
 
   return (
     <BlogTheme>
+      <StructuredData
+        data={[
+          buildArticleSchema(site, {
+            path: `/blog/${slug}`,
+            title: post.title,
+            description,
+            content: post.content,
+            publishedAt: post.publishedAt,
+            updatedAt: post.updatedAt,
+            image: post.coverImage,
+            tags: post.tags,
+            readingTimeMinutes: post.readingTimeMinutes,
+            isAccessibleForFree: true,
+          }),
+          breadcrumbs,
+        ]}
+      />
       <div className="min-h-screen">
         <Header />
 
@@ -126,7 +184,7 @@ export default async function BlogPostPage({ params }: Props) {
             </div>
           )}
 
-          <MarkdownContent content={post.content} />
+          <MarkdownContent content={post.content} className="article-body" />
 
           {engagement ? (
             <ArticleEngagementBar

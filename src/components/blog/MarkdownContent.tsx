@@ -3,6 +3,11 @@ import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import type { Components } from 'react-markdown'
 
+type MarkdownContentProps = {
+  content: string
+  className?: string
+}
+
 const components: Components = {
   a({ href, children, ...props }) {
     const isExternal = typeof href === 'string' && /^https?:\/\//.test(href)
@@ -33,9 +38,9 @@ const components: Components = {
   },
 }
 
-export default function MarkdownContent({ content }: { content: string }) {
+export default function MarkdownContent({ content, className }: MarkdownContentProps) {
   return (
-    <article className="prose-blog">
+    <article className={className ? `prose-blog ${className}` : 'prose-blog'}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={components}>
         {content}
       </ReactMarkdown>

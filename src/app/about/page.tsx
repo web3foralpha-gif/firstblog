@@ -1,8 +1,13 @@
+import type { Metadata } from 'next'
+
 import BlogTheme from '@/components/blog/BlogTheme'
 import Header from '@/components/blog/Header'
 import MarkdownContent from '@/components/blog/MarkdownContent'
 import SiteFooter from '@/components/blog/SiteFooter'
+import StructuredData from '@/components/StructuredData'
 import { parseBlogLinks } from '@/lib/blog-ui'
+import { absoluteUrl } from '@/lib/site'
+import { buildCollectionPageSchema, buildProfilePageSchema, buildSeoImageCandidates, getSiteSeoData, summarizeText } from '@/lib/seo'
 import {
   getAboutPageAvatar,
   getAboutPageContacts,
@@ -15,8 +20,45 @@ import {
 
 export const revalidate = 3600
 
+export async function generateMetadata(): Promise<Metadata> {
+  const [site, title, subtitle, avatar, coverImage, content] = await Promise.all([
+    getSiteSeoData(),
+    getAboutPageTitle(),
+    getAboutPageSubtitle(),
+    getAboutPageAvatar(),
+    getAboutPageCoverImage(),
+    getAboutPageContent(),
+  ])
+  const description = summarizeText(subtitle || content, 160) || site.siteDescription
+  const images = buildSeoImageCandidates(coverImage, avatar, site.favicon)
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: '/about',
+    },
+    openGraph: {
+      type: 'profile',
+      title,
+      description,
+      url: absoluteUrl('/about'),
+      siteName: site.siteName,
+      locale: 'zh_CN',
+      images: images.length > 0 ? images.map(url => ({ url })) : undefined,
+    },
+    twitter: {
+      card: images.length > 0 ? 'summary_large_image' : 'summary',
+      title,
+      description,
+      images: images.length > 0 ? images : undefined,
+    },
+  }
+}
+
 export default async function AboutPage() {
-  const [title, subtitle, avatar, coverImage, content, contactsTitle, contactsValue] = await Promise.all([
+  const [site, title, subtitle, avatar, coverImage, content, contactsTitle, contactsValue] = await Promise.all([
+    getSiteSeoData(),
     getAboutPageTitle(),
     getAboutPageSubtitle(),
     getAboutPageAvatar(),
@@ -26,9 +68,24 @@ export default async function AboutPage() {
     getAboutPageContacts(),
   ])
   const contacts = parseBlogLinks(contactsValue)
+  const pageDescription = summarizeText(subtitle || content, 160) || site.siteDescription
 
   return (
     <BlogTheme>
+      <StructuredData
+        data={[
+          buildProfilePageSchema(site, pageDescription),
+          buildCollectionPageSchema(site, {
+            path: '/about',
+            title,
+            description: pageDescription,
+            items: contacts.map(link => ({
+              title: link.label,
+              url: link.href.startsWith('http') ? link.href : absoluteUrl('/about'),
+            })),
+          }),
+        ]}
+      />
       <div className="min-h-screen">
         <Header />
         <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6 sm:py-16">
@@ -54,7 +111,7 @@ export default async function AboutPage() {
             </div>
           </section>
 
-          <MarkdownContent content={content} />
+          <MarkdownContent content={content} className="article-body" />
 
           {contacts.length > 0 ? (
             <section className="mt-10 max-w-[26rem] rounded-[28px] border border-[var(--border-color)] bg-[var(--surface-soft)]/70 p-5 shadow-[0_18px_48px_rgba(61,53,48,0.06)] sm:p-6">

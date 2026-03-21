@@ -13,7 +13,12 @@ function sanitize(v: string): string {
 }
 
 const MAX_LENGTH_BY_KEY: Record<string, number> = {
+  'site.keywords': 500,
   'site.favicon': 1000,
+  'site.googleVerification': 300,
+  'site.bingVerification': 300,
+  'site.baiduVerification': 300,
+  'site.yandexVerification': 300,
   'mascot.systemPrompt': 12000,
   'mascot.identityProfile': 20000,
   'mascot.knowledgeBase': 30000,
@@ -36,7 +41,12 @@ const MAX_LENGTH_BY_KEY: Record<string, number> = {
 const REVALIDATE_KEYS = new Set([
   'site.title',
   'site.description',
+  'site.keywords',
   'site.favicon',
+  'site.googleVerification',
+  'site.bingVerification',
+  'site.baiduVerification',
+  'site.yandexVerification',
   'blog.homeTitle',
   'blog.homeDescription',
   'blog.cornerTitle',

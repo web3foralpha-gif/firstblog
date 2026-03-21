@@ -8,10 +8,13 @@ import PikachuWidget from '@/components/blog/PikachuWidget'
 import CommentSection from '@/components/blog/CommentSection'
 import ArticleContent from '@/components/blog/ArticleContent'
 import SiteFooter from '@/components/blog/SiteFooter'
+import StructuredData from '@/components/StructuredData'
 import { getRestrictedArticlePreview } from '@/lib/article-access'
 import { getPostBySlug } from '@/lib/posts'
 import { getArticleEngagementSummary } from '@/lib/article-engagement'
 import { getLegacyArticleBySlug, getLegacyArticleTitleBySlug, hasLegacyArticleTokenAccess } from '@/lib/services/legacy-article-service'
+import { absoluteUrl } from '@/lib/site'
+import { buildArticleSchema, buildBreadcrumbSchema, buildSeoImageCandidates, getSiteSeoData, summarizeText } from '@/lib/seo'
 import type { Metadata } from 'next'
 
 export const dynamic = 'force-dynamic'
@@ -23,14 +26,38 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const article = await getLegacyArticleTitleBySlug(slug)
+  const [article, site] = await Promise.all([
+    getLegacyArticleTitleBySlug(slug),
+    getSiteSeoData(),
+  ])
 
   if (article) {
     const description = getRestrictedArticlePreview(article.accessType, article.price) || article.excerpt || '历史文章内容'
+    const images = buildSeoImageCandidates(article.coverImage, site.coverImage, site.authorImage, site.favicon)
 
     return {
       title: article.title,
       description,
+      alternates: {
+        canonical: `/article/${slug}`,
+      },
+      openGraph: {
+        type: 'article',
+        title: article.title,
+        description,
+        url: absoluteUrl(`/article/${slug}`),
+        siteName: site.siteName,
+        locale: 'zh_CN',
+        publishedTime: article.createdAt.toISOString(),
+        modifiedTime: article.updatedAt.toISOString(),
+        images: images.length > 0 ? images.map(url => ({ url })) : undefined,
+      },
+      twitter: {
+        card: images.length > 0 ? 'summary_large_image' : 'summary',
+        title: article.title,
+        description,
+        images: images.length > 0 ? images : undefined,
+      },
     }
   }
 
@@ -39,18 +66,40 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return { title: '文章', description: '历史文章内容' }
   }
 
+  const images = buildSeoImageCandidates(markdownPost.coverImage, site.coverImage, site.authorImage, site.favicon)
+
   return {
     title: markdownPost.title,
     description: markdownPost.description,
     alternates: {
       canonical: `/blog/${slug}`,
     },
+    openGraph: {
+      type: 'article',
+      title: markdownPost.title,
+      description: markdownPost.description,
+      url: absoluteUrl(`/blog/${slug}`),
+      siteName: site.siteName,
+      locale: 'zh_CN',
+      publishedTime: markdownPost.publishedAt,
+      modifiedTime: markdownPost.updatedAt || markdownPost.publishedAt,
+      images: images.length > 0 ? images.map(url => ({ url })) : undefined,
+    },
+    twitter: {
+      card: images.length > 0 ? 'summary_large_image' : 'summary',
+      title: markdownPost.title,
+      description: markdownPost.description,
+      images: images.length > 0 ? images : undefined,
+    },
   }
 }
 
 export default async function ArticlePage({ params, searchParams }: Props) {
   const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams])
-  const article = await getLegacyArticleBySlug(slug)
+  const [site, article] = await Promise.all([
+    getSiteSeoData(),
+    getLegacyArticleBySlug(slug),
+  ])
   if (!article) {
     const markdownPost = await getPostBySlug(slug)
     if (markdownPost) {
@@ -71,9 +120,34 @@ export default async function ArticlePage({ params, searchParams }: Props) {
     createdAt: c.createdAt.toISOString(),
   }))
   const engagement = await getArticleEngagementSummary(article.id)
+  const description = summarizeText(
+    getRestrictedArticlePreview(article.accessType, article.price) || article.excerpt || article.content,
+    180,
+  ) || '历史文章内容'
+  const isAccessibleForFree = article.accessType === 'PUBLIC' || tokenValid
+  const breadcrumbs = buildBreadcrumbSchema([
+    { name: '博客', path: '/blog' },
+    { name: article.title, path: `/article/${slug}` },
+  ])
 
   return (
     <BlogTheme>
+      <StructuredData
+        data={[
+          buildArticleSchema(site, {
+            path: `/article/${slug}`,
+            title: article.title,
+            description,
+            content: isAccessibleForFree ? article.content : undefined,
+            publishedAt: article.createdAt.toISOString(),
+            updatedAt: article.updatedAt.toISOString(),
+            image: article.coverImage || undefined,
+            readingTimeMinutes: Math.max(1, Math.ceil(article.content.replace(/\s+/g, '').length / 320)),
+            isAccessibleForFree,
+          }),
+          breadcrumbs,
+        ]}
+      />
       <div className="min-h-screen">
         <Header />
         <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-10">

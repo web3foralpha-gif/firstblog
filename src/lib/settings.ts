@@ -15,7 +15,12 @@ export const SETTING_DEFS: Record<string, {
   // 基本信息
   'site.title':           { type: 'string',  default: '我的小站',          public: true,  label: '网站标题' },
   'site.description':     { type: 'string',  default: '记录生活，分享心情', public: true,  label: 'SEO 描述' },
+  'site.keywords':        { type: 'string',  default: '',                  public: true,  label: 'SEO 关键词' },
   'site.favicon':         { type: 'string',  default: '',                  public: true,  label: '站点标签图标' },
+  'site.googleVerification': { type: 'string', default: '',               public: false, label: 'Google 验证码' },
+  'site.bingVerification': { type: 'string',  default: '',                public: false, label: 'Bing 验证码' },
+  'site.baiduVerification': { type: 'string', default: '',                public: false, label: '百度验证码' },
+  'site.yandexVerification': { type: 'string', default: '',               public: false, label: 'Yandex 验证码' },
   'site.pageSize':        { type: 'number',  default: '10',                public: false, label: '每页文章数' },
   'site.commentReview':   { type: 'boolean', default: 'true',              public: false, label: '评论需要审核' },
   'site.guestbookReview': { type: 'boolean', default: 'true',              public: false, label: '留言需要审核' },

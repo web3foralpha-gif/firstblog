@@ -8,8 +8,15 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
+        disallow: ['/houtai', '/api/auth'],
+      },
+      {
+        userAgent: 'Googlebot',
+        allow: '/',
+        disallow: ['/houtai', '/api/auth'],
       },
     ],
+    host: absoluteUrl('/'),
     sitemap: absoluteUrl('/sitemap.xml'),
   }
 }

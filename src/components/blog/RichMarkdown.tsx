@@ -9,6 +9,7 @@ import { parseRichStyle } from '@/lib/rich-text'
 
 type Props = {
   content: string
+  className?: string
 }
 
 type RichChunk =
@@ -63,20 +64,20 @@ function renderMarkdown(content: string, key: string) {
   )
 }
 
-export default function RichMarkdown({ content }: Props) {
+export default function RichMarkdown({ content, className }: Props) {
   const sanitizedHtml = useMemo(() => {
     if (!isRichHtmlContent(content)) return ''
     return sanitizeArticleHtml(content)
   }, [content])
 
   if (sanitizedHtml) {
-    return <article className="prose-blog" dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
+    return <article className={className ? `prose-blog ${className}` : 'prose-blog'} dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
   }
 
   const chunks = parseContent(content)
 
   return (
-    <article className="prose-blog">
+    <article className={className ? `prose-blog ${className}` : 'prose-blog'}>
       {chunks.map((chunk, index) => {
         if (chunk.type === 'markdown') {
           return renderMarkdown(chunk.content, `markdown-${index}`)

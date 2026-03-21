@@ -21,12 +21,12 @@ export default function ArticleContent({ slug, content, accessType, price, title
   if (accessType === 'PAID' && tokenValid) return <MarkdownBody content={content} />
   if (accessType === 'PASSWORD') {
     if (unlockedContent) return <MarkdownBody content={unlockedContent} />
-    return <PasswordGate slug={slug} hint={passwordHint} onUnlock={setUnlockedContent} />
+    return <div className="article-paywall"><PasswordGate slug={slug} hint={passwordHint} onUnlock={setUnlockedContent} /></div>
   }
-  if (accessType === 'PAID') return <PayGate slug={slug} price={price!} title={title} />
+  if (accessType === 'PAID') return <div className="article-paywall"><PayGate slug={slug} price={price!} title={title} /></div>
   return null
 }
 
 function MarkdownBody({ content }: { content: string }) {
-  return <RichMarkdown content={content} />
+  return <RichMarkdown content={content} className="article-body" />
 }
