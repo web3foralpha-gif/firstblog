@@ -19,6 +19,7 @@ type PublicArticleContext = {
   slug: string
   excerpt: string | null
   createdAt: Date
+  pinned?: boolean
 }
 
 export type MascotPreviewArticle = {
@@ -26,6 +27,7 @@ export type MascotPreviewArticle = {
   slug: string
   excerpt: string | null
   createdAt: string
+  pinned?: boolean
 }
 
 export type MascotPreviewChecklistItem = {
@@ -201,6 +203,7 @@ async function getRecentPublicArticles(): Promise<PublicArticleContext[]> {
         slug: true,
         excerpt: true,
         createdAt: true,
+        pinned: true,
       },
     })
   } catch (error) {
@@ -228,6 +231,65 @@ function buildArticleContext(articles: PublicArticleContext[]) {
       ].join('\n')
     })
     .join('\n\n')
+}
+
+function normalizeIntentText(value: string) {
+  return value.toLowerCase().replace(/\s+/g, '')
+}
+
+function trimArticleExcerpt(value: string | null | undefined, limit = 56) {
+  if (!value?.trim()) return ''
+  return truncate(sanitizeBlock(value, limit), limit)
+}
+
+function buildArticleIntentReply(message: string, recentArticles: PublicArticleContext[]) {
+  const normalized = normalizeIntentText(message)
+
+  const asksArticleRecommendation =
+    /推荐.*(文章|博客)|文章推荐|读什么|看什么|哪篇值得看|推荐一篇|推荐几篇/.test(normalized)
+  const asksLatestArticles =
+    /(今天|最近|最新).*(文章|写了什么|发了什么)|新文章|最近写了什么|最近发了什么|最新文章/.test(normalized)
+
+  if (!asksArticleRecommendation && !asksLatestArticles) {
+    return null
+  }
+
+  if (recentArticles.length === 0) {
+    return '现在还没有可推荐的公开文章。等我整理好新的内容，再认真放出来给你看。'
+  }
+
+  const latestArticles = [...recentArticles].sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+  const latestArticle = latestArticles[0]
+  const latestDate = latestArticle.createdAt.toISOString().slice(0, 10)
+
+  if (asksLatestArticles) {
+    const previewList = latestArticles.slice(0, 3)
+    const lines = previewList.map(article => {
+      const excerpt = trimArticleExcerpt(article.excerpt, 42)
+      return excerpt
+        ? `《${sanitizeBlock(article.title, 80)}》：${excerpt}`
+        : `《${sanitizeBlock(article.title, 80)}》`
+    })
+
+    return [
+      `最近公开更新里，最新的一篇是 ${latestDate} 发布的《${sanitizeBlock(latestArticle.title, 80)}》。`,
+      previewList.length > 1 ? `这几篇也可以顺着看：${lines.join('；')}。` : '',
+      '如果你愿意，我也可以只按你的兴趣给你挑一篇。',
+    ]
+      .filter(Boolean)
+      .join('')
+  }
+
+  const recommendedArticle = recentArticles.find(article => article.pinned) ?? latestArticle
+  const reason = trimArticleExcerpt(recommendedArticle.excerpt, 54)
+
+  return [
+    `如果现在只先看一篇，我会推荐《${sanitizeBlock(recommendedArticle.title, 80)}》。`,
+    reason ? `因为它的公开摘要里提到：${reason}。` : '它比较适合作为你进入这个博客的第一篇。 ',
+    `文章地址是 /article/${sanitizeBlock(recommendedArticle.slug, 80)} 。`,
+    '你要是告诉我你更想看情绪、生活还是思考，我也能再换一篇更贴近的。',
+  ]
+    .join('')
 }
 
 function buildPetSystemPrompt(input: {
@@ -562,6 +624,7 @@ async function buildMascotRuntime(overrides?: Record<string, string>): Promise<M
         slug: article.slug,
         excerpt: article.excerpt,
         createdAt: article.createdAt.toISOString().slice(0, 10),
+        pinned: article.pinned ?? false,
       })),
       counts: {
         identityProfile: identityProfile.length,
@@ -629,6 +692,25 @@ export async function requestMascotReply(input: {
   }
 
   const startedAt = Date.now()
+  const articleIntentReply = buildArticleIntentReply(message, runtime.preview.recentArticles.map(article => ({
+    title: article.title,
+    slug: article.slug,
+    excerpt: article.excerpt,
+    createdAt: new Date(article.createdAt),
+    pinned: article.pinned ?? false,
+  })))
+
+  if (articleIntentReply) {
+    return {
+      reply: articleIntentReply,
+      fallbackUsed: false,
+      success: true,
+      providerStatus: null,
+      errorType: null,
+      latencyMs: Date.now() - startedAt,
+      preview,
+    }
+  }
 
   try {
     let lastProviderStatus: number | null = null
