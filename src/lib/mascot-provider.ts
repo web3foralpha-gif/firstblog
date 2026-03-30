@@ -9,6 +9,15 @@ function trimOuterQuotes(value: string) {
   return value.replace(/^[`"'“”]+|[`"'“”]+$/g, '').trim()
 }
 
+function toAsciiHeaderValue(value: string, fallback: string) {
+  const normalized = value
+    .normalize('NFKD')
+    .replace(/[^\x20-\x7E]+/g, '')
+    .trim()
+
+  return normalized || fallback
+}
+
 export function normalizeMascotApiBase(value?: string) {
   const raw = trimOuterQuotes((value ?? '').trim())
   if (!raw) return DEFAULT_OPENAI_API_BASE
@@ -55,8 +64,10 @@ export function buildMascotProviderHeaders(apiBase: string) {
   }
 
   if (/openrouter\.ai/i.test(apiBase)) {
-    headers['HTTP-Referer'] = getSiteUrl()
-    headers['X-Title'] = getSiteName()
+    const siteUrl = getSiteUrl()
+    const fallbackTitle = siteUrl.replace(/^https?:\/\//, '')
+    headers['HTTP-Referer'] = siteUrl
+    headers['X-Title'] = toAsciiHeaderValue(getSiteName(), fallbackTitle)
   }
 
   return headers
