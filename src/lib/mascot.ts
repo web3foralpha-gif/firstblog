@@ -68,6 +68,9 @@ export type MascotReplyResult = {
   preview: MascotPreview
 }
 
+const MASCOT_REQUEST_TIMEOUT_MS = 12000
+const MASCOT_MAX_ATTEMPTS = 2
+
 const PET_FALLBACK_REPLIES = [
   '皮卡～！（我现在有点累，稍后再聊吧）',
   '皮卡丘！⚡（AI 助手暂时休息中）',
@@ -175,6 +178,10 @@ function detectProviderErrorType(status: number, rawBody: string) {
   if (body.includes('rate limit') || status === 429) return 'rate_limit'
   if (status >= 500) return 'provider_server'
   return 'provider_error'
+}
+
+function shouldRetryMascotRequest(status: number) {
+  return status === 408 || status === 409 || status === 425 || status === 429 || status >= 500
 }
 
 async function getRecentPublicArticles(): Promise<PublicArticleContext[]> {
@@ -624,48 +631,89 @@ export async function requestMascotReply(input: {
   const startedAt = Date.now()
 
   try {
-    const aiRes = await fetch(`${preview.apiBase.replace(/\/$/, '')}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        ...buildMascotProviderHeaders(preview.apiBase),
-      },
-      body: JSON.stringify({
-        model: preview.model,
-        max_tokens: preview.mode === 'twin' ? 260 : 150,
-        temperature: preview.mode === 'twin' ? 0.35 : 0.9,
-        messages: [
-          { role: 'system', content: preview.systemPrompt },
-          ...(input.history ?? []),
-          { role: 'user', content: message },
-        ],
-      }),
-      signal: AbortSignal.timeout(8000),
-    })
+    let lastProviderStatus: number | null = null
+    let lastProviderBody = ''
 
-    if (!aiRes.ok) {
-      const errorText = await aiRes.text()
-      console.error('[Mascot AI] API error:', aiRes.status, errorText)
-      return {
-        reply: buildProviderErrorReply(preview.mode, preview.personaName, aiRes.status, errorText),
-        fallbackUsed: true,
-        success: false,
-        providerStatus: aiRes.status,
-        errorType: detectProviderErrorType(aiRes.status, errorText),
-        latencyMs: Date.now() - startedAt,
-        preview,
+    for (let attempt = 1; attempt <= MASCOT_MAX_ATTEMPTS; attempt += 1) {
+      try {
+        const aiRes = await fetch(`${preview.apiBase.replace(/\/$/, '')}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            ...buildMascotProviderHeaders(preview.apiBase),
+          },
+          body: JSON.stringify({
+            model: preview.model,
+            max_tokens: preview.mode === 'twin' ? 260 : 150,
+            temperature: preview.mode === 'twin' ? 0.35 : 0.9,
+            messages: [
+              { role: 'system', content: preview.systemPrompt },
+              ...(input.history ?? []),
+              { role: 'user', content: message },
+            ],
+          }),
+          signal: AbortSignal.timeout(MASCOT_REQUEST_TIMEOUT_MS),
+        })
+
+        if (!aiRes.ok) {
+          lastProviderStatus = aiRes.status
+          lastProviderBody = await aiRes.text()
+          console.error('[Mascot AI] API error:', aiRes.status, lastProviderBody)
+
+          if (attempt < MASCOT_MAX_ATTEMPTS && shouldRetryMascotRequest(aiRes.status)) {
+            await new Promise(resolve => setTimeout(resolve, 450))
+            continue
+          }
+
+          return {
+            reply: buildProviderErrorReply(preview.mode, preview.personaName, aiRes.status, lastProviderBody),
+            fallbackUsed: true,
+            success: false,
+            providerStatus: aiRes.status,
+            errorType: detectProviderErrorType(aiRes.status, lastProviderBody),
+            latencyMs: Date.now() - startedAt,
+            preview,
+          }
+        }
+
+        const data = await aiRes.json()
+        const reply = extractReplyText(data)
+
+        return {
+          reply: reply || fallback(preview.mode, preview.personaName),
+          fallbackUsed: !reply,
+          success: Boolean(reply),
+          providerStatus: aiRes.status,
+          errorType: reply ? null : 'empty_reply',
+          latencyMs: Date.now() - startedAt,
+          preview,
+        }
+      } catch (error) {
+        console.error('[Mascot AI] fetch error:', error)
+
+        if (attempt < MASCOT_MAX_ATTEMPTS) {
+          await new Promise(resolve => setTimeout(resolve, 450))
+          continue
+        }
+
+        return {
+          reply: fallback(preview.mode, preview.personaName),
+          fallbackUsed: true,
+          success: false,
+          providerStatus: lastProviderStatus,
+          errorType: lastProviderStatus ? detectProviderErrorType(lastProviderStatus, lastProviderBody) : 'network',
+          latencyMs: Date.now() - startedAt,
+          preview,
+        }
       }
     }
 
-    const data = await aiRes.json()
-    const reply = extractReplyText(data)
-
     return {
-      reply: reply || fallback(preview.mode, preview.personaName),
-      fallbackUsed: !reply,
-      success: Boolean(reply),
-      providerStatus: aiRes.status,
-      errorType: reply ? null : 'empty_reply',
+      reply: fallback(preview.mode, preview.personaName),
+      fallbackUsed: true,
+      success: false,
+      providerStatus: lastProviderStatus,
+      errorType: lastProviderStatus ? detectProviderErrorType(lastProviderStatus, lastProviderBody) : 'network',
       latencyMs: Date.now() - startedAt,
       preview,
     }
