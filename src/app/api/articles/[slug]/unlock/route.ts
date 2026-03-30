@@ -1,14 +1,12 @@
 import bcrypt from 'bcryptjs'
+import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+
 import { prisma } from '@/lib/prisma'
 
-type RouteContext = {
-  params: Promise<{ slug: string }>
-}
-
-export async function POST(req: Request, { params }: RouteContext) {
+export async function POST(req: NextRequest, ctx: RouteContext<'/api/articles/[slug]/unlock'>) {
   try {
-    const { slug } = await params
+    const { slug } = await ctx.params
     const body = await req.json().catch(() => null)
     const password = typeof body?.password === 'string' ? body.password : ''
 
