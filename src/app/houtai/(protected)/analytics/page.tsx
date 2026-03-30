@@ -18,9 +18,10 @@ export const dynamic = 'force-dynamic'
 type RangeKey = '24h' | '7d' | '30d' | 'all'
 type DeviceFilterKey = 'all' | 'mobile' | 'desktop' | 'tablet' | 'bot' | 'other'
 type SelfFilterKey = 'hide' | 'show'
+type AnalyticsTabKey = 'overview' | 'mascot' | 'content' | 'visitors'
 
 type PageProps = {
-  searchParams: Promise<{ range?: string | string[]; device?: string | string[]; ip?: string | string[]; self?: string | string[] }>
+  searchParams: Promise<{ range?: string | string[]; device?: string | string[]; ip?: string | string[]; self?: string | string[]; tab?: string | string[] }>
 }
 
 type SiteMetricsRow = {
@@ -188,6 +189,13 @@ const DEVICE_OPTIONS: Array<{ key: DeviceFilterKey; label: string }> = [
   { key: 'other', label: '其他' },
 ]
 
+const ANALYTICS_TABS: Array<{ key: AnalyticsTabKey; label: string; description: string }> = [
+  { key: 'overview', label: '总览', description: '先看整体质量和核心结论' },
+  { key: 'mascot', label: '数字分身', description: '单独看 AI 聊天与异常' },
+  { key: 'content', label: '内容转化', description: '聚焦文章表现和互动' },
+  { key: 'visitors', label: '访客明细', description: '查看 IP、设备和访问轨迹' },
+]
+
 const ACCESS_STYLES: Record<string, string> = {
   PUBLIC: 'border-emerald-200 bg-emerald-50 text-emerald-700',
   PASSWORD: 'border-violet-200 bg-violet-50 text-violet-700',
@@ -237,17 +245,24 @@ function resolveSelfFilter(selfParam?: string | string[]): SelfFilterKey {
   return raw === 'show' ? 'show' : 'hide'
 }
 
+function resolveTab(tabParam?: string | string[]): AnalyticsTabKey {
+  const raw = Array.isArray(tabParam) ? tabParam[0] : tabParam
+  return ANALYTICS_TABS.find(option => option.key === raw)?.key ?? 'overview'
+}
+
 function buildAnalyticsHref(
   rangeKey: RangeKey,
   deviceKey: DeviceFilterKey,
   ipAddress?: string | null,
   selfKey: SelfFilterKey = 'hide',
+  tabKey: AnalyticsTabKey = 'overview',
 ) {
   const params = new URLSearchParams()
   if (rangeKey !== '7d') params.set('range', rangeKey)
   if (deviceKey !== 'all') params.set('device', deviceKey)
   if (ipAddress) params.set('ip', ipAddress)
   if (selfKey === 'show') params.set('self', 'show')
+  if (tabKey !== 'overview') params.set('tab', tabKey)
   const query = params.toString()
   return query ? `/houtai/analytics?${query}` : '/houtai/analytics'
 }
@@ -563,6 +578,53 @@ function FilterChip({ label, value }: { label: string; value: string }) {
   )
 }
 
+function AnalyticsTabCard({
+  label,
+  description,
+  value,
+  href,
+  active,
+}: {
+  label: string
+  description: string
+  value: string
+  href: string
+  active: boolean
+}) {
+  return (
+    <Link
+      href={href}
+      className={`rounded-[24px] border px-4 py-4 transition ${
+        active
+          ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
+          : 'border-slate-200 bg-white text-slate-900 hover:border-slate-300 hover:bg-slate-50'
+      }`}
+    >
+      <p className={`text-xs uppercase tracking-[0.22em] ${active ? 'text-slate-300' : 'text-slate-400'}`}>{label}</p>
+      <p className={`mt-3 text-lg font-semibold ${active ? 'text-white' : 'text-slate-900'}`}>{value}</p>
+      <p className={`mt-2 text-sm leading-6 ${active ? 'text-slate-300' : 'text-slate-500'}`}>{description}</p>
+    </Link>
+  )
+}
+
+function InsightCard({
+  eyebrow,
+  title,
+  description,
+}: {
+  eyebrow: string
+  title: string
+  description: string
+}) {
+  return (
+    <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+      <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">{eyebrow}</p>
+      <p className="mt-3 text-base font-semibold text-slate-900">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
+    </div>
+  )
+}
+
 function RankListCard({ title, items }: { title: string; items: RankItem[] }) {
   return (
     <SectionCard>
@@ -616,13 +678,14 @@ function RankListCard({ title, items }: { title: string; items: RankItem[] }) {
 }
 
 export default async function AnalyticsPage({ searchParams }: PageProps) {
-  const { range, device, ip, self } = await searchParams
+  const { range, device, ip, self, tab } = await searchParams
   const now = new Date()
   const requestHeaders = await headers()
   const rangeState = resolveRange(range)
   const deviceState = resolveDeviceFilter(device)
   const selectedIp = resolveIpFilter(ip)
   const selfState = resolveSelfFilter(self)
+  const selectedTab = resolveTab(tab)
   const currentVisitorIp = getClientIpFromHeaders(requestHeaders)
   const ownerTrafficRules = await getOwnerTrafficRules()
   const currentUserAgent = requestHeaders.get('user-agent') || ''
@@ -1162,7 +1225,7 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
     label: formatIpAddress(item.ipAddress),
     value: Number(item.views ?? 0),
     meta: `${formatLocation(item.ipRegion, item.ipCity)} · ${describeDevice(item.userAgent).summary} · ${formatNumber(Number(item.sessions ?? 0))} 次会话`,
-    href: buildAnalyticsHref(rangeState.key, deviceState, formatIpAddress(item.ipAddress), selfState),
+    href: buildAnalyticsHref(rangeState.key, deviceState, formatIpAddress(item.ipAddress), selfState, 'visitors'),
     highlighted: Boolean(selectedIp && selectedIp === formatIpAddress(item.ipAddress)),
   }))
 
@@ -1194,7 +1257,7 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
       displayLocation: formatLocation(item.ipRegion, item.ipCity),
       displayReferrer: normalizeReferrer(item.referrer || ''),
       deviceProfile: describeDevice(item.userAgent, sanitizeDeviceInfo(item.deviceInfo)),
-      traceHref: buildAnalyticsHref(rangeState.key, deviceState, formatIpAddress(item.ipAddress), selfState),
+      traceHref: buildAnalyticsHref(rangeState.key, deviceState, formatIpAddress(item.ipAddress), selfState, 'visitors'),
     })),
   ).slice(0, 8)
 
@@ -1229,6 +1292,64 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
   const externalRate = formatPercent(siteMetrics.externalPv, siteMetrics.pv)
   const interactionRate = formatPercent(interactionTotals.interactions, interactionTotals.articleEnter)
   const shareRate = formatPercent(interactionTotals.shares, interactionTotals.interactions)
+  const topArticle = articleRows[0]
+  const activeTabMeta = ANALYTICS_TABS.find(option => option.key === selectedTab) ?? ANALYTICS_TABS[0]
+  const analyticsTabCards = [
+    {
+      key: 'overview' as const,
+      label: '总览',
+      description: '把流量质量、阅读完成和当前筛选范围先看明白。',
+      value: `${formatNumber(siteMetrics.pv)} 访问 / ${formatNumber(siteMetrics.uv)} 人`,
+    },
+    {
+      key: 'mascot' as const,
+      label: '数字分身',
+      description: '看真实聊天量、成功率和最近异常。',
+      value: mascotMetrics.totalChats > 0 ? `${formatNumber(mascotMetrics.totalChats)} 次会话` : '暂无真实会话',
+    },
+    {
+      key: 'content' as const,
+      label: '内容转化',
+      description: '看哪些文章真的被读完、被互动。',
+      value: `${formatNumber(interactionTotals.interactions)} 次互动`,
+    },
+    {
+      key: 'visitors' as const,
+      label: '访客明细',
+      description: selectedIp ? `当前已锁定 ${selectedIp}` : '看 IP、设备来源和访问轨迹。',
+      value: selectedIp ? '单 IP 轨迹' : `${formatNumber(siteMetrics.uniqueIp)} 个访问 IP`,
+    },
+  ]
+  const overviewInsights = [
+    {
+      eyebrow: '流量',
+      title: siteMetrics.pv === 0 ? '当前范围还没有访问数据' : siteMetrics.directPv >= siteMetrics.externalPv ? '当前还是直接访问为主' : '站外引流正在抬头',
+      description: siteMetrics.pv === 0
+        ? '先放宽时间范围，或者切到其他模块看看有没有互动和分身对话。'
+        : `直接访问 ${directRate}，站外来源 ${externalRate}，平均停留 ${formatDuration(siteMetrics.avgDuration)}。`,
+    },
+    {
+      eyebrow: '内容',
+      title: topArticle ? `《${truncateText(topArticle.title, 22)}》目前最能带动互动` : '当前还没有可比较的文章转化',
+      description: topArticle
+        ? `总互动 ${formatNumber(topArticle.interactionCount)}，有效阅读 ${formatNumber(topArticle.qualified)}，完成率 ${formatPercent(topArticle.qualified, topArticle.enters)}。`
+        : '你可以先看“内容转化”模块，等真实访客再多一点，结论会更稳。',
+    },
+    {
+      eyebrow: '访客',
+      title: topDeviceEntry ? `${topDeviceEntry[0]} 仍是主力设备` : '访客设备还在逐步识别',
+      description: topDeviceEntry
+        ? `${topBrowserEntry?.[0] || '浏览器待识别'} / ${topOsEntry?.[0] || '系统待识别'} 最常见，当前互动率 ${interactionRate}。`
+        : `当前设备筛选是「${selectedDeviceLabel}」，后面有更多访问后这里会更清楚。`,
+    },
+    {
+      eyebrow: '分身',
+      title: mascotMetrics.totalChats === 0 ? '数字分身暂时还没有真实对话' : `数字分身当前状态：${mascotHealthStatus}`,
+      description: mascotMetrics.totalChats === 0
+        ? '一旦有访客开始聊天，这里会直接告诉你成功率、模型状态和常见问题。'
+        : `成功率 ${mascotSuccessRate}，降级率 ${mascotFallbackRate}，当前主模型 ${mascotTopModel}。`,
+    },
+  ]
 
   return (
     <div className="space-y-6">
@@ -1238,14 +1359,14 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
             <div className="max-w-3xl">
               <p className="text-xs uppercase tracking-[0.28em] text-slate-400">Analytics</p>
               <h1 className="mt-3 text-2xl font-semibold text-slate-900">互动与访问统计</h1>
-              <p className="mt-2 text-sm text-slate-500">把访问趋势、访客画像、文章转化和异常排查拆开看，会更清楚。</p>
+              <p className="mt-2 text-sm text-slate-500">现在改成按模块切换查看，先总览，再深入到内容、访客或数字分身，会更清楚。</p>
             </div>
 
             <div className="flex flex-col gap-3 xl:items-end">
               <div className="flex flex-wrap gap-2">
                 {RANGE_OPTIONS.map(option => {
                   const active = option.key === rangeState.key
-                  const href = buildAnalyticsHref(option.key, deviceState, selectedIp, selfState)
+                  const href = buildAnalyticsHref(option.key, deviceState, selectedIp, selfState, selectedTab)
                   return (
                     <Link
                       key={option.key}
@@ -1264,7 +1385,7 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
               <div className="flex flex-wrap gap-2 xl:justify-end">
                 {DEVICE_OPTIONS.map(option => {
                   const active = option.key === deviceState
-                  const href = buildAnalyticsHref(rangeState.key, option.key, selectedIp, selfState)
+                  const href = buildAnalyticsHref(rangeState.key, option.key, selectedIp, selfState, selectedTab)
                   return (
                     <Link
                       key={option.key}
@@ -1280,6 +1401,7 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
                   )
                 })}
               </div>
+              <p className="text-xs text-slate-500">当前模块：{activeTabMeta.label} · {activeTabMeta.description}</p>
               <p className="text-xs text-slate-400">统计区间：{rangeText}</p>
             </div>
           </div>
@@ -1293,6 +1415,21 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
             <FilterChip label="自己访问" value={selfState === 'hide' ? '已隐藏' : '已显示'} />
             <FilterChip label="白名单" value={ownerTrafficRules.ips.length || ownerTrafficRules.devices.length ? '已生效' : '未设置'} />
             <FilterChip label="截止" value={formatDateTime(now)} />
+          </div>
+        </div>
+
+        <div className="border-t border-slate-100 px-5 py-5 sm:px-6">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {analyticsTabCards.map(item => (
+              <AnalyticsTabCard
+                key={item.key}
+                label={item.label}
+                description={item.description}
+                value={item.value}
+                href={buildAnalyticsHref(rangeState.key, deviceState, selectedIp, selfState, item.key)}
+                active={selectedTab === item.key}
+              />
+            ))}
           </div>
         </div>
       </SectionCard>
@@ -1319,6 +1456,7 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
                   deviceState,
                   selectedIp,
                   selfState === 'hide' ? 'show' : 'hide',
+                  selectedTab,
                 )}
                 className="inline-flex rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
               >
@@ -1349,7 +1487,7 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
               </p>
             </div>
             <Link
-              href={buildAnalyticsHref(rangeState.key, deviceState, null, selfState)}
+              href={buildAnalyticsHref(rangeState.key, deviceState, null, selfState, selectedTab)}
               className="inline-flex rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
             >
               清除 IP 轨迹
@@ -1358,337 +1496,397 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
         </SectionCard>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="总访问" value={formatNumber(siteMetrics.pv)} note={`文章页占比 ${formatPercent(siteMetrics.articlePv, siteMetrics.pv)}`} />
-        <MetricCard label="独立访客" value={formatNumber(siteMetrics.uv)} note={`识别到 ${formatNumber(siteMetrics.uniqueIp)} 个访问 IP`} />
-        <MetricCard label="有效阅读" value={formatNumber(interactionTotals.qualifiedRead)} note={`完成率 ${formatPercent(interactionTotals.qualifiedRead, interactionTotals.articleEnter)}`} />
-        <MetricCard label="新增互动" value={formatNumber(interactionTotals.interactions)} note={`赞 ${formatNumber(interactionTotals.likes)} · 转 ${formatNumber(interactionTotals.shares)} · 评 ${formatNumber(interactionTotals.comments)}`} />
-      </div>
+      {selectedTab === 'overview' ? (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard label="总访问" value={formatNumber(siteMetrics.pv)} note={`文章页占比 ${formatPercent(siteMetrics.articlePv, siteMetrics.pv)}`} />
+            <MetricCard label="独立访客" value={formatNumber(siteMetrics.uv)} note={`识别到 ${formatNumber(siteMetrics.uniqueIp)} 个访问 IP`} />
+            <MetricCard label="有效阅读" value={formatNumber(interactionTotals.qualifiedRead)} note={`完成率 ${formatPercent(interactionTotals.qualifiedRead, interactionTotals.articleEnter)}`} />
+            <MetricCard label="新增互动" value={formatNumber(interactionTotals.interactions)} note={`赞 ${formatNumber(interactionTotals.likes)} · 转 ${formatNumber(interactionTotals.shares)} · 评 ${formatNumber(interactionTotals.comments)}`} />
+          </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <SectionCard className="px-5 py-5 sm:px-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-800">流量结构</h2>
-              <p className="mt-1 text-xs text-slate-400">先看访问质量，再判断内容是否真的被读进去。</p>
-            </div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {overviewInsights.map(item => (
+              <InsightCard
+                key={item.eyebrow}
+                eyebrow={item.eyebrow}
+                title={item.title}
+                description={item.description}
+              />
+            ))}
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <CompactStat label="直接访问占比" value={directRate} note={`${formatNumber(siteMetrics.directPv)} 次访问`} />
-            <CompactStat label="站外来源占比" value={externalRate} note={`${formatNumber(siteMetrics.externalPv)} 次访问`} />
-            <CompactStat label="平均停留" value={formatDuration(siteMetrics.avgDuration)} note="全站范围" />
-            <CompactStat label="文章页平均停留" value={formatDuration(siteMetrics.articleAvgDuration)} note="只看文章页" />
-          </div>
-        </SectionCard>
 
-        <SectionCard className="px-5 py-5 sm:px-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-800">访客画像</h2>
-              <p className="mt-1 text-xs text-slate-400">把主力设备、系统和互动倾向单独拎出来看。</p>
-            </div>
-          </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <CompactStat
-              label="主力设备"
-              value={topDeviceEntry ? `${topDeviceEntry[0]} ${formatPercent(topDeviceEntry[1], siteMetrics.pv)}` : '设备待识别'}
-              note={`${topOsEntry?.[0] || '系统待识别'} · ${topBrowserEntry?.[0] || '浏览器待识别'}`}
-            />
-            <CompactStat label="互动率" value={interactionRate} note={`${formatNumber(interactionTotals.interactions)} 次互动 / ${formatNumber(interactionTotals.articleEnter)} 次进入`} />
-            <CompactStat label="转发占比" value={shareRate} note={`链接 + 海报共 ${formatNumber(interactionTotals.shares)} 次`} />
-            <CompactStat label="当前设备筛选" value={selectedDeviceLabel} note={selectedIp ? `仅看 ${selectedIp}` : '未限定单个 IP'} />
-          </div>
-        </SectionCard>
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <SectionCard className="px-5 py-5 sm:px-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Digital Twin</p>
-              <h2 className="mt-2 text-sm font-semibold text-slate-800">数字分身运行概览</h2>
-              <p className="mt-1 text-xs text-slate-400">把会话量、成功率和模型健康状态单独看，方便判断现在是不是在稳定回应访客。</p>
-            </div>
-            <Link href="/houtai/settings?section=ai" className="text-xs text-slate-400 transition hover:text-slate-600">
-              去 AI 设置 →
-            </Link>
-          </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <CompactStat label="会话总数" value={formatNumber(mascotMetrics.totalChats)} note={`访客 ${formatNumber(mascotMetrics.uniqueVisitors)} 人`} />
-            <CompactStat label="成功率" value={mascotSuccessRate} note={`成功 ${formatNumber(mascotMetrics.successCount)} 次`} />
-            <CompactStat label="降级率" value={mascotFallbackRate} note={`降级 ${formatNumber(mascotMetrics.fallbackCount)} 次`} />
-            <CompactStat label="平均延迟" value={formatLatency(mascotMetrics.avgLatencyMs)} note={`提问 ${formatNumber(mascotMetrics.avgMessageChars ?? 0)} 字 / 回复 ${formatNumber(mascotMetrics.avgReplyChars ?? 0)} 字`} />
-            <CompactStat label="当前模型" value={mascotTopModel} note={`模式 ${mascotRecentRows[0]?.mode === 'pet' ? '宠物' : '数字分身'}`} />
-            <CompactStat
-              label="健康状态"
-              value={mascotHealthStatus}
-              note={mascotHealth.lastSuccessAt ? `最近成功 ${formatDateTime(mascotHealth.lastSuccessAt)}` : '还没有成功回复记录'}
-            />
-          </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <CompactStat label="最近失败" value={mascotHealth.lastFailureAt ? formatDateTime(mascotHealth.lastFailureAt) : '—'} note="可快速判断是不是刚出过故障" />
-            <CompactStat label="鉴权 / 余额" value={`${formatNumber(mascotHealth.authErrors)} / ${formatNumber(mascotHealth.balanceErrors)}`} note="API Key 或余额问题" />
-            <CompactStat label="限流 / 网络" value={`${formatNumber(mascotHealth.rateLimitErrors)} / ${formatNumber(mascotHealth.networkErrors)}`} note="接口拥堵或网络波动" />
-          </div>
-        </SectionCard>
-
-        <div className="grid gap-6">
-          <RankListCard title="高频提问" items={mascotQuestions} />
-          <RankListCard title="分身异常分布" items={mascotErrors} />
-        </div>
-      </div>
-
-      <SectionCard>
-        <div className="border-b border-slate-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-slate-800">最近分身对话</h2>
-          <p className="mt-1 text-xs text-slate-400">这里只记录真实访客会话；站长白名单、自测流量和后台试聊都不会混进来。</p>
-        </div>
-        <div className="divide-y divide-slate-100">
-          {mascotRecentRows.length === 0 ? (
-            <p className="px-5 py-12 text-sm text-slate-400">当前范围还没有数字分身对话记录。</p>
-          ) : (
-            mascotRecentRows.map(item => (
-              <div key={item.id} className="flex items-start justify-between gap-4 px-5 py-4 transition hover:bg-slate-50/80">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${item.success ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
-                      {item.success ? '回复成功' : '降级回复'}
-                    </span>
-                    <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
-                      {item.mode === 'pet' ? '宠物模式' : '数字分身'}
-                    </span>
-                    <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-500">
-                      {item.model || '未记录模型'}
-                    </span>
-                    {!item.success && item.errorType ? (
-                      <span className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700">
-                        {getMascotErrorLabel(item.errorType)}
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="mt-3 text-sm font-medium text-slate-800">问：{truncateText(item.message, 160)}</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">答：{truncateText(item.reply, 220)}</p>
-                  <p className="mt-2 text-xs text-slate-400">
-                    {item.displayIp} · {item.displayLocation} · {item.displayPath}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-400">{item.deviceProfile.summary}</p>
-                  {item.deviceProfile.detail ? <p className="mt-1 text-xs text-slate-400">{item.deviceProfile.detail}</p> : null}
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium text-slate-700">{formatLatency(item.latencyMs)}</p>
-                  <p className="mt-1 text-xs text-slate-400">{formatDateTime(item.createdAt)}</p>
-                  <div className="mt-2 flex flex-col items-end gap-2">
-                    <Link
-                      href={item.path || '/'}
-                      target="_blank"
-                      className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
-                    >
-                      打开页面
-                    </Link>
-                    <Link
-                      href={buildAnalyticsHref(rangeState.key, deviceState, item.displayIp, selfState)}
-                      className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
-                    >
-                      查看这条 IP
-                    </Link>
-                  </div>
+          <div className="grid gap-6 xl:grid-cols-2">
+            <SectionCard className="px-5 py-5 sm:px-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-800">流量结构</h2>
+                  <p className="mt-1 text-xs text-slate-400">先看访问质量，再判断内容是否真的被读进去。</p>
                 </div>
               </div>
-            ))
-          )}
-        </div>
-      </SectionCard>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <CompactStat label="直接访问占比" value={directRate} note={`${formatNumber(siteMetrics.directPv)} 次访问`} />
+                <CompactStat label="站外来源占比" value={externalRate} note={`${formatNumber(siteMetrics.externalPv)} 次访问`} />
+                <CompactStat label="平均停留" value={formatDuration(siteMetrics.avgDuration)} note="全站范围" />
+                <CompactStat label="文章页平均停留" value={formatDuration(siteMetrics.articleAvgDuration)} note="只看文章页" />
+              </div>
+            </SectionCard>
 
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <SectionCard>
-          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-800">文章表现</h2>
-              <p className="mt-1 text-xs text-slate-400">先看哪些内容真正被读完、被互动。</p>
-            </div>
-            <Link href="/houtai/articles" className="text-xs text-slate-400 transition hover:text-slate-600">
-              去文章管理 →
-            </Link>
-          </div>
-
-          <div className="divide-y divide-slate-100">
-            {articleRows.length === 0 ? (
-              <p className="px-5 py-12 text-sm text-slate-400">当前范围没有文章互动数据。</p>
-            ) : (
-              articleRows.map(row => (
-                <div key={row.articleId} className="flex items-start justify-between gap-4 px-5 py-4 transition hover:bg-slate-50/80">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Link href={`/houtai/articles/${row.articleId}/edit`} className="truncate text-sm font-medium text-slate-800 transition hover:text-slate-950">
-                        {row.title}
-                      </Link>
-                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${ACCESS_STYLES[row.accessType] ?? 'border-slate-200 bg-slate-50 text-slate-600'}`}>
-                        {ACCESS_LABELS[row.accessType] ?? row.accessType}
-                      </span>
-                      {!row.published ? (
-                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
-                          草稿
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-2 text-xs text-slate-400">
-                      有效阅读 {formatNumber(row.qualified)} · 进入 {formatNumber(row.enters)} · 完成率 {formatPercent(row.qualified, row.enters)}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-400">
-                      互动 {formatNumber(row.interactionCount)}（赞 {formatNumber(row.likes)} / 转 {formatNumber(row.shareCount)} / 评 {formatNumber(row.comments)}）
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xl font-semibold text-slate-900">{formatNumber(row.interactionCount)}</p>
-                    <p className="mt-1 text-xs text-slate-400">总互动</p>
-                    <p className="mt-3 text-[11px] text-slate-400">{row.updatedAt ? `更新于 ${formatDateTime(row.updatedAt)}` : '暂无更新时间'}</p>
-                  </div>
+            <SectionCard className="px-5 py-5 sm:px-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-800">访客画像</h2>
+                  <p className="mt-1 text-xs text-slate-400">把主力设备、系统和互动倾向单独拎出来看。</p>
                 </div>
-              ))
-            )}
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <CompactStat
+                  label="主力设备"
+                  value={topDeviceEntry ? `${topDeviceEntry[0]} ${formatPercent(topDeviceEntry[1], siteMetrics.pv)}` : '设备待识别'}
+                  note={`${topOsEntry?.[0] || '系统待识别'} · ${topBrowserEntry?.[0] || '浏览器待识别'}`}
+                />
+                <CompactStat label="互动率" value={interactionRate} note={`${formatNumber(interactionTotals.interactions)} 次互动 / ${formatNumber(interactionTotals.articleEnter)} 次进入`} />
+                <CompactStat label="转发占比" value={shareRate} note={`链接 + 海报共 ${formatNumber(interactionTotals.shares)} 次`} />
+                <CompactStat label="当前设备筛选" value={selectedDeviceLabel} note={selectedIp ? `仅看 ${selectedIp}` : '未限定单个 IP'} />
+              </div>
+            </SectionCard>
           </div>
-        </SectionCard>
-
-        <div className="grid gap-6">
-          <RankListCard title="高频 IP" items={topIps} />
-          <RankListCard title="高频页面" items={topPages} />
-          <RankListCard title="来源 Top" items={topReferrers} />
-        </div>
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-3">
-        <RankListCard title="设备分布" items={deviceBreakdown} />
-        <RankListCard title="浏览器排行" items={topBrowsers} />
-        <RankListCard title="系统排行" items={topOperatingSystems} />
-      </div>
-
-      {selectedIp ? (
-        <SectionCard>
-          <div className="border-b border-slate-100 px-5 py-4">
-            <h2 className="text-sm font-semibold text-slate-800">单个 IP 访问轨迹</h2>
-            <p className="mt-1 text-xs text-slate-400">按时间倒序展示这个 IP 在当前筛选条件下的访问路径。</p>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {ipTraceRows.length === 0 ? (
-              <p className="px-5 py-12 text-sm text-slate-400">当前筛选条件下还没有这条 IP 的访问轨迹。</p>
-            ) : (
-              ipTraceRows.map(item => (
-                <div key={item.id} className="flex items-start justify-between gap-4 px-5 py-4 transition hover:bg-slate-50/80">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-500">
-                        会话 {item.sessionId.slice(-8)}
-                      </span>
-                      <Link href={item.path} target="_blank" className="truncate text-sm font-medium text-slate-800 transition hover:text-slate-950">
-                        {item.displayPath}
-                      </Link>
-                    </div>
-                    <p className="mt-2 text-xs text-slate-400">{item.deviceProfile.summary}</p>
-                    {item.deviceProfile.detail ? <p className="mt-1 text-xs text-slate-400">{item.deviceProfile.detail}</p> : null}
-                    <p className="mt-1 text-xs text-slate-400">来源 {item.displayReferrer}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-slate-700">{formatDuration(item.duration)}</p>
-                    <p className="mt-1 text-xs text-slate-400">{formatDateTime(item.enteredAt)}</p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </SectionCard>
+        </>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <SectionCard>
-          <div className="border-b border-slate-100 px-5 py-4">
-            <h2 className="text-sm font-semibold text-slate-800">最近访问</h2>
-            <p className="mt-1 text-xs text-slate-400">自动合并同会话、同页面、短时间内的重复访问记录。</p>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {recentVisits.length === 0 ? (
-              <p className="px-5 py-12 text-sm text-slate-400">当前范围还没有访问记录。</p>
-            ) : (
-              recentVisits.map(item => (
-                <div key={item.id} className="flex items-start justify-between gap-4 px-5 py-4 transition hover:bg-slate-50/80">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Link href={item.path} target="_blank" className="text-sm font-medium text-slate-800 transition hover:text-slate-950">
-                        {item.displayPath}
-                      </Link>
-                      {item.mergedCount > 1 ? (
-                        <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
-                          合并 {formatNumber(item.mergedCount)} 条
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-2 text-xs font-mono text-slate-500">{item.displayIp}</p>
-                    <p className="mt-1 text-xs text-slate-400">{item.displayLocation} · {item.displayReferrer}</p>
-                    <p className="mt-1 text-xs text-slate-400">{item.deviceProfile.summary}</p>
-                    {item.deviceProfile.detail ? <p className="mt-1 text-xs text-slate-400">{item.deviceProfile.detail}</p> : null}
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-slate-700">{formatDuration(item.mergedDuration)}</p>
-                    <p className="mt-1 text-xs text-slate-400">{formatDateTime(item.enteredAt)}</p>
-                    <Link
-                      href={item.traceHref}
-                      className="mt-2 inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
-                    >
-                      查看轨迹
-                    </Link>
-                  </div>
+      {selectedTab === 'mascot' ? (
+        <>
+          <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+            <SectionCard className="px-5 py-5 sm:px-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Digital Twin</p>
+                  <h2 className="mt-2 text-sm font-semibold text-slate-800">数字分身运行概览</h2>
+                  <p className="mt-1 text-xs text-slate-400">把会话量、成功率和模型健康状态单独看，方便判断现在是不是在稳定回应访客。</p>
                 </div>
-              ))
-            )}
-          </div>
-        </SectionCard>
+                <Link href="/houtai/settings?section=ai" className="text-xs text-slate-400 transition hover:text-slate-600">
+                  去 AI 设置 →
+                </Link>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <CompactStat label="会话总数" value={formatNumber(mascotMetrics.totalChats)} note={`访客 ${formatNumber(mascotMetrics.uniqueVisitors)} 人`} />
+                <CompactStat label="成功率" value={mascotSuccessRate} note={`成功 ${formatNumber(mascotMetrics.successCount)} 次`} />
+                <CompactStat label="降级率" value={mascotFallbackRate} note={`降级 ${formatNumber(mascotMetrics.fallbackCount)} 次`} />
+                <CompactStat label="平均延迟" value={formatLatency(mascotMetrics.avgLatencyMs)} note={`提问 ${formatNumber(mascotMetrics.avgMessageChars ?? 0)} 字 / 回复 ${formatNumber(mascotMetrics.avgReplyChars ?? 0)} 字`} />
+                <CompactStat label="当前模型" value={mascotTopModel} note={`模式 ${mascotRecentRows[0]?.mode === 'pet' ? '宠物' : '数字分身'}`} />
+                <CompactStat
+                  label="健康状态"
+                  value={mascotHealthStatus}
+                  note={mascotHealth.lastSuccessAt ? `最近成功 ${formatDateTime(mascotHealth.lastSuccessAt)}` : '还没有成功回复记录'}
+                />
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <CompactStat label="最近失败" value={mascotHealth.lastFailureAt ? formatDateTime(mascotHealth.lastFailureAt) : '—'} note="可快速判断是不是刚出过故障" />
+                <CompactStat label="鉴权 / 余额" value={`${formatNumber(mascotHealth.authErrors)} / ${formatNumber(mascotHealth.balanceErrors)}`} note="API Key 或余额问题" />
+                <CompactStat label="限流 / 网络" value={`${formatNumber(mascotHealth.rateLimitErrors)} / ${formatNumber(mascotHealth.networkErrors)}`} note="接口拥堵或网络波动" />
+              </div>
+            </SectionCard>
 
-        <SectionCard>
-          <div className="border-b border-slate-100 px-5 py-4">
-            <h2 className="text-sm font-semibold text-slate-800">最近互动</h2>
-            <p className="mt-1 text-xs text-slate-400">自动合并同文章、同类型、短时间内的重复互动。</p>
+            <div className="grid gap-6">
+              <RankListCard title="高频提问" items={mascotQuestions} />
+              <RankListCard title="分身异常分布" items={mascotErrors} />
+            </div>
           </div>
-          <div className="divide-y divide-slate-100">
-            {recentInteractionRows.length === 0 ? (
-              <p className="px-5 py-12 text-sm text-slate-400">当前范围还没有互动记录。</p>
-            ) : (
-              recentInteractionRows.map(item => (
-                <div key={item.id} className="flex items-start justify-between gap-4 px-5 py-4 transition hover:bg-slate-50/80">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${getInteractionTone(item.type)}`}>
-                        {getInteractionLabel(item.type)}
-                      </span>
-                      <Link href={`/houtai/articles/${item.articleId}/edit`} className="truncate text-sm font-medium text-slate-800 transition hover:text-slate-950">
-                        {item.article.title}
-                      </Link>
-                      {item.mergedCount > 1 ? (
-                        <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
-                          合并 {formatNumber(item.mergedCount)} 条
+
+          <SectionCard>
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-sm font-semibold text-slate-800">最近分身对话</h2>
+              <p className="mt-1 text-xs text-slate-400">这里只记录真实访客会话；站长白名单、自测流量和后台试聊都不会混进来。</p>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {mascotRecentRows.length === 0 ? (
+                <p className="px-5 py-12 text-sm text-slate-400">当前范围还没有数字分身对话记录。</p>
+              ) : (
+                mascotRecentRows.map(item => (
+                  <div key={item.id} className="flex items-start justify-between gap-4 px-5 py-4 transition hover:bg-slate-50/80">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${item.success ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                          {item.success ? '回复成功' : '降级回复'}
                         </span>
-                      ) : null}
+                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
+                          {item.mode === 'pet' ? '宠物模式' : '数字分身'}
+                        </span>
+                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-500">
+                          {item.model || '未记录模型'}
+                        </span>
+                        {!item.success && item.errorType ? (
+                          <span className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700">
+                            {getMascotErrorLabel(item.errorType)}
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-3 text-sm font-medium text-slate-800">问：{truncateText(item.message, 160)}</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-500">答：{truncateText(item.reply, 220)}</p>
+                      <p className="mt-2 text-xs text-slate-400">
+                        {item.displayIp} · {item.displayLocation} · {item.displayPath}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-400">{item.deviceProfile.summary}</p>
+                      {item.deviceProfile.detail ? <p className="mt-1 text-xs text-slate-400">{item.deviceProfile.detail}</p> : null}
                     </div>
-                    <p className="mt-2 text-xs text-slate-400">
-                      {item.channel ? `${item.channel} · ` : ''}
-                      {formatIpAddress(item.ipAddress)} · {formatLocation(item.ipRegion, item.ipCity)}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-400">{item.deviceProfile.summary}</p>
-                    {item.deviceProfile.detail ? <p className="mt-1 text-xs text-slate-400">{item.deviceProfile.detail}</p> : null}
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-slate-700">{formatLatency(item.latencyMs)}</p>
+                      <p className="mt-1 text-xs text-slate-400">{formatDateTime(item.createdAt)}</p>
+                      <div className="mt-2 flex flex-col items-end gap-2">
+                        <Link
+                          href={item.path || '/'}
+                          target="_blank"
+                          className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                        >
+                          打开页面
+                        </Link>
+                        <Link
+                          href={buildAnalyticsHref(rangeState.key, deviceState, item.displayIp, selfState, 'visitors')}
+                          className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                        >
+                          查看这条 IP
+                        </Link>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs text-slate-400">{formatDateTime(item.createdAt)}</p>
-                    <Link
-                      href={`/houtai/articles/${item.articleId}/edit`}
-                      className="mt-2 inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
-                    >
-                      去编辑
-                    </Link>
-                  </div>
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
+          </SectionCard>
+        </>
+      ) : null}
+
+      {selectedTab === 'content' ? (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard label="文章进入" value={formatNumber(interactionTotals.articleEnter)} note={`当前范围 ${selectedRangeLabel}`} />
+            <MetricCard label="有效阅读" value={formatNumber(interactionTotals.qualifiedRead)} note={`完成率 ${formatPercent(interactionTotals.qualifiedRead, interactionTotals.articleEnter)}`} />
+            <MetricCard label="转发" value={formatNumber(interactionTotals.shares)} note={`占总互动 ${shareRate}`} />
+            <MetricCard label="评论" value={formatNumber(interactionTotals.comments)} note={`点赞 ${formatNumber(interactionTotals.likes)} · 总互动 ${formatNumber(interactionTotals.interactions)}`} />
           </div>
-        </SectionCard>
-      </div>
+
+          <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+            <SectionCard>
+              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-800">文章表现</h2>
+                  <p className="mt-1 text-xs text-slate-400">先看哪些内容真正被读完、被互动。</p>
+                </div>
+                <Link href="/houtai/articles" className="text-xs text-slate-400 transition hover:text-slate-600">
+                  去文章管理 →
+                </Link>
+              </div>
+
+              <div className="divide-y divide-slate-100">
+                {articleRows.length === 0 ? (
+                  <p className="px-5 py-12 text-sm text-slate-400">当前范围没有文章互动数据。</p>
+                ) : (
+                  articleRows.map(row => (
+                    <div key={row.articleId} className="flex items-start justify-between gap-4 px-5 py-4 transition hover:bg-slate-50/80">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Link href={`/houtai/articles/${row.articleId}/edit`} className="truncate text-sm font-medium text-slate-800 transition hover:text-slate-950">
+                            {row.title}
+                          </Link>
+                          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${ACCESS_STYLES[row.accessType] ?? 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+                            {ACCESS_LABELS[row.accessType] ?? row.accessType}
+                          </span>
+                          {!row.published ? (
+                            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+                              草稿
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-2 text-xs text-slate-400">
+                          有效阅读 {formatNumber(row.qualified)} · 进入 {formatNumber(row.enters)} · 完成率 {formatPercent(row.qualified, row.enters)}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          互动 {formatNumber(row.interactionCount)}（赞 {formatNumber(row.likes)} / 转 {formatNumber(row.shareCount)} / 评 {formatNumber(row.comments)}）
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xl font-semibold text-slate-900">{formatNumber(row.interactionCount)}</p>
+                        <p className="mt-1 text-xs text-slate-400">总互动</p>
+                        <p className="mt-3 text-[11px] text-slate-400">{row.updatedAt ? `更新于 ${formatDateTime(row.updatedAt)}` : '暂无更新时间'}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </SectionCard>
+
+            <div className="grid gap-6">
+              <RankListCard title="高频页面" items={topPages} />
+              <RankListCard title="来源 Top" items={topReferrers} />
+            </div>
+          </div>
+
+          <SectionCard>
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-sm font-semibold text-slate-800">最近互动</h2>
+              <p className="mt-1 text-xs text-slate-400">自动合并同文章、同类型、短时间内的重复互动。</p>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {recentInteractionRows.length === 0 ? (
+                <p className="px-5 py-12 text-sm text-slate-400">当前范围还没有互动记录。</p>
+              ) : (
+                recentInteractionRows.map(item => (
+                  <div key={item.id} className="flex items-start justify-between gap-4 px-5 py-4 transition hover:bg-slate-50/80">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${getInteractionTone(item.type)}`}>
+                          {getInteractionLabel(item.type)}
+                        </span>
+                        <Link href={`/houtai/articles/${item.articleId}/edit`} className="truncate text-sm font-medium text-slate-800 transition hover:text-slate-950">
+                          {item.article.title}
+                        </Link>
+                        {item.mergedCount > 1 ? (
+                          <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                            合并 {formatNumber(item.mergedCount)} 条
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-2 text-xs text-slate-400">
+                        {item.channel ? `${item.channel} · ` : ''}
+                        {formatIpAddress(item.ipAddress)} · {formatLocation(item.ipRegion, item.ipCity)}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-400">{item.deviceProfile.summary}</p>
+                      {item.deviceProfile.detail ? <p className="mt-1 text-xs text-slate-400">{item.deviceProfile.detail}</p> : null}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-slate-400">{formatDateTime(item.createdAt)}</p>
+                      <Link
+                        href={`/houtai/articles/${item.articleId}/edit`}
+                        className="mt-2 inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                      >
+                        去编辑
+                      </Link>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </SectionCard>
+        </>
+      ) : null}
+
+      {selectedTab === 'visitors' ? (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard label="独立访客" value={formatNumber(siteMetrics.uv)} note={`识别到 ${formatNumber(siteMetrics.uniqueIp)} 个访问 IP`} />
+            <MetricCard label="主力设备" value={topDeviceEntry?.[0] || '待识别'} note={`${topBrowserEntry?.[0] || '浏览器待识别'} · ${topOsEntry?.[0] || '系统待识别'}`} />
+            <MetricCard label="最近访问" value={formatNumber(recentVisits.length)} note={selectedIp ? `当前锁定 ${selectedIp}` : '按当前筛选自动去重展示'} />
+            <MetricCard label="当前来源结构" value={directRate} note={`站外占比 ${externalRate}`} />
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+            <div className="grid gap-6">
+              <RankListCard title="高频 IP" items={topIps} />
+              <RankListCard title="高频页面" items={topPages} />
+            </div>
+            <div className="grid gap-6">
+              <RankListCard title="来源 Top" items={topReferrers} />
+              <SectionCard className="px-5 py-5 sm:px-6">
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-800">当前筛选速读</h2>
+                  <p className="mt-1 text-xs text-slate-400">这里把访客明细里最重要的结论先拎出来。</p>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <CompactStat label="设备筛选" value={selectedDeviceLabel} note={selectedIp ? `只看 ${selectedIp}` : '未锁定单个 IP'} />
+                  <CompactStat label="查看范围" value={selectedRangeLabel} note={rangeText} />
+                  <CompactStat label="主力浏览器" value={topBrowserEntry?.[0] || '待识别'} note={`系统 ${topOsEntry?.[0] || '待识别'}`} />
+                  <CompactStat label="会话密度最高 IP" value={topIps[0]?.label || '暂无'} note={topIps[0]?.meta || '还没有可比较的会话数据'} />
+                </div>
+              </SectionCard>
+            </div>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-3">
+            <RankListCard title="设备分布" items={deviceBreakdown} />
+            <RankListCard title="浏览器排行" items={topBrowsers} />
+            <RankListCard title="系统排行" items={topOperatingSystems} />
+          </div>
+
+          {selectedIp ? (
+            <SectionCard>
+              <div className="border-b border-slate-100 px-5 py-4">
+                <h2 className="text-sm font-semibold text-slate-800">单个 IP 访问轨迹</h2>
+                <p className="mt-1 text-xs text-slate-400">按时间倒序展示这个 IP 在当前筛选条件下的访问路径。</p>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {ipTraceRows.length === 0 ? (
+                  <p className="px-5 py-12 text-sm text-slate-400">当前筛选条件下还没有这条 IP 的访问轨迹。</p>
+                ) : (
+                  ipTraceRows.map(item => (
+                    <div key={item.id} className="flex items-start justify-between gap-4 px-5 py-4 transition hover:bg-slate-50/80">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-500">
+                            会话 {item.sessionId.slice(-8)}
+                          </span>
+                          <Link href={item.path} target="_blank" className="truncate text-sm font-medium text-slate-800 transition hover:text-slate-950">
+                            {item.displayPath}
+                          </Link>
+                        </div>
+                        <p className="mt-2 text-xs text-slate-400">{item.deviceProfile.summary}</p>
+                        {item.deviceProfile.detail ? <p className="mt-1 text-xs text-slate-400">{item.deviceProfile.detail}</p> : null}
+                        <p className="mt-1 text-xs text-slate-400">来源 {item.displayReferrer}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-slate-700">{formatDuration(item.duration)}</p>
+                        <p className="mt-1 text-xs text-slate-400">{formatDateTime(item.enteredAt)}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </SectionCard>
+          ) : null}
+
+          <SectionCard>
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h2 className="text-sm font-semibold text-slate-800">最近访问</h2>
+              <p className="mt-1 text-xs text-slate-400">自动合并同会话、同页面、短时间内的重复访问记录。</p>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {recentVisits.length === 0 ? (
+                <p className="px-5 py-12 text-sm text-slate-400">当前范围还没有访问记录。</p>
+              ) : (
+                recentVisits.map(item => (
+                  <div key={item.id} className="flex items-start justify-between gap-4 px-5 py-4 transition hover:bg-slate-50/80">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link href={item.path} target="_blank" className="text-sm font-medium text-slate-800 transition hover:text-slate-950">
+                          {item.displayPath}
+                        </Link>
+                        {item.mergedCount > 1 ? (
+                          <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                            合并 {formatNumber(item.mergedCount)} 条
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-2 text-xs font-mono text-slate-500">{item.displayIp}</p>
+                      <p className="mt-1 text-xs text-slate-400">{item.displayLocation} · {item.displayReferrer}</p>
+                      <p className="mt-1 text-xs text-slate-400">{item.deviceProfile.summary}</p>
+                      {item.deviceProfile.detail ? <p className="mt-1 text-xs text-slate-400">{item.deviceProfile.detail}</p> : null}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-slate-700">{formatDuration(item.mergedDuration)}</p>
+                      <p className="mt-1 text-xs text-slate-400">{formatDateTime(item.enteredAt)}</p>
+                      <Link
+                        href={item.traceHref}
+                        className="mt-2 inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                      >
+                        查看轨迹
+                      </Link>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </SectionCard>
+        </>
+      ) : null}
     </div>
   )
 }
