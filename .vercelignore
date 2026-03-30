@@ -6,6 +6,8 @@ target
 apps
 crates
 content
+terafab
+xmap-work
 .DS_Store
 *.zip
 *.tar.gz
