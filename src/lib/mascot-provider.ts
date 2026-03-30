@@ -3,7 +3,7 @@ import { getSiteName, getSiteUrl } from './site'
 const DEFAULT_OPENAI_API_BASE = 'https://api.openai.com/v1'
 const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini'
 const DEFAULT_OPENROUTER_API_BASE = 'https://openrouter.ai/api/v1'
-const DEFAULT_OPENROUTER_MODEL = 'openrouter/free'
+const DEFAULT_OPENROUTER_MODEL = 'liquid/lfm-2.5-1.2b-instruct:free'
 
 function trimOuterQuotes(value: string) {
   return value.replace(/^[`"'“”]+|[`"'“”]+$/g, '').trim()
@@ -45,7 +45,9 @@ export function normalizeMascotModel(value?: string, apiBase?: string) {
 
   if (isOpenRouter) {
     const lowered = raw.toLowerCase()
-    if (lowered === 'openrouter' || lowered === 'free') return DEFAULT_OPENROUTER_MODEL
+    if (lowered === 'openrouter' || lowered === 'free' || lowered === 'openrouter/free') {
+      return DEFAULT_OPENROUTER_MODEL
+    }
     if (lowered === 'auto') return 'openrouter/auto'
   }
 

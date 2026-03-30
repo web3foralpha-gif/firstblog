@@ -199,8 +199,8 @@ export const ADMIN_SETTING_SECTIONS: AdminSettingSection[] = [
       {
         key: 'mascot.aiModel',
         label: '模型名称',
-        placeholder: 'openrouter/free',
-        hint: 'OpenRouter 免费示例：`openrouter/free`。如果只写成 `openrouter`，系统也会自动补成免费模型。',
+        placeholder: 'liquid/lfm-2.5-1.2b-instruct:free',
+        hint: '推荐免费模型：`liquid/lfm-2.5-1.2b-instruct:free`。如果填成 `openrouter/free` 或 `openrouter`，系统也会自动替换到这个稳定模型。',
       },
       { key: 'mascot.aiApiKey', label: 'API Key', kind: 'password', hint: '加密存储，留空保持现有值。' },
       { key: 'mascot.chatEnabled', label: '前台显示聊天入口', kind: 'toggle' },
