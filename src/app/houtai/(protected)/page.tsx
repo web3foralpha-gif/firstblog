@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function AdminDashboard() {
   const todayRange = getDayRangeInTimeZone()
-  const [sunflowerState, articleCount, pendingComments, pendingGuestbook, totalRevenue, recentArticles, pageViewsToday] =
+  const [sunflowerState, articleCount, pendingComments, pendingGuestbook, totalRevenue, recentArticles, pageViewsToday, mascotChatsToday, mascotSuccessToday] =
     await Promise.all([
       prisma.sunflowerState.findUnique({ where: { id: 'singleton' } }),
       prisma.article.count({ where: { published: true } }),
@@ -32,6 +32,8 @@ export default async function AdminDashboard() {
         },
       }),
       prisma.pageView.count({ where: { enteredAt: { gte: todayRange.start, lt: todayRange.end } } }).catch(() => 0),
+      prisma.mascotChatLog.count({ where: { createdAt: { gte: todayRange.start, lt: todayRange.end } } }).catch(() => 0),
+      prisma.mascotChatLog.count({ where: { createdAt: { gte: todayRange.start, lt: todayRange.end }, success: true } }).catch(() => 0),
     ])
 
   const revenue = totalRevenue?._sum?.amount ?? 0
@@ -81,6 +83,15 @@ export default async function AdminDashboard() {
       color: 'text-slate-700',
       bg: 'bg-slate-50',
       border: 'border-slate-100',
+    },
+    {
+      label: '今日分身聊天',
+      value: mascotChatsToday,
+      href: '/houtai/analytics',
+      icon: '🤖',
+      color: 'text-fuchsia-700',
+      bg: 'bg-fuchsia-50',
+      border: 'border-fuchsia-100',
     },
   ]
 
@@ -148,13 +159,13 @@ export default async function AdminDashboard() {
             ))}
           </div>
           <div className="border-t border-slate-100 px-5 py-4">
-            <div className="flex items-center gap-2 text-sm text-slate-500">
+            <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
               <span>🌻</span>
-              <span>向日葵累计互动 {sunflowerState?.totalCount ?? 0} 次，可在</span>
-              <Link href="/houtai/sunflower" className="font-medium text-slate-700 hover:text-slate-900">
-                向日葵面板
+              <span>向日葵累计互动 {sunflowerState?.totalCount ?? 0} 次。</span>
+              <span>🤖 今日分身成功回复 {mascotSuccessToday}/{mascotChatsToday || 0} 次。</span>
+              <Link href="/houtai/analytics" className="font-medium text-slate-700 hover:text-slate-900">
+                去看互动统计
               </Link>
-              <span>继续查看。</span>
             </div>
           </div>
         </Card>

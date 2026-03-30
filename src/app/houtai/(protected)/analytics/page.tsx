@@ -105,6 +105,65 @@ type IpTraceRow = {
   deviceInfo: Prisma.JsonValue | null
 }
 
+type MascotMetricsRow = {
+  totalChats: number
+  uniqueVisitors: number
+  successCount: number
+  fallbackCount: number
+  avgLatencyMs: number | null
+  avgMessageChars: number | null
+  avgReplyChars: number | null
+}
+
+type MascotQuestionRow = {
+  message: string
+  count: number
+  successCount: number
+}
+
+type MascotErrorRow = {
+  errorType: string
+  count: number
+}
+
+type MascotModelRow = {
+  model: string | null
+  count: number
+}
+
+type MascotHealthRow = {
+  lastSuccessAt: Date | string | null
+  lastFailureAt: Date | string | null
+  authErrors: number
+  rateLimitErrors: number
+  balanceErrors: number
+  networkErrors: number
+  emptyReplyErrors: number
+  providerErrors: number
+}
+
+type MascotRecentRow = {
+  id: string
+  sessionId: string | null
+  visitorId: string | null
+  path: string | null
+  message: string
+  reply: string
+  mode: string
+  model: string | null
+  success: boolean
+  fallbackUsed: boolean
+  providerStatus: number | null
+  errorType: string | null
+  latencyMs: number | null
+  ipAddress: string | null
+  ipRegion: string | null
+  ipCity: string | null
+  userAgent: string | null
+  deviceInfo: Prisma.JsonValue | null
+  createdAt: Date | string
+}
+
 type RankItem = {
   label: string
   value: number
@@ -254,6 +313,12 @@ function formatDuration(seconds: number | null | undefined) {
   return minutes ? `${hours} 小时 ${minutes} 分` : `${hours} 小时`
 }
 
+function formatLatency(latencyMs: number | null | undefined) {
+  if (!latencyMs || latencyMs <= 0) return '—'
+  if (latencyMs < 1000) return `${Math.round(latencyMs)} ms`
+  return `${(latencyMs / 1000).toFixed(latencyMs >= 10_000 ? 0 : 1)} 秒`
+}
+
 function formatIpAddress(ipAddress: string | null | undefined) {
   return ipAddress?.trim() || '未知 IP'
 }
@@ -273,6 +338,13 @@ function normalizeReferrer(referrer: string) {
     const normalized = referrer.replace(/^https?:\/\//, '').split('/')[0]?.trim()
     return normalized || '其他来源'
   }
+}
+
+function truncateText(value: string | null | undefined, maxLength: number) {
+  if (!value) return ''
+  const normalized = value.trim().replace(/\s+/g, ' ')
+  if (normalized.length <= maxLength) return normalized
+  return `${normalized.slice(0, Math.max(0, maxLength - 1)).trim()}…`
 }
 
 function extractMetadataDeviceInfo(metadata: Prisma.JsonValue | null | undefined) {
@@ -345,6 +417,31 @@ function getInteractionLabel(type: string) {
 
 function getInteractionTone(type: string) {
   return INTERACTION_TONES[type] ?? 'border-slate-200 bg-slate-50 text-slate-600'
+}
+
+function getMascotErrorLabel(errorType: string | null | undefined) {
+  switch (errorType) {
+    case 'auth':
+      return '鉴权失败'
+    case 'rate_limit':
+      return '限流'
+    case 'insufficient_balance':
+      return '余额不足'
+    case 'network':
+      return '网络异常'
+    case 'empty_reply':
+      return '空回复'
+    case 'provider_server':
+      return '模型服务异常'
+    case 'provider_error':
+      return '模型返回异常'
+    case 'disabled':
+      return 'AI 已关闭'
+    case 'missing_api_key':
+      return '缺少 API Key'
+    default:
+      return '其他异常'
+  }
 }
 
 function toTimestamp(value: Date | string) {
@@ -548,10 +645,18 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
     deviceSignatureSql: `"metadata"->'deviceInfo'->>'signature'`,
     rules: ownerTrafficRules,
   })
+  const ownerMascotSql = buildOwnerTrafficExcludeSql({
+    ipColumn: '"ipAddress"',
+    deviceSignatureSql: `"deviceInfo"->>'signature'`,
+    rules: ownerTrafficRules,
+  })
   const pageViewSelfSql = shouldHideCurrentVisitor && currentVisitorIp
     ? Prisma.sql`AND COALESCE(NULLIF("ipAddress", ''), '') <> ${currentVisitorIp}`
     : Prisma.empty
   const interactionSelfSql = shouldHideCurrentVisitor && currentVisitorIp
+    ? Prisma.sql`AND COALESCE(NULLIF("ipAddress", ''), '') <> ${currentVisitorIp}`
+    : Prisma.empty
+  const mascotSelfSql = shouldHideCurrentVisitor && currentVisitorIp
     ? Prisma.sql`AND COALESCE(NULLIF("ipAddress", ''), '') <> ${currentVisitorIp}`
     : Prisma.empty
 
@@ -579,6 +684,16 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
     ${interactionIpSql}
     ${ownerInteractionSql}
     ${interactionSelfSql}
+  `
+
+  const mascotBaseSql = Prisma.sql`
+    FROM "MascotChatLog"
+    WHERE 1 = 1
+    ${rangeState.from ? Prisma.sql`AND "createdAt" >= ${rangeState.from}` : Prisma.empty}
+    ${buildDeviceFilterSql('"userAgent"', deviceState)}
+    ${buildIpFilterSql('"ipAddress"', selectedIp)}
+    ${ownerMascotSql}
+    ${mascotSelfSql}
   `
 
   const recentInteractionNotFilters: Prisma.ArticleInteractionWhereInput[] = []
@@ -756,6 +871,111 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
       }),
     ])
 
+  let mascotMetricsResult: MascotMetricsRow[] = []
+  let mascotQuestionRowsRaw: MascotQuestionRow[] = []
+  let mascotErrorRowsRaw: MascotErrorRow[] = []
+  let mascotModelRowsRaw: MascotModelRow[] = []
+  let mascotHealthRowsRaw: MascotHealthRow[] = []
+  let mascotRecentRowsRaw: MascotRecentRow[] = []
+
+  try {
+    ;[
+      mascotMetricsResult,
+      mascotQuestionRowsRaw,
+      mascotErrorRowsRaw,
+      mascotModelRowsRaw,
+      mascotHealthRowsRaw,
+      mascotRecentRowsRaw,
+    ] = await Promise.all([
+      prisma.$queryRaw<MascotMetricsRow[]>(Prisma.sql`
+        SELECT
+          COUNT(*)::int AS "totalChats",
+          COUNT(
+            DISTINCT COALESCE(
+              NULLIF("visitorId", ''),
+              NULLIF("sessionId", ''),
+              NULLIF("ipAddress", ''),
+              'unknown'
+            )
+          )::int AS "uniqueVisitors",
+          COUNT(*) FILTER (WHERE "success" = true)::int AS "successCount",
+          COUNT(*) FILTER (WHERE "fallbackUsed" = true)::int AS "fallbackCount",
+          COALESCE(AVG("latencyMs") FILTER (WHERE "latencyMs" IS NOT NULL), 0)::float AS "avgLatencyMs",
+          COALESCE(AVG("messageChars"), 0)::float AS "avgMessageChars",
+          COALESCE(AVG("replyChars"), 0)::float AS "avgReplyChars"
+        ${mascotBaseSql}
+      `),
+      prisma.$queryRaw<MascotQuestionRow[]>(Prisma.sql`
+        SELECT
+          LEFT(TRIM("message"), 80) AS "message",
+          COUNT(*)::int AS "count",
+          COUNT(*) FILTER (WHERE "success" = true)::int AS "successCount"
+        ${mascotBaseSql}
+        GROUP BY 1
+        ORDER BY 2 DESC, MAX("createdAt") DESC
+        LIMIT 6
+      `),
+      prisma.$queryRaw<MascotErrorRow[]>(Prisma.sql`
+        SELECT
+          COALESCE(NULLIF("errorType", ''), 'other') AS "errorType",
+          COUNT(*)::int AS "count"
+        ${mascotBaseSql}
+        AND "success" = false
+        GROUP BY 1
+        ORDER BY 2 DESC
+        LIMIT 6
+      `),
+      prisma.$queryRaw<MascotModelRow[]>(Prisma.sql`
+        SELECT
+          NULLIF("model", '') AS "model",
+          COUNT(*)::int AS "count"
+        ${mascotBaseSql}
+        GROUP BY 1
+        ORDER BY 2 DESC
+        LIMIT 4
+      `),
+      prisma.$queryRaw<MascotHealthRow[]>(Prisma.sql`
+        SELECT
+          MAX("createdAt") FILTER (WHERE "success" = true) AS "lastSuccessAt",
+          MAX("createdAt") FILTER (WHERE "success" = false) AS "lastFailureAt",
+          COUNT(*) FILTER (WHERE "errorType" = 'auth')::int AS "authErrors",
+          COUNT(*) FILTER (WHERE "errorType" = 'rate_limit')::int AS "rateLimitErrors",
+          COUNT(*) FILTER (WHERE "errorType" = 'insufficient_balance')::int AS "balanceErrors",
+          COUNT(*) FILTER (WHERE "errorType" = 'network')::int AS "networkErrors",
+          COUNT(*) FILTER (WHERE "errorType" = 'empty_reply')::int AS "emptyReplyErrors",
+          COUNT(*) FILTER (WHERE "errorType" IN ('provider_server', 'provider_error'))::int AS "providerErrors"
+        ${mascotBaseSql}
+      `),
+      prisma.$queryRaw<MascotRecentRow[]>(Prisma.sql`
+        SELECT
+          "id",
+          "sessionId",
+          "visitorId",
+          "path",
+          "message",
+          "reply",
+          "mode",
+          "model",
+          "success",
+          "fallbackUsed",
+          "providerStatus",
+          "errorType",
+          "latencyMs",
+          "ipAddress",
+          "ipRegion",
+          "ipCity",
+          "userAgent",
+          "deviceInfo",
+          "createdAt"
+        ${mascotBaseSql}
+        ORDER BY "createdAt" DESC
+        LIMIT 10
+      `),
+    ])
+  } catch (error) {
+    console.error('[analytics] mascot chat stats unavailable:', error)
+  }
+
   const siteMetrics = siteMetricsResult[0] ?? {
     pv: 0,
     uv: 0,
@@ -774,6 +994,27 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
     shares: 0,
     comments: 0,
     interactions: 0,
+  }
+
+  const mascotMetrics = mascotMetricsResult[0] ?? {
+    totalChats: 0,
+    uniqueVisitors: 0,
+    successCount: 0,
+    fallbackCount: 0,
+    avgLatencyMs: 0,
+    avgMessageChars: 0,
+    avgReplyChars: 0,
+  }
+
+  const mascotHealth = mascotHealthRowsRaw[0] ?? {
+    lastSuccessAt: null,
+    lastFailureAt: null,
+    authErrors: 0,
+    rateLimitErrors: 0,
+    balanceErrors: 0,
+    networkErrors: 0,
+    emptyReplyErrors: 0,
+    providerErrors: 0,
   }
 
   const pathSlugs = Array.from(
@@ -885,6 +1126,37 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
     }))
     .sort((left, right) => right.value - left.value)
     .slice(0, 6)
+
+  const mascotSuccessRate = formatPercent(mascotMetrics.successCount, mascotMetrics.totalChats)
+  const mascotFallbackRate = formatPercent(mascotMetrics.fallbackCount, mascotMetrics.totalChats)
+  const mascotTopModel = mascotModelRowsRaw[0]?.model || '未记录'
+  const mascotHealthStatus =
+    mascotMetrics.totalChats === 0
+      ? '暂无会话'
+      : mascotMetrics.successCount === 0
+        ? '需要检查'
+        : mascotMetrics.fallbackCount === 0
+          ? '稳定'
+          : mascotMetrics.successCount / Math.max(1, mascotMetrics.totalChats) >= 0.8
+            ? '可用'
+            : '有波动'
+  const mascotQuestions: RankItem[] = mascotQuestionRowsRaw.map(item => ({
+    label: truncateText(item.message, 44) || '空问题',
+    value: Number(item.count ?? 0),
+    meta: `成功 ${formatPercent(Number(item.successCount ?? 0), Number(item.count ?? 0))}`,
+  }))
+  const mascotErrors: RankItem[] = mascotErrorRowsRaw.map(item => ({
+    label: getMascotErrorLabel(item.errorType),
+    value: Number(item.count ?? 0),
+    meta: item.errorType,
+  }))
+  const mascotRecentRows = mascotRecentRowsRaw.map(item => ({
+    ...item,
+    displayIp: formatIpAddress(item.ipAddress),
+    displayLocation: formatLocation(item.ipRegion, item.ipCity),
+    displayPath: item.path ? prettifyPath(item.path, titleBySlug) : '未记录页面',
+    deviceProfile: describeDevice(item.userAgent, sanitizeDeviceInfo(item.deviceInfo)),
+  }))
 
   const topIps: RankItem[] = topIpsRaw.map(item => ({
     label: formatIpAddress(item.ipAddress),
@@ -1128,6 +1400,104 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
           </div>
         </SectionCard>
       </div>
+
+      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <SectionCard className="px-5 py-5 sm:px-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Digital Twin</p>
+              <h2 className="mt-2 text-sm font-semibold text-slate-800">数字分身运行概览</h2>
+              <p className="mt-1 text-xs text-slate-400">把会话量、成功率和模型健康状态单独看，方便判断现在是不是在稳定回应访客。</p>
+            </div>
+            <Link href="/houtai/settings?section=ai" className="text-xs text-slate-400 transition hover:text-slate-600">
+              去 AI 设置 →
+            </Link>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <CompactStat label="会话总数" value={formatNumber(mascotMetrics.totalChats)} note={`访客 ${formatNumber(mascotMetrics.uniqueVisitors)} 人`} />
+            <CompactStat label="成功率" value={mascotSuccessRate} note={`成功 ${formatNumber(mascotMetrics.successCount)} 次`} />
+            <CompactStat label="降级率" value={mascotFallbackRate} note={`降级 ${formatNumber(mascotMetrics.fallbackCount)} 次`} />
+            <CompactStat label="平均延迟" value={formatLatency(mascotMetrics.avgLatencyMs)} note={`提问 ${formatNumber(mascotMetrics.avgMessageChars ?? 0)} 字 / 回复 ${formatNumber(mascotMetrics.avgReplyChars ?? 0)} 字`} />
+            <CompactStat label="当前模型" value={mascotTopModel} note={`模式 ${mascotRecentRows[0]?.mode === 'pet' ? '宠物' : '数字分身'}`} />
+            <CompactStat
+              label="健康状态"
+              value={mascotHealthStatus}
+              note={mascotHealth.lastSuccessAt ? `最近成功 ${formatDateTime(mascotHealth.lastSuccessAt)}` : '还没有成功回复记录'}
+            />
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <CompactStat label="最近失败" value={mascotHealth.lastFailureAt ? formatDateTime(mascotHealth.lastFailureAt) : '—'} note="可快速判断是不是刚出过故障" />
+            <CompactStat label="鉴权 / 余额" value={`${formatNumber(mascotHealth.authErrors)} / ${formatNumber(mascotHealth.balanceErrors)}`} note="API Key 或余额问题" />
+            <CompactStat label="限流 / 网络" value={`${formatNumber(mascotHealth.rateLimitErrors)} / ${formatNumber(mascotHealth.networkErrors)}`} note="接口拥堵或网络波动" />
+          </div>
+        </SectionCard>
+
+        <div className="grid gap-6">
+          <RankListCard title="高频提问" items={mascotQuestions} />
+          <RankListCard title="分身异常分布" items={mascotErrors} />
+        </div>
+      </div>
+
+      <SectionCard>
+        <div className="border-b border-slate-100 px-5 py-4">
+          <h2 className="text-sm font-semibold text-slate-800">最近分身对话</h2>
+          <p className="mt-1 text-xs text-slate-400">这里只记录真实访客会话；站长白名单、自测流量和后台试聊都不会混进来。</p>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {mascotRecentRows.length === 0 ? (
+            <p className="px-5 py-12 text-sm text-slate-400">当前范围还没有数字分身对话记录。</p>
+          ) : (
+            mascotRecentRows.map(item => (
+              <div key={item.id} className="flex items-start justify-between gap-4 px-5 py-4 transition hover:bg-slate-50/80">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${item.success ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                      {item.success ? '回复成功' : '降级回复'}
+                    </span>
+                    <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
+                      {item.mode === 'pet' ? '宠物模式' : '数字分身'}
+                    </span>
+                    <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-500">
+                      {item.model || '未记录模型'}
+                    </span>
+                    {!item.success && item.errorType ? (
+                      <span className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700">
+                        {getMascotErrorLabel(item.errorType)}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-3 text-sm font-medium text-slate-800">问：{truncateText(item.message, 160)}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">答：{truncateText(item.reply, 220)}</p>
+                  <p className="mt-2 text-xs text-slate-400">
+                    {item.displayIp} · {item.displayLocation} · {item.displayPath}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-400">{item.deviceProfile.summary}</p>
+                  {item.deviceProfile.detail ? <p className="mt-1 text-xs text-slate-400">{item.deviceProfile.detail}</p> : null}
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-slate-700">{formatLatency(item.latencyMs)}</p>
+                  <p className="mt-1 text-xs text-slate-400">{formatDateTime(item.createdAt)}</p>
+                  <div className="mt-2 flex flex-col items-end gap-2">
+                    <Link
+                      href={item.path || '/'}
+                      target="_blank"
+                      className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                    >
+                      打开页面
+                    </Link>
+                    <Link
+                      href={buildAnalyticsHref(rangeState.key, deviceState, item.displayIp, selfState)}
+                      className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                    >
+                      查看这条 IP
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </SectionCard>
 
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <SectionCard>

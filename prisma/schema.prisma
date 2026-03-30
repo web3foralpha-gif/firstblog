@@ -199,3 +199,37 @@ model Setting {
   type      String   @default("string")
   updatedAt DateTime @updatedAt
 }
+
+model MascotChatLog {
+  id             String   @id @default(cuid())
+  sessionId      String?
+  visitorId      String?
+  path           String?
+  referrer       String?
+  message        String
+  reply          String
+  messageChars   Int      @default(0)
+  replyChars     Int      @default(0)
+  mode           String   @default("twin")
+  model          String?
+  apiBase        String?
+  success        Boolean  @default(false)
+  fallbackUsed   Boolean  @default(false)
+  providerStatus Int?
+  errorType      String?
+  latencyMs      Int?
+  ipAddress      String?
+  ipRegion       String?
+  ipCity         String?
+  userAgent      String?
+  deviceInfo     Json?
+  createdAt      DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([sessionId, createdAt])
+  @@index([visitorId, createdAt])
+  @@index([ipAddress, createdAt])
+  @@index([mode, createdAt])
+  @@index([success, createdAt])
+  @@index([errorType, createdAt])
+}

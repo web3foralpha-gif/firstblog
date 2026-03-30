@@ -2,6 +2,8 @@
 
 import type { CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { getClientDeviceInfoSync } from '@/lib/client-device'
+import { getSafeReferrer, getSessionId, getVisitorId } from '@/lib/visitor'
 
 type PublicSettings = {
   saluteText: string
@@ -586,12 +588,21 @@ export default function PikachuWidget() {
     setHistory(current => appendMessage(current, { role: 'user', text: content }))
 
     try {
+      const sessionId = getSessionId()
+      const visitorId = getVisitorId()
+      const deviceInfo = getClientDeviceInfoSync()
+      const path = typeof window !== 'undefined' ? window.location.pathname : null
       const res = await fetch('/api/mascot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: content,
           history: history.slice(-6),
+          sessionId,
+          visitorId,
+          path,
+          referrer: getSafeReferrer(),
+          deviceInfo,
         }),
       })
 

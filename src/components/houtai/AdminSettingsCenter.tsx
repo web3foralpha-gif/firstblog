@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import FileUploader from '@/components/houtai/FileUploader'
+import MascotWorkbench from '@/components/houtai/MascotWorkbench'
 import OwnerDeviceAllowlistButton from '@/components/houtai/OwnerDeviceAllowlistButton'
 import { ADMIN_SETTING_SECTIONS, type AdminSettingField, type AdminSettingSection } from '@/components/houtai/admin-settings-config'
 import { Card, PageHeader, SearchInput, useConfirm, useToast } from '@/components/houtai/ui'
@@ -307,6 +308,16 @@ export default function AdminSettingsCenter({
   const dirtyKeys = useMemo(() => new Set(Object.keys(dirty)), [dirty])
   const dirtyCount = dirtyKeys.size
   const searchQuery = search.trim().toLowerCase()
+  const effectiveSettings = useMemo(() => {
+    const merged: Record<string, string> = {}
+    const keys = new Set([...Object.keys(defs), ...Object.keys(settings), ...Object.keys(dirty)])
+
+    keys.forEach(key => {
+      merged[key] = dirty[key] !== undefined ? dirty[key] : (settings[key] ?? defs[key]?.default ?? '')
+    })
+
+    return merged
+  }, [defs, dirty, settings])
 
   function getSettingValue(key: string) {
     return dirty[key] !== undefined ? dirty[key] : (settings[key] ?? defs[key]?.default ?? '')
@@ -964,6 +975,10 @@ export default function AdminSettingsCenter({
                         </div>
                       </Card>
                     </div>
+                  ) : null}
+
+                  {selectedSection.id === 'ai' ? (
+                    <MascotWorkbench draftSettings={effectiveSettings} />
                   ) : null}
                 </div>
               )}
