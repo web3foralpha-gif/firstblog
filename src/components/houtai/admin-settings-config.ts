@@ -190,8 +190,18 @@ export const ADMIN_SETTING_SECTIONS: AdminSettingSection[] = [
     accent: 'from-slate-500/18 via-zinc-500/10 to-white',
     fields: [
       { key: 'mascot.aiEnabled', label: '启用 AI 对话', kind: 'toggle' },
-      { key: 'mascot.aiApiBase', label: 'API Base URL', placeholder: 'https://api.openai.com/v1' },
-      { key: 'mascot.aiModel', label: '模型名称', placeholder: 'gpt-4o-mini' },
+      {
+        key: 'mascot.aiApiBase',
+        label: 'API Base URL',
+        placeholder: 'https://openrouter.ai/api/v1',
+        hint: 'OpenRouter 免费示例：`https://openrouter.ai/api/v1`。就算误填成“URL: https://...”现在也会自动纠正。',
+      },
+      {
+        key: 'mascot.aiModel',
+        label: '模型名称',
+        placeholder: 'openrouter/free',
+        hint: 'OpenRouter 免费示例：`openrouter/free`。如果只写成 `openrouter`，系统也会自动补成免费模型。',
+      },
       { key: 'mascot.aiApiKey', label: 'API Key', kind: 'password', hint: '加密存储，留空保持现有值。' },
       { key: 'mascot.chatEnabled', label: '前台显示聊天入口', kind: 'toggle' },
       { key: 'mascot.panelLabel', label: '面板英文标签' },

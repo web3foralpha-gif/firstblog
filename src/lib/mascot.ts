@@ -1,4 +1,10 @@
 import { prisma } from './prisma'
+import {
+  buildMascotProviderHeaders,
+  isMaskedSecret,
+  normalizeMascotApiBase,
+  normalizeMascotModel,
+} from './mascot-provider'
 import { getAllSettings } from './settings'
 
 export type MascotMode = 'pet' | 'twin'
@@ -366,10 +372,39 @@ function applyPreviewOverrides(settings: Record<string, string>, overrides?: Rec
   const next = { ...settings }
   for (const [key, rawValue] of Object.entries(overrides)) {
     if (!PREVIEW_OVERRIDE_KEYS.has(key)) continue
+    if (key === 'mascot.aiApiKey' && isMaskedSecret(rawValue)) continue
     next[key] = typeof rawValue === 'string' ? rawValue : `${rawValue ?? ''}`
   }
 
   return next
+}
+
+function extractReplyText(data: any) {
+  const content = data?.choices?.[0]?.message?.content
+
+  if (typeof content === 'string') return content.trim()
+
+  if (Array.isArray(content)) {
+    return content
+      .map(item => {
+        if (typeof item === 'string') return item
+        if (typeof item?.text === 'string') return item.text
+        return ''
+      })
+      .join('')
+      .trim()
+  }
+
+  if (typeof data?.output_text === 'string') return data.output_text.trim()
+
+  if (Array.isArray(data?.output_text)) {
+    return data.output_text
+      .map((item: unknown) => (typeof item === 'string' ? item : ''))
+      .join('')
+      .trim()
+  }
+
+  return ''
 }
 
 function buildChecklist(input: {
@@ -460,8 +495,8 @@ async function buildMascotRuntime(overrides?: Record<string, string>): Promise<M
   const mode = normalizeMode(settings['mascot.mode'])
   const personaName = sanitizeBlock(settings['mascot.personaName'], 60) || '我的数字分身'
   const apiKey = settings['mascot.aiApiKey']?.trim() || ''
-  const apiBase = settings['mascot.aiApiBase']?.trim() || 'https://api.openai.com/v1'
-  const model = settings['mascot.aiModel']?.trim() || 'gpt-4o-mini'
+  const apiBase = normalizeMascotApiBase(settings['mascot.aiApiBase'])
+  const model = normalizeMascotModel(settings['mascot.aiModel'], apiBase)
   const aiEnabled = settings['mascot.aiEnabled'] === 'true'
   const recentArticles = await getRecentPublicArticles()
   const siteTitle = sanitizeBlock(settings['site.title'], 80)
@@ -592,8 +627,8 @@ export async function requestMascotReply(input: {
     const aiRes = await fetch(`${preview.apiBase.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
+        ...buildMascotProviderHeaders(preview.apiBase),
       },
       body: JSON.stringify({
         model: preview.model,
@@ -623,9 +658,7 @@ export async function requestMascotReply(input: {
     }
 
     const data = await aiRes.json()
-    const reply = typeof data.choices?.[0]?.message?.content === 'string'
-      ? data.choices[0].message.content.trim()
-      : ''
+    const reply = extractReplyText(data)
 
     return {
       reply: reply || fallback(preview.mode, preview.personaName),

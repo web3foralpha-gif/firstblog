@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { invalidateOwnerTrafficRulesCache } from '@/lib/analytics-traffic'
+import { normalizeMascotApiBase, normalizeMascotModel } from '@/lib/mascot-provider'
 import { getAllSettings, updateSettings, SETTING_DEFS } from '@/lib/settings'
 import { maskSecret } from '@/lib/encrypt'
 import { revalidatePath } from 'next/cache'
@@ -133,6 +134,14 @@ export async function PUT(req: Request) {
     }
 
     cleaned[k] = def.type === 'encrypted' ? v : sanitize(v)
+  }
+
+  if ('mascot.aiApiBase' in cleaned || 'mascot.aiModel' in cleaned) {
+    const currentSettings = await getAllSettings()
+    const normalizedBase = normalizeMascotApiBase(cleaned['mascot.aiApiBase'] ?? currentSettings['mascot.aiApiBase'])
+    const normalizedModel = normalizeMascotModel(cleaned['mascot.aiModel'] ?? currentSettings['mascot.aiModel'], normalizedBase)
+    cleaned['mascot.aiApiBase'] = normalizedBase
+    cleaned['mascot.aiModel'] = normalizedModel
   }
 
   await updateSettings(cleaned)
