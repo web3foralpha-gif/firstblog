@@ -286,7 +286,7 @@ function buildArticleIntentReply(message: string, recentArticles: PublicArticleC
   return [
     `如果现在只先看一篇，我会推荐《${sanitizeBlock(recommendedArticle.title, 80)}》。`,
     reason ? `因为它的公开摘要里提到：${reason}。` : '它比较适合作为你进入这个博客的第一篇。 ',
-    `文章地址是 /article/${sanitizeBlock(recommendedArticle.slug, 80)} 。`,
+    '你直接在文章列表里点开这篇标题，就能看到它。',
     '你要是告诉我你更想看情绪、生活还是思考，我也能再换一篇更贴近的。',
   ]
     .join('')
