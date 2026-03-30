@@ -1,7 +1,7 @@
 import { put } from '@vercel/blob'
 import { buildR2PublicUrl, deleteFromR2, generateKey, isR2Configured } from './r2'
 
-type MediaFolder = 'images' | 'videos'
+type MediaFolder = 'images' | 'videos' | 'audios'
 type UploadSource = Blob & { name?: string; type?: string }
 type UploadOptions = {
   filename?: string

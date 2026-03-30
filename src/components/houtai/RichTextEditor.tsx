@@ -2,15 +2,26 @@
 
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import Quill from 'quill'
-import type { EmitterSource, Range } from 'quill'
-import FileUploader from './FileUploader'
+import type { Editor as TiptapEditor } from '@tiptap/core'
+import { EditorContent, useEditor } from '@tiptap/react'
+import Highlight from '@tiptap/extension-highlight'
+import Image from '@tiptap/extension-image'
+import Link from '@tiptap/extension-link'
+import Placeholder from '@tiptap/extension-placeholder'
+import StarterKit from '@tiptap/starter-kit'
+import TextAlign from '@tiptap/extension-text-align'
+import Underline from '@tiptap/extension-underline'
+import { Color, FontFamily, FontSize, TextStyle } from '@tiptap/extension-text-style'
+import FileUploader, { type UploadLifecycleState } from './FileUploader'
+import { BlockStyle, BlogAudio, BlogVideo } from './editor/extensions'
+import { EDITOR_TEMPLATES, EMOJI_PRESETS } from './editor/templates'
 import {
   hasMeaningfulArticleContent,
   isRichHtmlContent,
   legacyArticleToHtml,
   sanitizeArticleHtml,
 } from '@/lib/article-content'
+import { SHARED_FONT_OPTIONS } from '@/lib/shared-fonts'
 
 type RichTextEditorProps = {
   value: string
@@ -26,60 +37,69 @@ type ToolbarButtonProps = {
   children: ReactNode
 }
 
+type BrushPayload = {
+  bold: boolean
+  italic: boolean
+  underline: boolean
+  strike: boolean
+  fontFamily?: string
+  fontSize?: string
+  color?: string
+  highlightColor?: string
+  textAlign?: string
+  lineHeightBlock?: string | null
+  textIndent?: string | null
+  marginTop?: string | null
+  marginBottom?: string | null
+}
+
 type BrushState = {
   active: boolean
-  formats: Record<string, unknown> | null
-  sourceRange: Range | null
+  sourceKey: string | null
+  payload: BrushPayload | null
 }
 
-type PreferredInlineFormats = Partial<Record<InlinePreferenceKey, string>>
+type ToolbarSnapshot = {
+  fontFamily: string
+  fontSize: string
+  color: string
+  highlightColor: string
+  lineHeightBlock: string
+  marginTop: string
+  marginBottom: string
+  textIndent: boolean
+  textAlign: 'left' | 'center' | 'right' | 'justify'
+  headingLevel: 0 | 2 | 3
+  bold: boolean
+  italic: boolean
+  underline: boolean
+  strike: boolean
+  blockquote: boolean
+  bulletList: boolean
+  orderedList: boolean
+  codeBlock: boolean
+  link: boolean
+}
 
-const FONT_OPTIONS = [
-  { value: '', label: '默认字体' },
-  { value: 'serif', label: '衬线' },
-  { value: 'sans', label: '无衬线' },
-  { value: 'song', label: '宋体' },
-  { value: 'hei', label: '黑体' },
-  { value: 'mono', label: '等宽' },
-] as const
+type UploadFeedback = {
+  tone: 'uploading' | 'success' | 'error'
+  title: string
+  detail?: string
+  progress?: number | null
+}
 
-const SIZE_OPTIONS = [
-  { value: '12px', label: '12px' },
-  { value: '14px', label: '14px' },
-  { value: '16px', label: '16px' },
-  { value: '18px', label: '18px' },
-  { value: '24px', label: '24px' },
-] as const
-
-const COLOR_PRESETS = ['#3d3530', '#d4711a', '#0f766e', '#a21caf', '#2563eb', '#dc2626', '#111827', '#6b7280']
-
-const SUPPORTED_FORMATS = [
-  'header',
-  'bold',
-  'italic',
-  'underline',
-  'strike',
-  'color',
-  'font',
-  'size',
-  'align',
-  'indent',
-  'blockquote',
-  'list',
-  'link',
-  'image',
-  'uploadedVideo',
-] as const
-
-const BRUSH_FORMAT_KEYS = ['bold', 'italic', 'underline', 'strike', 'color', 'font', 'size', 'align', 'indent', 'header'] as const
-const INLINE_PREFERENCE_KEYS = ['font', 'size', 'color'] as const
-type InlinePreferenceKey = (typeof INLINE_PREFERENCE_KEYS)[number]
-
+const SIZE_OPTIONS = ['14px', '16px', '18px', '20px', '24px'] as const
+const LINE_HEIGHT_OPTIONS = ['1.6', '1.8', '2', '2.2'] as const
+const SPACING_OPTIONS = ['0px', '12px', '20px', '24px', '32px', '40px'] as const
+const TEXT_COLORS = ['#3d3530', '#d4711a', '#2563eb', '#0f766e', '#9333ea', '#dc2626', '#111827', '#6b7280']
+const HIGHLIGHT_COLORS = ['#fff4cc', '#ffe0b2', '#d9f99d', '#bfdbfe', '#f5d0fe', '#fecaca']
 const DEFAULT_TEXT_COLOR = '#3d3530'
-
-declare global {
-  var __blogRichEditorRegistered: boolean | undefined
-}
+const DEFAULT_LINE_HEIGHT = '1.8'
+const DEFAULT_MARGIN_TOP = '0px'
+const DEFAULT_MARGIN_BOTTOM = '24px'
+const DEFAULT_PLACEHOLDER = '写下今天的文章…'
+const INDENT_VALUE = '2em'
+const BLOCK_NODE_NAMES = ['paragraph', 'heading', 'blockquote'] as const
 
 function escapeHtml(value: string) {
   return value
@@ -89,174 +109,111 @@ function escapeHtml(value: string) {
     .replaceAll('"', '&quot;')
 }
 
-if (!globalThis.__blogRichEditorRegistered) {
-  const FontClass = Quill.import('attributors/class/font') as any
-  const SizeStyle = Quill.import('attributors/style/size') as any
-  const AlignClass = Quill.import('attributors/class/align') as any
-  const BlockEmbed = Quill.import('blots/block/embed') as any
-  const Parchment = Quill.import('parchment') as any
-  const IndentStyle = new Parchment.StyleAttributor('indent', 'text-indent', {
-    scope: Parchment.Scope.BLOCK,
-    whitelist: ['2em'],
-  })
-
-  FontClass.whitelist = ['serif', 'sans', 'song', 'hei', 'mono']
-  SizeStyle.whitelist = ['12px', '14px', '16px', '18px', '24px']
-  AlignClass.whitelist = ['center', 'right', 'justify']
-  Quill.register(FontClass, true)
-  Quill.register(SizeStyle, true)
-  Quill.register(AlignClass, true)
-  Quill.register(IndentStyle, true)
-
-  class UploadedVideoBlot extends BlockEmbed {
-    static blotName = 'uploadedVideo'
-    static className = 'ql-uploaded-video'
-    static tagName = 'div'
-
-    static create(value: string) {
-      const node = super.create() as HTMLElement
-      node.setAttribute('contenteditable', 'false')
-
-      const video = document.createElement('video')
-      video.setAttribute('controls', 'controls')
-      video.setAttribute('playsinline', 'true')
-      video.setAttribute('preload', 'metadata')
-      video.src = value
-
-      node.appendChild(video)
-      return node
-    }
-
-    static value(node: HTMLElement) {
-      return node.querySelector('video')?.getAttribute('src') || ''
-    }
-
-    html() {
-      const src = UploadedVideoBlot.value(this.domNode as HTMLElement)
-      if (!src) return ''
-      return `<div class="ql-uploaded-video"><video controls playsinline preload="metadata" src="${escapeHtml(src)}"></video></div>`
-    }
-  }
-
-  Quill.register(UploadedVideoBlot, true)
-  globalThis.__blogRichEditorRegistered = true
-}
-
-function ToolbarButton({ label, title, active = false, onClick, children }: ToolbarButtonProps) {
-  return (
-    <button
-      type="button"
-      title={title}
-      onMouseDown={event => event.preventDefault()}
-      onClick={onClick}
-      className={`inline-flex h-9 min-w-9 items-center justify-center rounded-xl border px-2.5 text-sm transition-colors ${
-        active
-          ? 'border-[#d4711a] bg-[#fdf6ee] text-[#d4711a]'
-          : 'border-[#e4dacb] bg-white text-[#5a4f42] hover:border-[#d4711a] hover:text-[#d4711a]'
-      }`}
-      aria-label={label}
-    >
-      {children}
-    </button>
-  )
-}
-
-function IconUndo() {
-  return (
-    <svg viewBox="0 0 20 20" className="h-4 w-4 fill-none stroke-current stroke-[1.8]">
-      <path d="M7 6 4 9l3 3" />
-      <path d="M5 9h6a5 5 0 1 1 0 10h-1" />
-    </svg>
-  )
-}
-
-function IconRedo() {
-  return (
-    <svg viewBox="0 0 20 20" className="h-4 w-4 fill-none stroke-current stroke-[1.8]">
-      <path d="m13 6 3 3-3 3" />
-      <path d="M15 9H9a5 5 0 1 0 0 10h1" />
-    </svg>
-  )
-}
-
-function IconFormatBrush() {
-  return (
-    <svg viewBox="0 0 20 20" className="h-4 w-4 fill-none stroke-current stroke-[1.7]">
-      <path d="M6 4h8v4H6z" />
-      <path d="M8 8v3" />
-      <path d="M7 15c0-1.657 1.343-3 3-3h.5v1.5A2.5 2.5 0 0 1 8 16H7Z" />
-    </svg>
-  )
-}
-
-function IconAutoFormat() {
-  return (
-    <svg viewBox="0 0 20 20" className="h-4 w-4 fill-none stroke-current stroke-[1.7]">
-      <path d="M4 6h12" />
-      <path d="M4 10h8" />
-      <path d="M4 14h12" />
-      <path d="m13 3 3 3-3 3" />
-    </svg>
-  )
-}
-
-function IconColor({ color }: { color: string }) {
-  return (
-    <span className="relative inline-flex h-4 w-4 items-end justify-center font-semibold leading-none">
-      <span className="text-[13px]">A</span>
-      <span className="absolute bottom-0 left-0 h-[2px] w-full rounded-full" style={{ backgroundColor: color }} />
-    </span>
-  )
-}
-
-function IconMore() {
-  return (
-    <svg viewBox="0 0 20 20" className="h-4 w-4 fill-current">
-      <circle cx="4" cy="10" r="1.5" />
-      <circle cx="10" cy="10" r="1.5" />
-      <circle cx="16" cy="10" r="1.5" />
-    </svg>
-  )
-}
-
-function IconIndent() {
-  return (
-    <svg viewBox="0 0 20 20" className="h-4 w-4 fill-none stroke-current stroke-[1.7]">
-      <path d="M4 5h12" />
-      <path d="M4 9h8" />
-      <path d="M4 13h12" />
-      <path d="M4 17h8" />
-      <path d="m11 9 4 4-4 4" />
-    </svg>
-  )
-}
-
-function normalizeFormatValue(formats: Record<string, unknown>, key: string, fallback = '') {
-  const value = formats[key]
-  if (Array.isArray(value)) return fallback
+function normalizeFormatValue(value: unknown, fallback = '') {
   if (typeof value === 'string') return value
   if (typeof value === 'number') return String(value)
   return fallback
 }
 
-function pickBrushFormats(formats: Record<string, unknown>) {
-  const picked: Record<string, unknown> = {}
-
-  BRUSH_FORMAT_KEYS.forEach(key => {
-    const value = formats[key]
-    if (Array.isArray(value)) return
-    if (value !== undefined && value !== null && value !== false) {
-      picked[key] = value
+function getCurrentBlockInfo(editor: TiptapEditor | null) {
+  if (!editor) {
+    return {
+      type: 'paragraph' as const,
+      level: 0 as 0 | 2 | 3,
+      attrs: {} as Record<string, unknown>,
     }
-  })
+  }
 
-  return picked
+  const { $from } = editor.state.selection
+
+  for (let depth = $from.depth; depth > 0; depth -= 1) {
+    const node = $from.node(depth)
+    if (BLOCK_NODE_NAMES.includes(node.type.name as (typeof BLOCK_NODE_NAMES)[number])) {
+      return {
+        type: node.type.name as 'paragraph' | 'heading' | 'blockquote',
+        level: node.type.name === 'heading' ? ((node.attrs.level as 2 | 3 | undefined) || 0) : 0,
+        attrs: node.attrs as Record<string, unknown>,
+      }
+    }
+  }
+
+  return {
+    type: 'paragraph' as const,
+    level: 0 as 0 | 2 | 3,
+    attrs: {} as Record<string, unknown>,
+  }
 }
 
 function buildInitialHtml(value: string) {
   if (!value.trim()) return ''
+
   const html = isRichHtmlContent(value) ? value : legacyArticleToHtml(value)
-  return sanitizeArticleHtml(html)
+  const sanitized = sanitizeArticleHtml(html)
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(sanitized, 'text/html')
+
+  const fontMap: Record<string, string> = {
+    'ql-font-serif': "'Noto Serif SC', Georgia, serif",
+    'ql-font-sans': "'Noto Sans SC', system-ui, sans-serif",
+    'ql-font-song': "'Songti SC', 'STSong', 'SimSun', serif",
+    'ql-font-hei': "'PingFang SC', 'Microsoft YaHei', sans-serif",
+    'ql-font-mono': "'JetBrains Mono', 'Fira Code', monospace",
+  }
+
+  const alignMap: Record<string, string> = {
+    'ql-align-center': 'center',
+    'ql-align-right': 'right',
+    'ql-align-justify': 'justify',
+  }
+
+  doc.body.querySelectorAll<HTMLElement>('*').forEach(element => {
+    const classNames = Array.from(element.classList)
+
+    classNames.forEach(className => {
+      if (fontMap[className] && !element.style.fontFamily) {
+        element.style.fontFamily = fontMap[className]
+      }
+
+      if (alignMap[className] && !element.style.textAlign) {
+        element.style.textAlign = alignMap[className]
+      }
+    })
+
+    const safeClasses = classNames.filter(className => !className.startsWith('ql-'))
+    if (safeClasses.length > 0) {
+      element.className = safeClasses.join(' ')
+    } else {
+      element.removeAttribute('class')
+    }
+  })
+
+  doc.body.querySelectorAll<HTMLElement>('.ql-uploaded-image').forEach(wrapper => {
+    const image = wrapper.querySelector('img')
+    if (!image) {
+      wrapper.remove()
+      return
+    }
+
+    wrapper.replaceWith(image)
+  })
+
+  doc.body.querySelectorAll<HTMLElement>('.ql-uploaded-video').forEach(wrapper => {
+    const video = wrapper.querySelector('video')
+    if (!video) {
+      wrapper.remove()
+      return
+    }
+
+    wrapper.replaceWith(video)
+  })
+
+  doc.body.querySelectorAll('img').forEach(image => {
+    if (!image.getAttribute('alt')) {
+      image.setAttribute('alt', '')
+    }
+  })
+
+  return doc.body.innerHTML
 }
 
 function normalizeEditorHtml(html: string) {
@@ -271,564 +228,1076 @@ function normalizeEditorHtml(html: string) {
     }
   })
 
-  doc.body.querySelectorAll('p, h2, h3, blockquote, li').forEach(node => {
+  doc.body.querySelectorAll('p, h2, h3, blockquote').forEach(node => {
     const element = node as HTMLElement
     const text = (element.textContent || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim()
-    if (!text && !element.querySelector('img, video, br')) {
+    if (!text && !element.querySelector('img, video, audio, br')) {
       element.remove()
     }
   })
 
   return doc.body.innerHTML
-    .replace(/(<p><br><\/p>\s*){3,}/g, '<p><br></p><p><br></p>')
+    .replace(/(<p><\/p>\s*){3,}/g, '<p></p><p></p>')
     .trim()
 }
 
-export default function RichTextEditor({ value, onChange, placeholder = '写下今天的文章…' }: RichTextEditorProps) {
-  const editorRef = useRef<HTMLDivElement>(null)
-  const quillRef = useRef<Quill | null>(null)
-  const lastValueRef = useRef(value)
-  const onChangeRef = useRef(onChange)
-  const brushStateRef = useRef<BrushState>({ active: false, formats: null, sourceRange: null })
-  const preferredInlineFormatsRef = useRef<PreferredInlineFormats>({})
-  const [ready, setReady] = useState(false)
-  const [formats, setFormats] = useState<Record<string, unknown>>({})
-  const [showColorPanel, setShowColorPanel] = useState(false)
-  const [showMorePanel, setShowMorePanel] = useState(false)
-  const [uploadPanel, setUploadPanel] = useState<'image' | 'video' | null>(null)
-  const [brushState, setBrushState] = useState<BrushState>({ active: false, formats: null, sourceRange: null })
+function ToolbarButton({ label, title, active = false, onClick, children }: ToolbarButtonProps) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onMouseDown={event => event.preventDefault()}
+      onClick={onClick}
+      className={`inline-flex h-9 min-w-9 items-center justify-center rounded-xl border px-2.5 text-sm transition-colors ${
+        active
+          ? 'border-[#22c55e] bg-[#effcf4] text-[#15803d]'
+          : 'border-[#d8d1c5] bg-white text-[#4b5563] hover:border-[#22c55e] hover:text-[#15803d]'
+      }`}
+      aria-label={label}
+    >
+      {children}
+    </button>
+  )
+}
 
-  const currentFont = useMemo(() => normalizeFormatValue(formats, 'font', ''), [formats])
-  const currentSize = useMemo(() => normalizeFormatValue(formats, 'size', '16px'), [formats])
-  const currentColor = useMemo(() => normalizeFormatValue(formats, 'color', DEFAULT_TEXT_COLOR), [formats])
+function ToolbarSelect({
+  value,
+  onChange,
+  children,
+}: {
+  value: string
+  onChange: (nextValue: string) => void
+  children: ReactNode
+}) {
+  return (
+    <select
+      value={value}
+      onChange={event => onChange(event.target.value)}
+      className="h-9 min-w-[132px] rounded-xl border border-[#d8d1c5] bg-white px-3 text-sm text-[#4b5563] outline-none transition-colors hover:border-[#22c55e] focus:border-[#22c55e]"
+    >
+      {children}
+    </select>
+  )
+}
+
+function syncToolbarSnapshot(editor: TiptapEditor | null): ToolbarSnapshot {
+  if (!editor) {
+    return {
+      fontFamily: '',
+      fontSize: '16px',
+      color: DEFAULT_TEXT_COLOR,
+      highlightColor: '',
+      lineHeightBlock: DEFAULT_LINE_HEIGHT,
+      marginTop: DEFAULT_MARGIN_TOP,
+      marginBottom: DEFAULT_MARGIN_BOTTOM,
+      textIndent: false,
+      textAlign: 'left',
+      headingLevel: 0,
+      bold: false,
+      italic: false,
+      underline: false,
+      strike: false,
+      blockquote: false,
+      bulletList: false,
+      orderedList: false,
+      codeBlock: false,
+      link: false,
+    }
+  }
+
+  const textStyleAttributes = editor.getAttributes('textStyle')
+  const highlightAttributes = editor.getAttributes('highlight')
+  const blockInfo = getCurrentBlockInfo(editor)
+
+  return {
+    fontFamily: normalizeFormatValue(textStyleAttributes.fontFamily, ''),
+    fontSize: normalizeFormatValue(textStyleAttributes.fontSize, '16px'),
+    color: normalizeFormatValue(textStyleAttributes.color, DEFAULT_TEXT_COLOR),
+    highlightColor: normalizeFormatValue(highlightAttributes.color, ''),
+    lineHeightBlock: normalizeFormatValue(blockInfo.attrs.lineHeightBlock, DEFAULT_LINE_HEIGHT),
+    marginTop: normalizeFormatValue(blockInfo.attrs.marginTop, DEFAULT_MARGIN_TOP),
+    marginBottom: normalizeFormatValue(blockInfo.attrs.marginBottom, DEFAULT_MARGIN_BOTTOM),
+    textIndent: normalizeFormatValue(blockInfo.attrs.textIndent, '') === INDENT_VALUE,
+    textAlign: (normalizeFormatValue(blockInfo.attrs.textAlign, 'left') || 'left') as ToolbarSnapshot['textAlign'],
+    headingLevel: blockInfo.type === 'heading' ? (blockInfo.level as 0 | 2 | 3) : 0,
+    bold: editor.isActive('bold'),
+    italic: editor.isActive('italic'),
+    underline: editor.isActive('underline'),
+    strike: editor.isActive('strike'),
+    blockquote: editor.isActive('blockquote'),
+    bulletList: editor.isActive('bulletList'),
+    orderedList: editor.isActive('orderedList'),
+    codeBlock: editor.isActive('codeBlock'),
+    link: editor.isActive('link'),
+  }
+}
+
+function getBlockLabel(snapshot: ToolbarSnapshot) {
+  if (snapshot.codeBlock) return '代码块'
+  if (snapshot.bulletList) return '无序列表'
+  if (snapshot.orderedList) return '有序列表'
+  if (snapshot.blockquote) return '引用'
+  if (snapshot.headingLevel === 2) return '标题 H2'
+  if (snapshot.headingLevel === 3) return '小标题 H3'
+  return '正文段落'
+}
+
+function getAlignLabel(snapshot: ToolbarSnapshot) {
+  if (snapshot.textAlign === 'center') return '居中'
+  if (snapshot.textAlign === 'right') return '右对齐'
+  if (snapshot.textAlign === 'justify') return '两端对齐'
+  return '左对齐'
+}
+
+function getFontLabel(fontFamily: string) {
+  return SHARED_FONT_OPTIONS.find(option => option.value === fontFamily)?.label || '默认字体'
+}
+
+function buildBrushPayload(snapshot: ToolbarSnapshot): BrushPayload {
+  return {
+    bold: snapshot.bold,
+    italic: snapshot.italic,
+    underline: snapshot.underline,
+    strike: snapshot.strike,
+    fontFamily: snapshot.fontFamily || undefined,
+    fontSize: snapshot.fontSize || undefined,
+    color: snapshot.color && snapshot.color !== DEFAULT_TEXT_COLOR ? snapshot.color : undefined,
+    highlightColor: snapshot.highlightColor || undefined,
+    textAlign: snapshot.textAlign,
+    lineHeightBlock: snapshot.lineHeightBlock || DEFAULT_LINE_HEIGHT,
+    textIndent: snapshot.textIndent ? INDENT_VALUE : null,
+    marginTop: snapshot.marginTop || DEFAULT_MARGIN_TOP,
+    marginBottom: snapshot.marginBottom || DEFAULT_MARGIN_BOTTOM,
+  }
+}
+
+function applyBrush(editor: TiptapEditor, payload: BrushPayload) {
+  const chain = editor.chain().focus()
+
+  if (payload.bold) chain.setBold()
+  else chain.unsetBold()
+
+  if (payload.italic) chain.setItalic()
+  else chain.unsetItalic()
+
+  if (payload.underline) chain.setUnderline()
+  else chain.unsetUnderline()
+
+  if (payload.strike) chain.setStrike()
+  else chain.unsetStrike()
+
+  if (payload.fontFamily) chain.setFontFamily(payload.fontFamily)
+  else chain.unsetFontFamily()
+
+  if (payload.fontSize) chain.setFontSize(payload.fontSize)
+  else chain.unsetFontSize()
+
+  if (payload.color) chain.setColor(payload.color)
+  else chain.unsetColor()
+
+  if (payload.highlightColor) chain.setHighlight({ color: payload.highlightColor })
+  else chain.unsetHighlight()
+
+  chain.setTextAlign(payload.textAlign || 'left')
+  chain.setBlockStyle({
+    lineHeightBlock: payload.lineHeightBlock ?? DEFAULT_LINE_HEIGHT,
+    marginTop: payload.marginTop ?? DEFAULT_MARGIN_TOP,
+    marginBottom: payload.marginBottom ?? DEFAULT_MARGIN_BOTTOM,
+    textIndent: payload.textIndent ?? null,
+  })
+  chain.run()
+}
+
+function isSameToolbarSnapshot(a: ToolbarSnapshot, b: ToolbarSnapshot) {
+  return (
+    a.fontFamily === b.fontFamily &&
+    a.fontSize === b.fontSize &&
+    a.color === b.color &&
+    a.highlightColor === b.highlightColor &&
+    a.lineHeightBlock === b.lineHeightBlock &&
+    a.marginTop === b.marginTop &&
+    a.marginBottom === b.marginBottom &&
+    a.textIndent === b.textIndent &&
+    a.textAlign === b.textAlign &&
+    a.headingLevel === b.headingLevel &&
+    a.bold === b.bold &&
+    a.italic === b.italic &&
+    a.underline === b.underline &&
+    a.strike === b.strike &&
+    a.blockquote === b.blockquote &&
+    a.bulletList === b.bulletList &&
+    a.orderedList === b.orderedList &&
+    a.codeBlock === b.codeBlock &&
+    a.link === b.link
+  )
+}
+
+export default function RichTextEditor({ value, onChange, placeholder = DEFAULT_PLACEHOLDER }: RichTextEditorProps) {
+  const initialSnapshot = syncToolbarSnapshot(null)
+  const onChangeRef = useRef(onChange)
+  const lastValueRef = useRef(value)
+  const lastEmittedValueRef = useRef(value)
+  const pendingValueRef = useRef(value)
+  const emitTimeoutRef = useRef<number | null>(null)
+  const uploadFeedbackTimerRef = useRef<number | null>(null)
+  const snapshotRef = useRef<ToolbarSnapshot>(initialSnapshot)
+  const brushStateRef = useRef<BrushState>({ active: false, sourceKey: null, payload: null })
+
+  const [snapshot, setSnapshot] = useState<ToolbarSnapshot>(() => initialSnapshot)
+  const [showColorPanel, setShowColorPanel] = useState(false)
+  const [showHighlightPanel, setShowHighlightPanel] = useState(false)
+  const [showEmojiPanel, setShowEmojiPanel] = useState(false)
+  const [showLinkPanel, setShowLinkPanel] = useState(false)
+  const [uploadPanel, setUploadPanel] = useState<'image' | 'video' | 'audio' | null>(null)
+  const [linkUrl, setLinkUrl] = useState('https://')
+  const [brushState, setBrushState] = useState<BrushState>({ active: false, sourceKey: null, payload: null })
+  const [uploadFeedback, setUploadFeedback] = useState<UploadFeedback | null>(null)
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false)
+  const [showAdvancedTools, setShowAdvancedTools] = useState(true)
 
   useEffect(() => {
     onChangeRef.current = onChange
   }, [onChange])
 
-  function rememberInlineFormat(key: InlinePreferenceKey, value: string | null) {
-    if (!value) {
-      delete preferredInlineFormatsRef.current[key]
-      return
-    }
+  function updateSnapshot(nextSnapshot: ToolbarSnapshot) {
+    if (isSameToolbarSnapshot(snapshotRef.current, nextSnapshot)) return
 
-    preferredInlineFormatsRef.current[key] = value
+    snapshotRef.current = nextSnapshot
+    setSnapshot(nextSnapshot)
   }
 
-  function clearRememberedInlineFormats() {
-    preferredInlineFormatsRef.current = {}
+  function emitChange(nextValue: string) {
+    if (lastEmittedValueRef.current === nextValue) return
+
+    lastEmittedValueRef.current = nextValue
+    onChangeRef.current(nextValue)
   }
 
-  function restoreRememberedInlineFormats(quill: Quill, range?: Range | null) {
-    const targetRange = range ?? quill.getSelection()
-    if (!targetRange || targetRange.length > 0) return false
-
-    const preferredFormats = preferredInlineFormatsRef.current
-    const currentFormats = quill.getFormat(targetRange)
-    let applied = false
-
-    INLINE_PREFERENCE_KEYS.forEach(key => {
-      const preferredValue = preferredFormats[key]
-      if (!preferredValue) return
-
-      const currentValue = normalizeFormatValue(currentFormats, key, '')
-      if (currentValue) return
-
-      quill.format(key, preferredValue, Quill.sources.SILENT)
-      applied = true
-    })
-
-    if (applied) {
-      setFormats(quill.getFormat(targetRange))
+  function flushPendingChange() {
+    if (emitTimeoutRef.current) {
+      window.clearTimeout(emitTimeoutRef.current)
+      emitTimeoutRef.current = null
     }
 
-    return applied
+    emitChange(pendingValueRef.current)
   }
 
   useEffect(() => {
-    if (!editorRef.current || quillRef.current) return
+    return () => {
+      if (uploadFeedbackTimerRef.current) {
+        window.clearTimeout(uploadFeedbackTimerRef.current)
+      }
+      flushPendingChange()
+    }
+  }, [])
 
-    const quill = new Quill(editorRef.current, {
-      theme: 'snow',
-      placeholder,
-      modules: {
-        toolbar: false,
-        history: {
-          delay: 400,
-          maxStack: 200,
-          userOnly: true,
+  const initialContent = useMemo(() => buildInitialHtml(value) || '<p></p>', [value])
+
+  const editor = useEditor(
+    {
+      immediatelyRender: false,
+      shouldRerenderOnTransaction: false,
+      extensions: [
+        StarterKit.configure({
+          heading: {
+            levels: [2, 3],
+          },
+        }),
+        Placeholder.configure({
+          placeholder,
+        }),
+        TextStyle.configure({
+          mergeNestedSpanStyles: true,
+        }),
+        Color,
+        FontFamily,
+        FontSize,
+        Underline,
+        Highlight.configure({
+          multicolor: true,
+        }),
+        TextAlign.configure({
+          types: ['paragraph', 'heading', 'blockquote'],
+        }),
+        Link.configure({
+          openOnClick: false,
+          HTMLAttributes: {
+            rel: 'noopener noreferrer',
+            target: '_blank',
+          },
+        }),
+        Image.configure({
+          inline: false,
+          HTMLAttributes: {
+            loading: 'lazy',
+          },
+        }),
+        BlockStyle,
+        BlogAudio,
+        BlogVideo,
+      ],
+      editorProps: {
+        attributes: {
+          class: 'rich-editor-prosemirror',
         },
       },
-      formats: [...SUPPORTED_FORMATS],
-    })
+      content: initialContent,
+      onCreate: ({ editor: currentEditor }) => {
+        updateSnapshot(syncToolbarSnapshot(currentEditor))
+      },
+      onUpdate: ({ editor: currentEditor }) => {
+        updateSnapshot(syncToolbarSnapshot(currentEditor))
+        const normalized = normalizeEditorHtml(currentEditor.getHTML())
+        const nextValue = hasMeaningfulArticleContent(normalized) ? normalized : ''
+        lastValueRef.current = nextValue
+        pendingValueRef.current = nextValue
 
-    quillRef.current = quill
-    const initialHtml = buildInitialHtml(value)
-    if (initialHtml) {
-      const delta = quill.clipboard.convert({ html: initialHtml })
-      quill.setContents(delta, Quill.sources.SILENT)
-    }
+        if (emitTimeoutRef.current) {
+          window.clearTimeout(emitTimeoutRef.current)
+        }
 
-    let syncTimeout: NodeJS.Timeout | null = null
-    
-    const syncValue = () => {
-      const semantic = quill.getSemanticHTML(0, quill.getLength())
-      const normalized = normalizeEditorHtml(semantic)
-      const nextValue = hasMeaningfulArticleContent(normalized) ? normalized : ''
-      lastValueRef.current = nextValue
-      
-      // Debounce onChange to avoid excessive re-renders
-      if (syncTimeout) clearTimeout(syncTimeout)
-      syncTimeout = setTimeout(() => {
-        onChangeRef.current(nextValue)
-      }, 150)
-    }
+        emitTimeoutRef.current = window.setTimeout(() => {
+          emitTimeoutRef.current = null
+          emitChange(nextValue)
+        }, 180)
+      },
+      onBlur: ({ editor: currentEditor }) => {
+        updateSnapshot(syncToolbarSnapshot(currentEditor))
+        flushPendingChange()
+      },
+      onSelectionUpdate: ({ editor: currentEditor }) => {
+        updateSnapshot(syncToolbarSnapshot(currentEditor))
 
-    let formatUpdateScheduled = false
-    const syncFormats = (range?: Range | null) => {
-      if (formatUpdateScheduled) return
-      formatUpdateScheduled = true
-      requestAnimationFrame(() => {
-        setFormats(range ? quill.getFormat(range) : {})
-        formatUpdateScheduled = false
-      })
-    }
+        const brush = brushStateRef.current
+        if (!brush.active || !brush.payload) return
 
-    const handleTextChange = (_delta: unknown, _old: unknown, _source: EmitterSource) => {
-      if (_source === Quill.sources.USER) {
-        restoreRememberedInlineFormats(quill)
-      }
-      syncValue()
-      // 文字变化时不立即更新格式，等 selection 变化时再更新
-    }
+        const { from, to, empty } = currentEditor.state.selection
+        const nextKey = `${from}:${to}`
+        if (empty || nextKey === brush.sourceKey) return
 
-    const handleSelectionChange = (range: Range | null, _oldRange: Range | null, source: EmitterSource) => {
-      const restored =
-        range && range.length === 0 && source === Quill.sources.USER
-          ? restoreRememberedInlineFormats(quill, range)
-          : false
+        applyBrush(currentEditor, brush.payload)
 
-      if (!restored) {
-        syncFormats(range)
-      }
-
-      const brush = brushStateRef.current
-      if (!brush.active || !brush.formats || !range || range.length <= 0 || source !== Quill.sources.USER) return
-
-      if (brush.sourceRange && brush.sourceRange.index === range.index && brush.sourceRange.length === range.length) {
-        return
-      }
-
-      quill.formatText(range.index, range.length, brush.formats, Quill.sources.USER)
-      quill.setSelection(range.index, range.length, Quill.sources.SILENT)
-
-      const nextBrushState = { active: false, formats: null, sourceRange: null }
-      brushStateRef.current = nextBrushState
-      setBrushState(nextBrushState)
-    }
-
-    quill.on(Quill.events.TEXT_CHANGE, handleTextChange)
-    quill.on(Quill.events.SELECTION_CHANGE, handleSelectionChange)
-    setReady(true)
-    syncFormats()
-
-    return () => {
-      if (syncTimeout) clearTimeout(syncTimeout)
-      quill.off(Quill.events.TEXT_CHANGE, handleTextChange)
-      quill.off(Quill.events.SELECTION_CHANGE, handleSelectionChange)
-      quillRef.current = null
-    }
-  }, [placeholder])
+        const clearedState = { active: false, sourceKey: null, payload: null }
+        brushStateRef.current = clearedState
+        setBrushState(clearedState)
+      },
+    },
+    [placeholder],
+  )
 
   useEffect(() => {
-    const quill = quillRef.current
-    if (!quill) return
+    if (!editor) return
     if (value === lastValueRef.current) return
 
-    const nextHtml = buildInitialHtml(value)
-    const delta = quill.clipboard.convert({ html: nextHtml || '<p><br></p>' })
-    quill.setContents(delta, Quill.sources.SILENT)
-    lastValueRef.current = value
-    const selection = quill.getSelection()
-    if (!restoreRememberedInlineFormats(quill, selection)) {
-      setFormats(selection ? quill.getFormat(selection) : {})
+    if (emitTimeoutRef.current) {
+      window.clearTimeout(emitTimeoutRef.current)
+      emitTimeoutRef.current = null
     }
-  }, [value])
 
-  function withEditor(action: (quill: Quill) => void) {
-    const quill = quillRef.current
-    if (!quill) return
-    action(quill)
-    quill.focus()
+    const nextHtml = buildInitialHtml(value) || '<p></p>'
+    editor.commands.setContent(nextHtml, { emitUpdate: false })
+    lastValueRef.current = value
+    lastEmittedValueRef.current = value
+    pendingValueRef.current = value
+    updateSnapshot(syncToolbarSnapshot(editor))
+  }, [editor, value])
+
+  function withEditor(action: (currentEditor: TiptapEditor) => void) {
+    if (!editor) return
+    action(editor)
+    editor.commands.focus()
   }
 
-  function toggleInlineFormat(name: 'bold' | 'italic' | 'underline' | 'strike') {
-    withEditor(quill => {
-      const range = quill.getSelection(true)
-      const active = Boolean(quill.getFormat(range || undefined)[name])
-      quill.format(name, !active, Quill.sources.USER)
+  function applyFontFamily(nextValue: string) {
+    withEditor(currentEditor => {
+      if (nextValue) {
+        currentEditor.chain().focus().setFontFamily(nextValue).run()
+      } else {
+        currentEditor.chain().focus().unsetFontFamily().run()
+      }
     })
   }
 
-  function applyFont(nextValue: string) {
-    withEditor(quill => {
-      rememberInlineFormat('font', nextValue || null)
-      quill.format('font', nextValue || false, Quill.sources.USER)
+  function applyFontSize(nextValue: string) {
+    withEditor(currentEditor => {
+      currentEditor.chain().focus().setFontSize(nextValue).run()
     })
   }
 
-  function applySize(nextValue: string) {
-    withEditor(quill => {
-      rememberInlineFormat('size', nextValue)
-      quill.format('size', nextValue, Quill.sources.USER)
-    })
-  }
-
-  function applyColor(nextValue: string) {
-    withEditor(quill => {
-      rememberInlineFormat('color', nextValue)
-      quill.format('color', nextValue, Quill.sources.USER)
+  function applyTextColor(nextValue: string) {
+    withEditor(currentEditor => {
+      currentEditor.chain().focus().setColor(nextValue).run()
       setShowColorPanel(false)
     })
   }
 
-  function toggleFormatBrush() {
-    const quill = quillRef.current
-    if (!quill) return
-
-    if (brushStateRef.current.active) {
-      const nextBrushState = { active: false, formats: null, sourceRange: null }
-      brushStateRef.current = nextBrushState
-      setBrushState(nextBrushState)
-      return
-    }
-
-    const range = quill.getSelection(true)
-    const nextFormats = pickBrushFormats(quill.getFormat(range || undefined))
-    if (Object.keys(nextFormats).length === 0) return
-
-    const nextBrushState = {
-      active: true,
-      formats: nextFormats,
-      sourceRange: range,
-    }
-
-    brushStateRef.current = nextBrushState
-    setBrushState(nextBrushState)
-  }
-
-  function autoFormat() {
-    withEditor(quill => {
-      const normalized = normalizeEditorHtml(quill.getSemanticHTML(0, quill.getLength()))
-      const delta = quill.clipboard.convert({ html: normalized || '<p><br></p>' })
-      quill.setContents(delta, Quill.sources.USER)
-      restoreRememberedInlineFormats(quill)
+  function applyHighlightColor(nextValue: string) {
+    withEditor(currentEditor => {
+      if (nextValue) {
+        currentEditor.chain().focus().setHighlight({ color: nextValue }).run()
+      } else {
+        currentEditor.chain().focus().unsetHighlight().run()
+      }
+      setShowHighlightPanel(false)
     })
   }
 
-  function applyHeading(level: 2 | 3) {
-    withEditor(quill => {
-      const current = quill.getFormat(quill.getSelection(true) || undefined).header
-      quill.format('header', current === level ? false : level, Quill.sources.USER)
-      restoreRememberedInlineFormats(quill)
-      setShowMorePanel(false)
+  function applyLineHeight(nextValue: string) {
+    withEditor(currentEditor => {
+      currentEditor.chain().focus().setBlockStyle({ lineHeightBlock: nextValue }).run()
     })
   }
 
-  function toggleBlockquote() {
-    withEditor(quill => {
-      const active = Boolean(quill.getFormat(quill.getSelection(true) || undefined).blockquote)
-      quill.format('blockquote', !active, Quill.sources.USER)
-      restoreRememberedInlineFormats(quill)
-      setShowMorePanel(false)
-    })
-  }
-
-  function applyList(type: 'ordered' | 'bullet') {
-    withEditor(quill => {
-      const current = normalizeFormatValue(quill.getFormat(quill.getSelection(true) || undefined), 'list', '')
-      quill.format('list', current === type ? false : type, Quill.sources.USER)
-      restoreRememberedInlineFormats(quill)
-      setShowMorePanel(false)
-    })
-  }
-
-  function applyAlign(nextValue: '' | 'center' | 'right') {
-    withEditor(quill => {
-      quill.format('align', nextValue || false, Quill.sources.USER)
-      restoreRememberedInlineFormats(quill)
-      setShowMorePanel(false)
+  function applySpacing(position: 'marginTop' | 'marginBottom', nextValue: string) {
+    withEditor(currentEditor => {
+      currentEditor.chain().focus().setBlockStyle({ [position]: nextValue }).run()
     })
   }
 
   function toggleFirstLineIndent() {
-    withEditor(quill => {
-      const current = normalizeFormatValue(quill.getFormat(quill.getSelection(true) || undefined), 'indent', '')
-      quill.format('indent', current === '2em' ? false : '2em', Quill.sources.USER)
-      restoreRememberedInlineFormats(quill)
-      setShowMorePanel(false)
+    withEditor(currentEditor => {
+      currentEditor
+        .chain()
+        .focus()
+        .setBlockStyle({ textIndent: snapshot.textIndent ? null : INDENT_VALUE })
+        .run()
     })
+  }
+
+  function toggleFormatBrush() {
+    if (!editor) return
+
+    if (brushStateRef.current.active) {
+      const clearedState = { active: false, sourceKey: null, payload: null }
+      brushStateRef.current = clearedState
+      setBrushState(clearedState)
+      return
+    }
+
+    const { from, to } = editor.state.selection
+    const payload = buildBrushPayload(snapshot)
+
+    const nextState = {
+      active: true,
+      sourceKey: `${from}:${to}`,
+      payload,
+    }
+
+    brushStateRef.current = nextState
+    setBrushState(nextState)
   }
 
   function clearFormat() {
-    withEditor(quill => {
-      const range = quill.getSelection(true)
-      if (!range) return
-      if (range.length > 0) {
-        quill.removeFormat(range.index, range.length, Quill.sources.USER)
-      } else {
-        quill.format('bold', false, Quill.sources.USER)
-        quill.format('italic', false, Quill.sources.USER)
-        quill.format('underline', false, Quill.sources.USER)
-        quill.format('strike', false, Quill.sources.USER)
-        quill.format('color', false, Quill.sources.USER)
-        quill.format('font', false, Quill.sources.USER)
-        quill.format('size', false, Quill.sources.USER)
-        quill.format('align', false, Quill.sources.USER)
-        quill.format('indent', false, Quill.sources.USER)
-        quill.format('header', false, Quill.sources.USER)
-        quill.format('blockquote', false, Quill.sources.USER)
-        quill.format('list', false, Quill.sources.USER)
-      }
-      clearRememberedInlineFormats()
-      setShowMorePanel(false)
+    withEditor(currentEditor => {
+      currentEditor
+        .chain()
+        .focus()
+        .unsetAllMarks()
+        .unsetLink()
+        .unsetHighlight()
+        .unsetColor()
+        .unsetFontFamily()
+        .unsetFontSize()
+        .setTextAlign('left')
+        .unsetBlockStyle(['textIndent', 'lineHeightBlock', 'marginTop', 'marginBottom'])
+        .clearNodes()
+        .run()
     })
   }
 
-  function insertLink() {
-    const quill = quillRef.current
-    if (!quill) return
-    const range = quill.getSelection(true)
-    if (!range || range.length <= 0) return
-
-    const url = window.prompt('输入链接地址', 'https://')
-    if (!url) return
-
-    quill.format('link', url, Quill.sources.USER)
-    quill.focus()
-    setShowMorePanel(false)
+  function applyHeading(level: 2 | 3) {
+    withEditor(currentEditor => {
+      currentEditor.chain().focus().toggleHeading({ level }).run()
+    })
   }
 
-  function handleUploadSuccess({ url, type }: { url: string; type: 'IMAGE' | 'VIDEO' }) {
-    withEditor(quill => {
-      const range = quill.getSelection(true)
-      const index = range ? range.index : quill.getLength()
+  function toggleBlockquote() {
+    withEditor(currentEditor => {
+      currentEditor.chain().focus().toggleBlockquote().run()
+    })
+  }
 
+  function applyList(type: 'bulletList' | 'orderedList') {
+    withEditor(currentEditor => {
+      if (type === 'bulletList') {
+        currentEditor.chain().focus().toggleBulletList().run()
+      } else {
+        currentEditor.chain().focus().toggleOrderedList().run()
+      }
+    })
+  }
+
+  function insertDivider() {
+    withEditor(currentEditor => {
+      currentEditor.chain().focus().setHorizontalRule().createParagraphNear().run()
+    })
+  }
+
+  function toggleCodeBlock() {
+    withEditor(currentEditor => {
+      currentEditor.chain().focus().toggleCodeBlock().run()
+    })
+  }
+
+  function applyAlign(nextValue: ToolbarSnapshot['textAlign']) {
+    withEditor(currentEditor => {
+      currentEditor.chain().focus().setTextAlign(nextValue).run()
+    })
+  }
+
+  function openLinkPanel() {
+    if (!editor) return
+
+    const existing = normalizeFormatValue(editor.getAttributes('link').href, 'https://')
+    setLinkUrl(existing || 'https://')
+    setShowLinkPanel(current => !current)
+    setUploadPanel(null)
+    setShowColorPanel(false)
+    setShowHighlightPanel(false)
+    setShowEmojiPanel(false)
+  }
+
+  function applyLink() {
+    if (!editor) return
+
+    const trimmed = linkUrl.trim()
+
+    if (!trimmed || trimmed === 'https://') {
+      editor.chain().focus().unsetLink().run()
+      setShowLinkPanel(false)
+      return
+    }
+
+    const { empty } = editor.state.selection
+    if (empty) {
+      editor
+        .chain()
+        .focus()
+        .insertContent(`<a href="${escapeHtml(trimmed)}">${escapeHtml(trimmed)}</a>`)
+        .run()
+    } else {
+      editor.chain().focus().extendMarkRange('link').setLink({ href: trimmed }).run()
+    }
+
+    setShowLinkPanel(false)
+  }
+
+  function insertEmoji(emoji: string) {
+    withEditor(currentEditor => {
+      currentEditor.chain().focus().insertContent(emoji).run()
+      setShowEmojiPanel(false)
+    })
+  }
+
+  function insertTemplate(content: string) {
+    withEditor(currentEditor => {
+      currentEditor.chain().focus().insertContent(content).run()
+    })
+  }
+
+  function updateUploadFeedback(nextFeedback: UploadFeedback | null, autoHideMs = 0) {
+    if (uploadFeedbackTimerRef.current) {
+      window.clearTimeout(uploadFeedbackTimerRef.current)
+      uploadFeedbackTimerRef.current = null
+    }
+
+    setUploadFeedback(nextFeedback)
+
+    if (nextFeedback && autoHideMs > 0) {
+      uploadFeedbackTimerRef.current = window.setTimeout(() => {
+        setUploadFeedback(current => (current === nextFeedback ? null : current))
+        uploadFeedbackTimerRef.current = null
+      }, autoHideMs)
+    }
+  }
+
+  function handleUploadStateChange(nextState: UploadLifecycleState) {
+    if (nextState.status === 'uploading') {
+      setIsUploadingMedia(true)
+      updateUploadFeedback({
+        tone: 'uploading',
+        title: nextState.fileName ? `正在上传：${nextState.fileName}` : '媒体上传中',
+        detail: nextState.progress !== null ? `进度 ${nextState.progress}% · ${nextState.mode === 'direct' ? '直传存储' : '服务器处理中'}` : nextState.message,
+        progress: nextState.progress,
+      })
+      return
+    }
+
+    setIsUploadingMedia(false)
+
+    if (nextState.status === 'success') {
+      updateUploadFeedback({
+        tone: 'success',
+        title: nextState.message || '媒体已上传',
+        detail: nextState.fileName ? `${nextState.fileName} 已准备插入编辑器` : '可以继续为这段媒体补充说明文字了。',
+      }, 2800)
+      return
+    }
+
+    updateUploadFeedback({
+      tone: 'error',
+      title: '媒体上传失败',
+      detail: nextState.message || '请稍后重试，或改用更小的文件再次上传。',
+    }, 4200)
+  }
+
+  function handleUploadSuccess({ url, type }: { url: string; type: 'IMAGE' | 'VIDEO' | 'AUDIO' }) {
+    withEditor(currentEditor => {
       if (type === 'IMAGE') {
-        quill.insertEmbed(index, 'image', url, Quill.sources.USER)
+        currentEditor.chain().focus().setImage({ src: url, alt: '' }).createParagraphNear().run()
+      } else if (type === 'AUDIO') {
+        currentEditor.chain().focus().setBlogAudio({ src: url }).run()
       } else {
-        quill.insertEmbed(index, 'uploadedVideo', url, Quill.sources.USER)
+        currentEditor.chain().focus().setBlogVideo({ src: url }).run()
       }
 
-      quill.insertText(index + 1, '\n', Quill.sources.USER)
-      quill.setSelection(index + 2, 0, Quill.sources.SILENT)
-      restoreRememberedInlineFormats(quill, quill.getSelection())
       setUploadPanel(null)
-      setShowMorePanel(false)
     })
+
+    const typeLabel = type === 'VIDEO' ? '视频' : type === 'AUDIO' ? '音频' : '图片'
+    updateUploadFeedback({
+      tone: 'success',
+      title: `${typeLabel}已插入到当前光标位置`,
+      detail: '你可以继续输入说明、标题或段落文字，编辑器不会打断输入焦点。',
+    }, 3000)
   }
+
+  const activeContextChips = [
+    `当前：${getBlockLabel(snapshot)}`,
+    `对齐：${getAlignLabel(snapshot)}`,
+    `字体：${getFontLabel(snapshot.fontFamily)}`,
+    snapshot.textIndent ? '首行缩进已开启' : '首行缩进未开启',
+    brushState.active ? '格式刷待应用' : null,
+  ].filter(Boolean) as string[]
 
   return (
-    <div className="space-y-3">
-      <div className="rounded-[24px] border border-[#eadfce] bg-white p-4 shadow-[0_12px_30px_rgba(61,53,48,0.04)]">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-[#f0ebe3] pb-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#c4b8a7]">Rich Editor</p>
-            <h3 className="mt-1 text-sm font-semibold text-[#221e1a]">富文本工具栏</h3>
-          </div>
-          <div className="rounded-full bg-[#faf8f5] px-3 py-1 text-[11px] text-[#8c7d68]">
-            {brushState.active ? '格式刷已就绪，去选中目标文字即可套用格式' : '颜色、字号和字体会延续到新行，减少重复设置'}
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={currentFont}
-            onChange={event => applyFont(event.target.value)}
-            className="h-9 rounded-xl border border-[#e4dacb] bg-white px-3 text-sm text-[#5a4f42] outline-none transition-colors hover:border-[#d4711a] focus:border-[#d4711a]"
-          >
-            {FONT_OPTIONS.map(option => (
-              <option key={option.value || 'default'} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={currentSize}
-            onChange={event => applySize(event.target.value)}
-            className="h-9 rounded-xl border border-[#e4dacb] bg-white px-3 text-sm text-[#5a4f42] outline-none transition-colors hover:border-[#d4711a] focus:border-[#d4711a]"
-          >
-            {SIZE_OPTIONS.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-
-          <ToolbarButton label="撤销" title="撤销" onClick={() => withEditor(quill => quill.history.undo())}>
-            <IconUndo />
-          </ToolbarButton>
-
-          <ToolbarButton label="重做" title="重做" onClick={() => withEditor(quill => quill.history.redo())}>
-            <IconRedo />
-          </ToolbarButton>
-
-          <ToolbarButton label="加粗" title="加粗" active={Boolean(formats.bold)} onClick={() => toggleInlineFormat('bold')}>
-            <span className="text-base font-bold leading-none">B</span>
-          </ToolbarButton>
-
-          <ToolbarButton label="斜体" title="斜体" active={Boolean(formats.italic)} onClick={() => toggleInlineFormat('italic')}>
-            <span className="text-base italic leading-none">I</span>
-          </ToolbarButton>
-
-          <ToolbarButton label="下划线" title="下划线" active={Boolean(formats.underline)} onClick={() => toggleInlineFormat('underline')}>
-            <span className="text-base underline leading-none">U</span>
-          </ToolbarButton>
-
-          <ToolbarButton label="删除线" title="删除线" active={Boolean(formats.strike)} onClick={() => toggleInlineFormat('strike')}>
-            <span className="text-base leading-none line-through">S</span>
-          </ToolbarButton>
-
-          <div className="relative">
-            <ToolbarButton
-              label="文字颜色"
-              title="文字颜色"
-              active={showColorPanel}
-              onClick={() => {
-                setShowColorPanel(current => !current)
-                setShowMorePanel(false)
-              }}
-            >
-              <IconColor color={currentColor || DEFAULT_TEXT_COLOR} />
-            </ToolbarButton>
-
-            {showColorPanel && (
-              <div className="absolute left-0 top-11 z-20 w-56 rounded-2xl border border-[#eadfce] bg-white p-3 shadow-[0_18px_40px_rgba(34,30,26,0.12)]">
-                <div className="grid grid-cols-4 gap-2">
-                  {COLOR_PRESETS.map(color => (
-                    <button
-                      key={color}
-                      type="button"
-                      onMouseDown={event => event.preventDefault()}
-                      onClick={() => applyColor(color)}
-                      className="h-8 rounded-lg border border-[#eadfce]"
-                      style={{ backgroundColor: color }}
-                      aria-label={`选择颜色 ${color}`}
-                    />
+    <div className="space-y-4">
+      <div className="rich-editor-workspace">
+        <div className="rich-editor-main">
+          <div className="rich-editor-sticky-controls">
+            <div className="rich-editor-functionbar">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#9ca3af]">AppMsg Editor</p>
+                <h3 className="mt-1 text-sm font-semibold text-[#111827]">富文本编辑器</h3>
+                <p className="mt-1 text-[11px] text-[#9ca3af]">快捷键：Ctrl/Cmd + S 保存，Ctrl/Cmd + Z 撤销，Ctrl/Cmd + Shift + Z 重做</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {activeContextChips.map(chip => (
+                    <span key={chip} className="rich-editor-context-chip">
+                      {chip}
+                    </span>
                   ))}
                 </div>
-                <label className="mt-3 flex items-center justify-between rounded-xl bg-[#faf8f5] px-3 py-2 text-xs text-[#8c7d68]">
-                  <span>自定义颜色</span>
-                  <input
-                    type="color"
-                    value={currentColor || DEFAULT_TEXT_COLOR}
-                    onChange={event => applyColor(event.target.value)}
-                    className="h-6 w-10 cursor-pointer rounded border-0 bg-transparent p-0"
-                  />
-                </label>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isUploadingMedia}
+                  onClick={() => {
+                    setUploadPanel(current => (current === 'image' ? null : 'image'))
+                    setShowLinkPanel(false)
+                  }}
+                  className={`rounded-xl px-3 py-2 text-xs font-medium transition ${
+                    uploadPanel === 'image'
+                      ? 'bg-[#dcfce7] text-[#15803d]'
+                      : 'bg-[#effcf4] text-[#15803d] hover:bg-[#dcfce7]'
+                  } disabled:cursor-not-allowed disabled:opacity-60`}
+                >
+                  {uploadPanel === 'image' && isUploadingMedia ? '图片上传中…' : '图片'}
+                </button>
+                <button
+                  type="button"
+                  disabled={isUploadingMedia}
+                  onClick={() => {
+                    setUploadPanel(current => (current === 'video' ? null : 'video'))
+                    setShowLinkPanel(false)
+                  }}
+                  className={`rounded-xl px-3 py-2 text-xs font-medium transition ${
+                    uploadPanel === 'video'
+                      ? 'bg-[#dbeafe] text-[#2563eb]'
+                      : 'bg-[#eef6ff] text-[#2563eb] hover:bg-[#dbeafe]'
+                  } disabled:cursor-not-allowed disabled:opacity-60`}
+                >
+                  {uploadPanel === 'video' && isUploadingMedia ? '视频上传中…' : '视频'}
+                </button>
+                <button
+                  type="button"
+                  disabled={isUploadingMedia}
+                  onClick={() => {
+                    setUploadPanel(current => (current === 'audio' ? null : 'audio'))
+                    setShowLinkPanel(false)
+                  }}
+                  className={`rounded-xl px-3 py-2 text-xs font-medium transition ${
+                    uploadPanel === 'audio'
+                      ? 'bg-[#fef3c7] text-[#b45309]'
+                      : 'bg-[#fff7ed] text-[#b45309] hover:bg-[#fef3c7]'
+                  } disabled:cursor-not-allowed disabled:opacity-60`}
+                >
+                  {uploadPanel === 'audio' && isUploadingMedia ? '音频上传中…' : '音频'}
+                </button>
+                <button
+                  type="button"
+                  onClick={insertDivider}
+                  className="rounded-xl bg-[#f9fafb] px-3 py-2 text-xs font-medium text-[#4b5563] transition hover:bg-[#f3f4f6]"
+                >
+                  分割线
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedTools(current => !current)}
+                  className={`rounded-xl px-3 py-2 text-xs font-medium transition ${
+                    showAdvancedTools
+                      ? 'bg-[#111827] text-white hover:bg-[#1f2937]'
+                      : 'bg-[#f9fafb] text-[#4b5563] hover:bg-[#f3f4f6]'
+                  }`}
+                >
+                  {showAdvancedTools ? '收起高级排版' : '展开高级排版'}
+                </button>
+              </div>
+            </div>
+
+            {(showLinkPanel || uploadPanel) && (
+              <div className="rich-editor-action-panel">
+                {showLinkPanel && (
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                    <input
+                      value={linkUrl}
+                      onChange={event => setLinkUrl(event.target.value)}
+                      className="input"
+                      placeholder="https://example.com"
+                    />
+                    <div className="flex gap-2">
+                      <button type="button" className="btn-primary" onClick={applyLink}>
+                        应用链接
+                      </button>
+                      <button type="button" className="btn-secondary" onClick={() => setShowLinkPanel(false)}>
+                        关闭
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {uploadPanel && (
+                  <div>
+                    <FileUploader
+                      accept={uploadPanel}
+                      label={
+                        uploadPanel === 'image'
+                          ? '上传图片并插入到当前光标位置'
+                          : uploadPanel === 'video'
+                            ? '上传视频并插入到当前光标位置'
+                            : '上传音频并插入到当前光标位置'
+                      }
+                      onSuccess={handleUploadSuccess}
+                      onUploadStateChange={handleUploadStateChange}
+                    />
+                    <button
+                      type="button"
+                      disabled={isUploadingMedia}
+                      className="mt-3 text-xs text-[#6b7280] hover:text-[#111827] disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => setUploadPanel(null)}
+                    >
+                      取消上传
+                    </button>
+                  </div>
+                )}
               </div>
             )}
-          </div>
 
-          <ToolbarButton
-            label="格式刷"
-            title={brushState.active ? '取消格式刷' : '复制当前格式并应用到下一段选中文本'}
-            active={brushState.active}
-            onClick={toggleFormatBrush}
-          >
-            <IconFormatBrush />
-          </ToolbarButton>
+            {uploadFeedback ? (
+              <div
+                className={`rounded-2xl border px-4 py-3 text-sm ${
+                  uploadFeedback.tone === 'error'
+                    ? 'border-rose-200 bg-rose-50 text-rose-700'
+                    : uploadFeedback.tone === 'success'
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      : 'border-sky-200 bg-sky-50 text-sky-700'
+                }`}
+              >
+                <div className="font-medium">{uploadFeedback.title}</div>
+                {uploadFeedback.detail ? <div className="mt-1 text-xs opacity-90">{uploadFeedback.detail}</div> : null}
+              </div>
+            ) : null}
 
-          <ToolbarButton label="自动排版" title="清理多余格式并整理段落" onClick={autoFormat}>
-            <IconAutoFormat />
-          </ToolbarButton>
+            <div className="rich-editor-toolbar">
+              <div className="rich-editor-toolbar-group">
+                <p className="rich-editor-toolbar-label">段落与间距</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <ToolbarSelect value={snapshot.fontFamily} onChange={applyFontFamily}>
+                    {SHARED_FONT_OPTIONS.map(option => (
+                      <option key={option.label} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </ToolbarSelect>
 
-          <ToolbarButton
-            label="首行缩进"
-            title={normalizeFormatValue(formats, 'indent', '') === '2em' ? '取消首行缩进' : '首行缩进 2 字符'}
-            active={normalizeFormatValue(formats, 'indent', '') === '2em'}
-            onClick={toggleFirstLineIndent}
-          >
-            <IconIndent />
-          </ToolbarButton>
+                  <ToolbarSelect value={snapshot.fontSize} onChange={applyFontSize}>
+                    {SIZE_OPTIONS.map(option => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </ToolbarSelect>
 
-          <div className="relative">
-            <ToolbarButton
-              label="更多"
-              title="更多"
-              active={showMorePanel}
-              onClick={() => {
-                setShowMorePanel(current => !current)
-                setShowColorPanel(false)
-              }}
-            >
-              <IconMore />
-            </ToolbarButton>
+                  <ToolbarSelect value={snapshot.lineHeightBlock} onChange={applyLineHeight}>
+                    {LINE_HEIGHT_OPTIONS.map(option => (
+                      <option key={option} value={option}>
+                        行高 {option}
+                      </option>
+                    ))}
+                  </ToolbarSelect>
 
-            {showMorePanel && (
-              <div className="absolute right-0 top-11 z-20 w-56 rounded-2xl border border-[#eadfce] bg-white p-2 shadow-[0_18px_40px_rgba(34,30,26,0.12)]">
-                <div className="grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => applyHeading(2)} className="rounded-xl bg-[#faf8f5] px-3 py-2 text-left text-sm text-[#5a4f42] hover:bg-[#fdf6ee]">标题</button>
-                  <button type="button" onClick={() => applyHeading(3)} className="rounded-xl bg-[#faf8f5] px-3 py-2 text-left text-sm text-[#5a4f42] hover:bg-[#fdf6ee]">小标题</button>
-                  <button type="button" onClick={toggleBlockquote} className="rounded-xl bg-[#faf8f5] px-3 py-2 text-left text-sm text-[#5a4f42] hover:bg-[#fdf6ee]">引用</button>
-                  <button type="button" onClick={() => applyList('bullet')} className="rounded-xl bg-[#faf8f5] px-3 py-2 text-left text-sm text-[#5a4f42] hover:bg-[#fdf6ee]">无序列表</button>
-                  <button type="button" onClick={() => applyList('ordered')} className="rounded-xl bg-[#faf8f5] px-3 py-2 text-left text-sm text-[#5a4f42] hover:bg-[#fdf6ee]">有序列表</button>
-                  <button type="button" onClick={insertLink} className="rounded-xl bg-[#faf8f5] px-3 py-2 text-left text-sm text-[#5a4f42] hover:bg-[#fdf6ee]">插入链接</button>
-                  <button type="button" onClick={() => applyAlign('')} className="rounded-xl bg-[#faf8f5] px-3 py-2 text-left text-sm text-[#5a4f42] hover:bg-[#fdf6ee]">左对齐</button>
-                  <button type="button" onClick={() => applyAlign('center')} className="rounded-xl bg-[#faf8f5] px-3 py-2 text-left text-sm text-[#5a4f42] hover:bg-[#fdf6ee]">居中</button>
-                  <button type="button" onClick={() => applyAlign('right')} className="rounded-xl bg-[#faf8f5] px-3 py-2 text-left text-sm text-[#5a4f42] hover:bg-[#fdf6ee]">右对齐</button>
-                  <button type="button" onClick={toggleFirstLineIndent} className="rounded-xl bg-[#faf8f5] px-3 py-2 text-left text-sm text-[#5a4f42] hover:bg-[#fdf6ee]">
-                    {normalizeFormatValue(formats, 'indent', '') === '2em' ? '取消首行缩进' : '首行缩进'}
-                  </button>
-                  <button type="button" onClick={clearFormat} className="rounded-xl bg-[#faf8f5] px-3 py-2 text-left text-sm text-[#5a4f42] hover:bg-[#fdf6ee]">清除格式</button>
-                  <button
-                    type="button"
-                    onClick={() => setUploadPanel(current => current === 'image' ? null : 'image')}
-                    className="rounded-xl bg-[#faf8f5] px-3 py-2 text-left text-sm text-[#5a4f42] hover:bg-[#fdf6ee]"
-                  >
-                    上传图片
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUploadPanel(current => current === 'video' ? null : 'video')}
-                    className="rounded-xl bg-[#faf8f5] px-3 py-2 text-left text-sm text-[#5a4f42] hover:bg-[#fdf6ee]"
-                  >
-                    上传视频
-                  </button>
+                  <ToolbarSelect value={snapshot.marginTop} onChange={nextValue => applySpacing('marginTop', nextValue)}>
+                    {SPACING_OPTIONS.map(option => (
+                      <option key={option} value={option}>
+                        段前 {option.replace('px', '')}
+                      </option>
+                    ))}
+                  </ToolbarSelect>
+
+                  <ToolbarSelect value={snapshot.marginBottom} onChange={nextValue => applySpacing('marginBottom', nextValue)}>
+                    {SPACING_OPTIONS.map(option => (
+                      <option key={option} value={option}>
+                        段后 {option.replace('px', '')}
+                      </option>
+                    ))}
+                  </ToolbarSelect>
+
+                  <ToolbarButton label="首行缩进" title="首行缩进" active={snapshot.textIndent} onClick={toggleFirstLineIndent}>
+                    <span className="text-[12px] font-semibold">首行</span>
+                  </ToolbarButton>
                 </div>
               </div>
-            )}
+
+              <div className="rich-editor-toolbar-group">
+                <p className="rich-editor-toolbar-label">常用操作</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <ToolbarButton label="撤销" title="撤销" onClick={() => withEditor(currentEditor => currentEditor.chain().focus().undo().run())}>
+                    <span className="text-base leading-none">↶</span>
+                  </ToolbarButton>
+                  <ToolbarButton label="重做" title="重做" onClick={() => withEditor(currentEditor => currentEditor.chain().focus().redo().run())}>
+                    <span className="text-base leading-none">↷</span>
+                  </ToolbarButton>
+                  <ToolbarButton label="加粗" title="加粗" active={snapshot.bold} onClick={() => withEditor(currentEditor => currentEditor.chain().focus().toggleBold().run())}>
+                    <span className="text-base font-bold leading-none">B</span>
+                  </ToolbarButton>
+                  <ToolbarButton label="斜体" title="斜体" active={snapshot.italic} onClick={() => withEditor(currentEditor => currentEditor.chain().focus().toggleItalic().run())}>
+                    <span className="text-base italic leading-none">I</span>
+                  </ToolbarButton>
+                  <ToolbarButton label="下划线" title="下划线" active={snapshot.underline} onClick={() => withEditor(currentEditor => currentEditor.chain().focus().toggleUnderline().run())}>
+                    <span className="text-base underline leading-none">U</span>
+                  </ToolbarButton>
+                  <ToolbarButton label="删除线" title="删除线" active={snapshot.strike} onClick={() => withEditor(currentEditor => currentEditor.chain().focus().toggleStrike().run())}>
+                    <span className="text-base leading-none line-through">S</span>
+                  </ToolbarButton>
+
+                  <div className="relative">
+                    <ToolbarButton
+                      label="文字颜色"
+                      title="文字颜色"
+                      active={showColorPanel}
+                      onClick={() => {
+                        setShowColorPanel(current => !current)
+                        setShowHighlightPanel(false)
+                        setShowEmojiPanel(false)
+                        setShowLinkPanel(false)
+                      }}
+                    >
+                      <span className="relative inline-flex h-4 w-4 items-end justify-center text-[13px] font-semibold leading-none">
+                        <span>A</span>
+                        <span className="absolute bottom-0 left-0 h-[2px] w-full rounded-full" style={{ backgroundColor: snapshot.color || DEFAULT_TEXT_COLOR }} />
+                      </span>
+                    </ToolbarButton>
+
+                    {showColorPanel && (
+                      <div className="rich-editor-popover left-0 top-11 w-56">
+                        <div className="grid grid-cols-4 gap-2">
+                          {TEXT_COLORS.map(color => (
+                            <button
+                              key={color}
+                              type="button"
+                              onMouseDown={event => event.preventDefault()}
+                              onClick={() => applyTextColor(color)}
+                              className="h-8 rounded-lg border border-[#d8d1c5]"
+                              style={{ backgroundColor: color }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <ToolbarButton
+                      label="高亮"
+                      title="高亮"
+                      active={showHighlightPanel || Boolean(snapshot.highlightColor)}
+                      onClick={() => {
+                        setShowHighlightPanel(current => !current)
+                        setShowColorPanel(false)
+                        setShowEmojiPanel(false)
+                        setShowLinkPanel(false)
+                      }}
+                    >
+                      <span className="relative inline-flex h-4 w-4 items-end justify-center text-[13px] font-semibold leading-none">
+                        <span>H</span>
+                        <span className="absolute bottom-0 left-0 h-[6px] w-full rounded-sm opacity-80" style={{ backgroundColor: snapshot.highlightColor || '#fff4cc' }} />
+                      </span>
+                    </ToolbarButton>
+
+                    {showHighlightPanel && (
+                      <div className="rich-editor-popover left-0 top-11 w-56">
+                        <div className="mb-2 grid grid-cols-3 gap-2">
+                          {HIGHLIGHT_COLORS.map(color => (
+                            <button
+                              key={color}
+                              type="button"
+                              onMouseDown={event => event.preventDefault()}
+                              onClick={() => applyHighlightColor(color)}
+                              className="h-8 rounded-lg border border-[#d8d1c5]"
+                              style={{ backgroundColor: color }}
+                            />
+                          ))}
+                        </div>
+                        <button type="button" onClick={() => applyHighlightColor('')} className="text-xs text-[#6b7280] hover:text-[#111827]">
+                          清除高亮
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <ToolbarButton label="链接" title="插入链接" active={snapshot.link || showLinkPanel} onClick={openLinkPanel}>
+                    <span className="text-[13px] font-semibold">链</span>
+                  </ToolbarButton>
+
+                  <div className="relative">
+                    <ToolbarButton
+                      label="表情"
+                      title="插入表情"
+                      active={showEmojiPanel}
+                      onClick={() => {
+                        setShowEmojiPanel(current => !current)
+                        setShowColorPanel(false)
+                        setShowHighlightPanel(false)
+                        setShowLinkPanel(false)
+                      }}
+                    >
+                      <span className="text-base leading-none">☺</span>
+                    </ToolbarButton>
+
+                    {showEmojiPanel && (
+                      <div className="rich-editor-popover right-0 top-11 w-56">
+                        <div className="grid grid-cols-4 gap-2">
+                          {EMOJI_PRESETS.map(emoji => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              onMouseDown={event => event.preventDefault()}
+                              onClick={() => insertEmoji(emoji)}
+                              className="rounded-xl bg-[#f9fafb] px-2 py-2 text-lg hover:bg-[#eff6ff]"
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <ToolbarButton label="清除格式" title="清除格式" onClick={clearFormat}>
+                    <span className="text-[12px] font-semibold">清</span>
+                  </ToolbarButton>
+                </div>
+              </div>
+
+              {showAdvancedTools ? (
+                <div className="rich-editor-toolbar-group">
+                  <p className="rich-editor-toolbar-label">高级排版</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <ToolbarButton
+                      label="格式刷"
+                      title={brushState.active ? '取消格式刷' : '复制当前格式并应用到下一段选中文本'}
+                      active={brushState.active}
+                      onClick={toggleFormatBrush}
+                    >
+                      <span className="text-[13px] font-semibold">刷</span>
+                    </ToolbarButton>
+
+                    <ToolbarButton label="标题" title="标题" active={snapshot.headingLevel === 2} onClick={() => applyHeading(2)}>
+                      <span className="text-[13px] font-semibold">H2</span>
+                    </ToolbarButton>
+                    <ToolbarButton label="小标题" title="小标题" active={snapshot.headingLevel === 3} onClick={() => applyHeading(3)}>
+                      <span className="text-[13px] font-semibold">H3</span>
+                    </ToolbarButton>
+                    <ToolbarButton label="引用" title="引用" active={snapshot.blockquote} onClick={toggleBlockquote}>
+                      <span className="text-[14px] leading-none">“”</span>
+                    </ToolbarButton>
+                    <ToolbarButton label="无序列表" title="无序列表" active={snapshot.bulletList} onClick={() => applyList('bulletList')}>
+                      <span className="text-[13px] font-semibold">• 列</span>
+                    </ToolbarButton>
+                    <ToolbarButton label="有序列表" title="有序列表" active={snapshot.orderedList} onClick={() => applyList('orderedList')}>
+                      <span className="text-[13px] font-semibold">1. 列</span>
+                    </ToolbarButton>
+                    <ToolbarButton label="代码块" title="代码块" active={snapshot.codeBlock} onClick={toggleCodeBlock}>
+                      <span className="text-[13px] font-semibold">{'</>'}</span>
+                    </ToolbarButton>
+                    <ToolbarButton label="左对齐" title="左对齐" active={snapshot.textAlign === 'left'} onClick={() => applyAlign('left')}>
+                      <span className="text-[12px] font-semibold">左</span>
+                    </ToolbarButton>
+                    <ToolbarButton label="居中" title="居中" active={snapshot.textAlign === 'center'} onClick={() => applyAlign('center')}>
+                      <span className="text-[12px] font-semibold">中</span>
+                    </ToolbarButton>
+                    <ToolbarButton label="右对齐" title="右对齐" active={snapshot.textAlign === 'right'} onClick={() => applyAlign('right')}>
+                      <span className="text-[12px] font-semibold">右</span>
+                    </ToolbarButton>
+                    <ToolbarButton label="两端对齐" title="两端对齐" active={snapshot.textAlign === 'justify'} onClick={() => applyAlign('justify')}>
+                      <span className="text-[12px] font-semibold">齐</span>
+                    </ToolbarButton>
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </div>
+
+          <div className="rich-editor-shell">
+            <div className="rich-editor-canvas">
+              {editor ? (
+                <EditorContent editor={editor} />
+              ) : (
+                <div className="rounded-[28px] border border-[#d8d1c5] bg-white px-8 py-10 text-sm text-[#9ca3af]">编辑器加载中…</div>
+              )}
+            </div>
+            <div className="rich-editor-footer-note">
+              正在使用参考 `vue-tiptap-appmsg-editor` 风格改造后的编辑器，支持公众号式段落节奏、模板插入、图片视频音频、首行缩进，以及与分享海报共用的一套字体库。
+            </div>
+          </div>
+
         </div>
+
+        <aside className="rich-editor-sidebar-panel">
+          <div className="rich-editor-sidebar-header">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#9ca3af]">Templates</p>
+              <h4 className="mt-1 text-sm font-semibold text-[#111827]">图文模板</h4>
+            </div>
+            <p className="text-xs leading-5 text-[#6b7280]">参考公众号编辑器的插入面板，先给你一组常用排版骨架。</p>
+          </div>
+
+          <div className="space-y-3">
+            {EDITOR_TEMPLATES.map(template => (
+              <button key={template.id} type="button" onClick={() => insertTemplate(template.content)} className="rich-editor-template-card">
+                <span className="block text-sm font-semibold text-[#111827]">{template.title}</span>
+                <span className="mt-1 block text-xs leading-5 text-[#6b7280]">{template.description}</span>
+              </button>
+            ))}
+          </div>
+        </aside>
       </div>
 
-      <div className="rich-editor-shell">
-        {!ready && (
-          <div className="rounded-[24px] border border-[#ddd5c8] bg-white px-6 py-5 text-sm text-[#a89880]">
-            编辑器加载中…
-          </div>
-        )}
-        <div ref={editorRef} className={ready ? '' : 'hidden'} />
+      <div className="flex items-center justify-between rounded-2xl bg-[#f8fafc] px-4 py-3 text-xs text-[#6b7280]">
+        <span>{brushState.active ? '格式刷已开启：现在去选中目标文字即可套用格式。' : '默认段后距为 24px，正文更接近公众号文章的阅读节奏。'}</span>
+        <span>支持 HTML 富文本保存，旧内容会自动兼容导入。</span>
       </div>
-
-      {uploadPanel && (
-        <div className="rounded-2xl border border-[#eadfce] bg-[#faf8f5] p-3">
-          <FileUploader
-            accept={uploadPanel}
-            label={uploadPanel === 'image' ? '上传图片并插入到当前光标位置' : '上传视频并插入到当前光标位置'}
-            onSuccess={handleUploadSuccess}
-          />
-          <button
-            type="button"
-            onMouseDown={event => event.preventDefault()}
-            onClick={() => setUploadPanel(null)}
-            className="mt-2 text-xs text-[#a89880] hover:text-[#5a4f42]"
-          >
-            取消
-          </button>
-        </div>
-      )}
     </div>
   )
 }

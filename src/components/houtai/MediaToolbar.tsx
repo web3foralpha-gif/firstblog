@@ -60,7 +60,7 @@ function ToolbarButton({ label, onClick }: { label: string; onClick: () => void 
 }
 
 export default function MediaToolbar({ onInsert, onWrapSelection, onApplyStyleBlock }: MediaToolbarProps) {
-  const [panel, setPanel] = useState<'image' | 'video' | null>(null)
+  const [panel, setPanel] = useState<'image' | 'video' | 'audio' | null>(null)
   const [font, setFont] = useState<RichFont>('serif')
   const [size, setSize] = useState<RichSize>('base')
   const [color, setColor] = useState<RichColor>('default')
@@ -74,9 +74,11 @@ export default function MediaToolbar({ onInsert, onWrapSelection, onApplyStyleBl
     return [fontLabel, sizeLabel, colorLabel, alignLabel].filter(Boolean).join(' / ')
   }, [align, color, font, size])
 
-  function handleSuccess({ url, type }: { url: string; type: 'IMAGE' | 'VIDEO' }) {
+  function handleSuccess({ url, type }: { url: string; type: 'IMAGE' | 'VIDEO' | 'AUDIO' }) {
     if (type === 'IMAGE') {
       onInsert(`\n![图片描述](${url})\n`)
+    } else if (type === 'AUDIO') {
+      onInsert(`\n<audio controls preload="metadata" src="${url}"></audio>\n`)
     } else {
       onInsert(`\n::video ${url}\n`)
     }
@@ -163,6 +165,7 @@ export default function MediaToolbar({ onInsert, onWrapSelection, onApplyStyleBl
             <span className="text-xs font-medium text-[#8c7d68]">媒体插入</span>
             <ToolbarButton label="上传图片" onClick={() => setPanel(panel === 'image' ? null : 'image')} />
             <ToolbarButton label="上传视频" onClick={() => setPanel(panel === 'video' ? null : 'video')} />
+            <ToolbarButton label="上传音频" onClick={() => setPanel(panel === 'audio' ? null : 'audio')} />
           </div>
         </div>
       </div>
@@ -171,7 +174,7 @@ export default function MediaToolbar({ onInsert, onWrapSelection, onApplyStyleBl
         <div className="rounded-2xl border border-[#eadfce] bg-[#faf8f5] p-3">
           <FileUploader
             accept={panel}
-            label={panel === 'image' ? '上传图片并插入到当前光标位置' : '上传视频并插入到当前光标位置'}
+            label={panel === 'image' ? '上传图片并插入到当前光标位置' : panel === 'video' ? '上传视频并插入到当前光标位置' : '上传音频并插入到当前光标位置'}
             onSuccess={handleSuccess}
           />
           <button

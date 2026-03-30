@@ -14,18 +14,20 @@ export default function InlineGuestbookForm() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    if (status === 'loading') return
     if (!nickname.trim() || !content.trim()) return
     setStatus('loading')
+    setMsg('')
     try {
       const res = await fetch('/api/guestbook', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nickname, email, emailPublic, content, emoji: selectedEmoji }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
+      const data = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(String(data?.error || '提交失败，请重试'))
       setStatus('success')
-      setMsg(data.message)
+      setMsg(String(data?.message || '留言已提交，审核后会展示在留言板'))
       setNickname(''); setEmail(''); setContent(''); setSelectedEmoji(''); setEmailPublic(false)
     } catch (err: any) {
       setStatus('error')

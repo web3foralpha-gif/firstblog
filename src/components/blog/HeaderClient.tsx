@@ -9,7 +9,7 @@ export default function HeaderClient({ siteName }: { siteName: string }) {
     ['/blog', '文章'],
     ['/about', '关于'],
     ['/guestbook', '留言板'],
-  ] as const
+  ] as Array<readonly [string, string]>
 
   return (
     <header className="sticky top-0 z-30 border-b border-[var(--header-border)] bg-[var(--header-bg)] backdrop-blur-xl">

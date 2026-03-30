@@ -12,20 +12,35 @@ export default function PasswordGate({
 }) {
   const [password, setPassword] = useState('')
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [errorMessage, setErrorMessage] = useState('密码错误，请重试')
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setStatus('loading')
+    setErrorMessage('密码错误，请重试')
     try {
       const res = await fetch(`/api/articles/${slug}/unlock`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password }),
       })
-      if (!res.ok) { setStatus('error'); return }
-      const { content } = await res.json()
+      const payload = await res.json().catch(() => null)
+      if (!res.ok) {
+        setErrorMessage(typeof payload?.error === 'string' ? payload.error : '解锁失败，请稍后再试')
+        setStatus('error')
+        return
+      }
+      const { content } = payload ?? {}
+      if (typeof content !== 'string') {
+        setErrorMessage('解锁失败，请稍后再试')
+        setStatus('error')
+        return
+      }
       onUnlock(content)
+      setPassword('')
+      setStatus('idle')
     } catch {
+      setErrorMessage('解锁失败，请稍后再试')
       setStatus('error')
     }
   }
@@ -57,7 +72,7 @@ export default function PasswordGate({
 
         {status === 'error' && (
           <p className="text-sm text-red-500 flex items-center justify-center gap-1">
-            <span>✕</span> 密码错误，请重试
+            <span>✕</span> {errorMessage}
           </p>
         )}
 

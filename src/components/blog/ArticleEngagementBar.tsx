@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { collectClientDeviceInfo, getClientDeviceInfoSync } from '@/lib/client-device'
+import type { DeviceInfoPayload } from '@/lib/device-info'
 import { getSafeReferrer, getSessionId, getVisitorId } from '@/lib/visitor'
 
 type EngagementSummary = {
@@ -36,13 +38,14 @@ type SharePreviewState = {
   url: string
 } | null
 
-function buildPayload(articleId: string, path: string) {
+function buildPayload(articleId: string, path: string, deviceInfo?: DeviceInfoPayload | null) {
   return {
     articleId,
     visitorId: getVisitorId(),
     sessionId: getSessionId(),
     path,
     referrer: getSafeReferrer(),
+    deviceInfo: deviceInfo || null,
   }
 }
 
@@ -65,7 +68,9 @@ export default function ArticleEngagementBar({
   const enteredAtRef = useRef(Date.now())
   const maxScrollDepthRef = useRef(0)
   const qualifiedRef = useRef(false)
+  const leaveReportedRef = useRef(false)
   const pathRef = useRef(sharePath)
+  const deviceInfoRef = useRef<DeviceInfoPayload | null>(getClientDeviceInfoSync())
 
   const displayReadCount = useMemo(() => summary.qualifiedViewCount || summary.viewCount, [summary.qualifiedViewCount, summary.viewCount])
 
@@ -74,10 +79,18 @@ export default function ArticleEngagementBar({
   }, [commentsCount])
 
   useEffect(() => {
-    const payload = buildPayload(articleId, sharePath)
+    let disposed = false
+    void collectClientDeviceInfo().then(deviceInfo => {
+      if (!disposed && deviceInfo) {
+        deviceInfoRef.current = deviceInfo
+      }
+    })
+
+    const buildCurrentPayload = () => buildPayload(articleId, pathRef.current, deviceInfoRef.current)
     enteredAtRef.current = Date.now()
     maxScrollDepthRef.current = 0
     qualifiedRef.current = false
+    leaveReportedRef.current = false
     pathRef.current = sharePath
 
     fetch('/api/article-interactions', {
@@ -85,7 +98,7 @@ export default function ArticleEngagementBar({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'view-enter',
-        ...payload,
+        ...buildCurrentPayload(),
       }),
     }).catch(() => {})
 
@@ -96,7 +109,7 @@ export default function ArticleEngagementBar({
       const duration = Math.round((Date.now() - enteredAtRef.current) / 1000)
       const body = JSON.stringify({
         action: 'view-qualified',
-        ...payload,
+        ...buildCurrentPayload(),
         duration,
         scrollDepth: maxScrollDepthRef.current,
         metadata: { reason },
@@ -121,6 +134,33 @@ export default function ArticleEngagementBar({
       }
     }
 
+    const reportLeave = (useBeacon: boolean) => {
+      if (leaveReportedRef.current) return
+
+      const duration = Math.round((Date.now() - enteredAtRef.current) / 1000)
+      if (duration < 1) return
+
+      leaveReportedRef.current = true
+
+      const body = JSON.stringify({
+        action: 'view-leave',
+        ...buildCurrentPayload(),
+        duration,
+      })
+
+      if (useBeacon && navigator.sendBeacon) {
+        navigator.sendBeacon('/api/article-interactions', new Blob([body], { type: 'application/json' }))
+        return
+      }
+
+      fetch('/api/article-interactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        keepalive: true,
+      }).catch(() => {})
+    }
+
     const timer = window.setTimeout(() => sendQualified('duration'), 15000)
 
     const handleScroll = () => {
@@ -139,16 +179,19 @@ export default function ArticleEngagementBar({
       if (duration >= 15 || maxScrollDepthRef.current >= 40) {
         sendQualified('leave')
       }
+      reportLeave(true)
     }
 
     window.addEventListener('scroll', handleScroll, { passive: true })
     window.addEventListener('beforeunload', handleBeforeUnload)
 
     return () => {
+      disposed = true
       window.clearTimeout(timer)
       window.removeEventListener('scroll', handleScroll)
       window.removeEventListener('beforeunload', handleBeforeUnload)
       handleBeforeUnload()
+      reportLeave(false)
     }
   }, [articleId, sharePath])
 
@@ -193,7 +236,7 @@ export default function ArticleEngagementBar({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'toggle-like',
-          ...buildPayload(articleId, sharePath),
+          ...buildPayload(articleId, sharePath, deviceInfoRef.current),
         }),
       })
       const data = await res.json().catch(() => null)
@@ -216,7 +259,7 @@ export default function ArticleEngagementBar({
         action: 'share',
         mode,
         channel: mode === 'image' ? 'image_download' : 'copy_link',
-        ...buildPayload(articleId, sharePath),
+        ...buildPayload(articleId, sharePath, deviceInfoRef.current),
       }),
     })
     const data = await res.json().catch(() => null)

@@ -34,10 +34,12 @@ const ALLOWED_CLASS_PATTERNS = [
   'ql-font-song',
   'ql-font-hei',
   'ql-uploaded-video',
+  'ql-uploaded-image',
 ]
 
 const ALLOWED_TAGS = new Set([
   'a',
+  'audio',
   'blockquote',
   'br',
   'code',
@@ -47,8 +49,10 @@ const ALLOWED_TAGS = new Set([
   'figcaption',
   'h2',
   'h3',
+  'hr',
   'img',
   'li',
+  'mark',
   'ol',
   'p',
   'pre',
@@ -65,10 +69,12 @@ const DROP_CONTENT_TAGS = new Set(['iframe', 'object', 'embed', 'script', 'style
 
 const ALLOWED_ATTRIBUTES = new Map<string, Set<string>>([
   ['a', new Set(['href', 'target', 'rel'])],
-  ['img', new Set(['src', 'alt', 'title'])],
+  ['audio', new Set(['src', 'controls', 'preload'])],
+  ['img', new Set(['src', 'alt', 'title', 'loading'])],
   ['source', new Set(['src', 'type'])],
   ['video', new Set(['src', 'controls', 'playsinline', 'preload', 'poster'])],
   ['div', new Set(['class', 'style'])],
+  ['mark', new Set(['style'])],
   ['span', new Set(['class', 'style'])],
   ['p', new Set(['class', 'style'])],
   ['h2', new Set(['class', 'style'])],
@@ -95,13 +101,25 @@ function sanitizeStyleValue(style: string) {
       if (name === 'color' && (/^#[0-9a-f]{3,8}$/i.test(value) || /^rgb(a)?\([^)]+\)$/i.test(value))) {
         return `${name}:${value}`
       }
+      if (name === 'background-color' && (/^#[0-9a-f]{3,8}$/i.test(value) || /^rgb(a)?\([^)]+\)$/i.test(value))) {
+        return `${name}:${value}`
+      }
+      if (name === 'font-family' && /^[a-z0-9"',\-\s]+$/i.test(value)) {
+        return `${name}:${value}`
+      }
       if (name === 'font-size' && /^\d+(?:px|em|rem|%)$/.test(value)) {
+        return `${name}:${value}`
+      }
+      if (name === 'line-height' && /^\d+(?:\.\d+)?(?:px|em|rem|%)?$/.test(value)) {
         return `${name}:${value}`
       }
       if (name === 'text-align' && /^(left|center|right|justify)$/.test(value)) {
         return `${name}:${value}`
       }
       if (name === 'text-indent' && /^\d+(?:px|em|rem)$/.test(value)) {
+        return `${name}:${value}`
+      }
+      if ((name === 'margin-top' || name === 'margin-bottom') && /^\d+(?:px|em|rem)$/.test(value)) {
         return `${name}:${value}`
       }
       return ''
@@ -270,7 +288,7 @@ export function sanitizeArticleHtml(content: string) {
         }
       }
 
-      if ((tagName === 'img' || tagName === 'video' || tagName === 'source') && element.getAttribute('src')) {
+      if ((tagName === 'img' || tagName === 'video' || tagName === 'audio' || tagName === 'source') && element.getAttribute('src')) {
         const src = element.getAttribute('src') || ''
         if (!/^(https?:\/\/|\/)/.test(src)) {
           element.removeAttribute('src')
@@ -318,7 +336,7 @@ export function hasMeaningfulArticleContent(content: string) {
 
   if (isRichHtmlContent(normalized)) {
     const html = sanitizeArticleHtml(normalized)
-    return plainTextFromArticleContent(html).length > 0 || /<(img|video|source)\b/i.test(html)
+    return plainTextFromArticleContent(html).length > 0 || /<(img|video|audio|source)\b/i.test(html)
   }
 
   return (

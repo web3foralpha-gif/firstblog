@@ -4,8 +4,10 @@ import { requireAdmin } from '@/lib/middleware'
 import { prisma } from '@/lib/prisma'
 import { storeUploadedMedia } from '@/lib/media-storage'
 import {
+  ALLOWED_AUDIO_TYPES,
   ALLOWED_IMAGE_TYPES,
   ALLOWED_VIDEO_TYPES,
+  MAX_AUDIO_SIZE,
   MAX_IMAGE_SIZE,
   MAX_VIDEO_SIZE,
   buildR2PublicUrl,
@@ -22,7 +24,7 @@ type UploadBlob = Blob & {
   size: number
 }
 
-type MediaKind = 'IMAGE' | 'VIDEO'
+type MediaKind = 'IMAGE' | 'VIDEO' | 'AUDIO'
 
 type UploadClientPayload = {
   pathname: string
@@ -45,6 +47,11 @@ function inferContentType(filename: string, contentType: string) {
     mp4: 'video/mp4',
     webm: 'video/webm',
     mov: 'video/quicktime',
+    mp3: 'audio/mpeg',
+    m4a: 'audio/mp4',
+    aac: 'audio/aac',
+    wav: 'audio/wav',
+    ogg: 'audio/ogg',
   }
 
   return ext ? byExt[ext] || '' : ''
@@ -53,17 +60,18 @@ function inferContentType(filename: string, contentType: string) {
 function validateFile(contentType: string, size: number) {
   const isImage = ALLOWED_IMAGE_TYPES.includes(contentType)
   const isVideo = ALLOWED_VIDEO_TYPES.includes(contentType)
+  const isAudio = ALLOWED_AUDIO_TYPES.includes(contentType)
 
-  if (!isImage && !isVideo) {
-    return { error: contentType ? `不支持的文件类型：${contentType}` : '无法识别文件类型，请换用常见图片或视频格式' }
+  if (!isImage && !isVideo && !isAudio) {
+    return { error: contentType ? `不支持的文件类型：${contentType}` : '无法识别文件类型，请换用常见图片、视频或音频格式' }
   }
 
-  const maxSize = isImage ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE
+  const maxSize = isImage ? MAX_IMAGE_SIZE : isVideo ? MAX_VIDEO_SIZE : MAX_AUDIO_SIZE
   if (size > maxSize) {
-    return { error: `文件过大，最大支持 ${isImage ? '10MB' : '200MB'}` }
+    return { error: `文件过大，最大支持 ${isImage ? '10MB' : isVideo ? '200MB' : '50MB'}` }
   }
 
-  return { isImage, isVideo }
+  return { isImage, isVideo, isAudio }
 }
 
 function isUploadBlob(file: unknown): file is UploadBlob {
@@ -81,7 +89,7 @@ async function createMediaRecord(input: {
   key: string
   size: number
   mimeType: string
-  type: 'IMAGE' | 'VIDEO'
+  type: 'IMAGE' | 'VIDEO' | 'AUDIO'
 }) {
   let media
   try {
@@ -116,7 +124,7 @@ function parseClientPayload(clientPayload: string | null): UploadClientPayload |
       typeof parsed.originalName !== 'string' ||
       typeof parsed.mimeType !== 'string' ||
       typeof parsed.size !== 'number' ||
-      (parsed.type !== 'IMAGE' && parsed.type !== 'VIDEO')
+      (parsed.type !== 'IMAGE' && parsed.type !== 'VIDEO' && parsed.type !== 'AUDIO')
     ) {
       return null
     }
@@ -128,7 +136,12 @@ function parseClientPayload(clientPayload: string | null): UploadClientPayload |
 }
 
 function isSafeUploadPath(pathname: string, type: MediaKind) {
-  const expectedPrefix = type === 'IMAGE' ? 'images/' : 'videos/'
+  const expectedPrefix =
+    type === 'IMAGE'
+      ? 'images/'
+      : type === 'VIDEO'
+        ? 'videos/'
+        : 'audios/'
   return pathname.startsWith(expectedPrefix) && /^[a-z0-9/_\-.]+$/i.test(pathname)
 }
 
@@ -149,7 +162,7 @@ async function handleMultipart(req: NextRequest) {
 
   const stored = await storeUploadedMedia(
     file,
-    validation.isImage ? 'images' : 'videos',
+    validation.isImage ? 'images' : validation.isVideo ? 'videos' : 'audios',
     { filename: originalName, contentType: mimeType }
   )
 
@@ -160,7 +173,7 @@ async function handleMultipart(req: NextRequest) {
     key: stored.key,
     size: file.size,
     mimeType,
-    type: validation.isImage ? 'IMAGE' : 'VIDEO',
+    type: validation.isImage ? 'IMAGE' : validation.isVideo ? 'VIDEO' : 'AUDIO',
   })
 
   return mediaResponse(media)
@@ -173,7 +186,7 @@ async function handleCompleteUpload(body: {
   url?: string
   size?: number
   mimeType?: string
-  type?: 'IMAGE' | 'VIDEO'
+  type?: 'IMAGE' | 'VIDEO' | 'AUDIO'
 }) {
   if (!body.key || !body.filename || !body.originalName || !body.url || !body.mimeType || !body.type) {
     return NextResponse.json({ error: '上传确认参数不完整' }, { status: 400 })
@@ -226,7 +239,12 @@ async function handleBlobClientUpload(req: NextRequest, body: HandleUploadBody) 
 
       return {
         allowedContentTypes: [parsedPayload.mimeType],
-        maximumSizeInBytes: parsedPayload.type === 'IMAGE' ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE,
+        maximumSizeInBytes:
+          parsedPayload.type === 'IMAGE'
+            ? MAX_IMAGE_SIZE
+            : parsedPayload.type === 'VIDEO'
+              ? MAX_VIDEO_SIZE
+              : MAX_AUDIO_SIZE,
         addRandomSuffix: false,
         allowOverwrite: false,
         tokenPayload: JSON.stringify(parsedPayload),
@@ -236,7 +254,11 @@ async function handleBlobClientUpload(req: NextRequest, body: HandleUploadBody) 
       const parsedPayload = parseClientPayload(tokenPayload ?? null)
       const type: MediaKind =
         parsedPayload?.type ||
-        (blob.contentType.startsWith('video/') ? 'VIDEO' : 'IMAGE')
+        (blob.contentType.startsWith('video/')
+          ? 'VIDEO'
+          : blob.contentType.startsWith('audio/')
+            ? 'AUDIO'
+            : 'IMAGE')
 
       await createMediaRecord({
         key: blob.pathname,
@@ -285,11 +307,11 @@ async function handleJson(req: NextRequest, body: unknown) {
     if (!isR2Configured()) {
       return NextResponse.json({
         strategy: 'multipart',
-        type: validation.isImage ? 'IMAGE' : 'VIDEO',
+        type: validation.isImage ? 'IMAGE' : validation.isVideo ? 'VIDEO' : 'AUDIO',
       })
     }
 
-    const key = generateKey(originalName, validation.isImage ? 'images' : 'videos')
+    const key = generateKey(originalName, validation.isImage ? 'images' : validation.isVideo ? 'videos' : 'audios')
     return NextResponse.json({
       strategy: 'direct',
       uploadUrl: await getPresignedUploadUrl(key, mimeType),
@@ -297,7 +319,7 @@ async function handleJson(req: NextRequest, body: unknown) {
       key,
       filename: key.split('/').pop() || key,
       mimeType,
-      type: validation.isImage ? 'IMAGE' : 'VIDEO',
+      type: validation.isImage ? 'IMAGE' : validation.isVideo ? 'VIDEO' : 'AUDIO',
     })
   }
 

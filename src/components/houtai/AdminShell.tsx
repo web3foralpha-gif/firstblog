@@ -12,7 +12,7 @@ const NAV_GROUPS = [
       { href: '/houtai/articles/new', icon: '✏️', label: '写新文章' },
       { href: '/houtai/comments',  icon: '💬', label: '评论管理' },
       { href: '/houtai/guestbook', icon: '📮', label: '留言审核' },
-      { href: '/houtai/media',     icon: '🖼️', label: '媒体库' },
+      { href: '/houtai/media',     icon: '🗂️', label: '媒体库' },
     ],
   },
   {
@@ -26,7 +26,7 @@ const NAV_GROUPS = [
   {
     label: '系统设置',
     items: [
-      { href: '/houtai/settings',  icon: '⚙️', label: '网站设置' },
+      { href: '/houtai/settings',  icon: '⚙️', label: '设置总表' },
       { href: '/houtai/backup',   icon: '💾', label: '备份导出' },
     ],
   },
@@ -62,7 +62,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         {!collapsed && (
           <Link href="/houtai" className="flex items-center gap-2 min-w-0">
             <span className="text-lg">✦</span>
-            <span className="font-semibold text-slate-800 text-sm truncate">管理后台</span>
+            <span className="font-semibold text-slate-800 text-sm truncate">后台控制中心</span>
           </Link>
         )}
         {collapsed && <span className="text-lg">✦</span>}
@@ -82,13 +82,13 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
       {/* 导航区域 */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
-        {/* 仪表盘 */}
+        {/* 控制中心 */}
         <Link href="/houtai"
           className={`nav-item ${isActive('/houtai') && pathname === '/houtai' ? 'nav-item-active' : ''} ${collapsed ? 'justify-center px-2' : ''}`}
-          title={collapsed ? '仪表盘' : undefined}
+          title={collapsed ? '控制中心' : undefined}
         >
           <span className="text-base w-5 text-center flex-shrink-0">🏠</span>
-          {!collapsed && <span className="truncate">仪表盘</span>}
+          {!collapsed && <span className="truncate">控制中心</span>}
         </Link>
 
         {NAV_GROUPS.map(group => (
@@ -167,7 +167,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
               <path d="M2 4.5h14M2 9h14M2 13.5h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
             </svg>
           </button>
-          <span className="font-semibold text-slate-800 text-sm">管理后台</span>
+          <span className="font-semibold text-slate-800 text-sm">后台控制中心</span>
         </header>
 
         <main className="flex-1 p-4 lg:p-8 min-w-0 overflow-auto">

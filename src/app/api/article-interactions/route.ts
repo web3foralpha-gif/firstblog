@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { inspectAnalyticsTraffic } from '@/lib/analytics-traffic'
 import {
   getArticleEngagementSummary,
   recordArticleQualifiedView,
   recordArticleShare,
   recordArticleViewEnter,
+  recordArticleViewLeave,
   toggleArticleLike,
 } from '@/lib/article-engagement'
 
@@ -30,23 +32,42 @@ export async function POST(req: NextRequest) {
   const sessionId = typeof body.sessionId === 'string' ? body.sessionId : null
   const path = typeof body.path === 'string' ? body.path : null
   const referrer = typeof body.referrer === 'string' ? body.referrer : null
+  const deviceInfo = typeof body.deviceInfo === 'object' && body.deviceInfo ? body.deviceInfo : null
 
   if (!articleId || !visitorId) {
     return NextResponse.json({ error: '缺少 articleId 或 visitorId' }, { status: 400 })
   }
 
   const action = typeof body.action === 'string' ? body.action : ''
+  const traffic = await inspectAnalyticsTraffic(req, { deviceInfo })
+
+  if (traffic.skipped) {
+    if (action === 'toggle-like') {
+      const summary = await getArticleEngagementSummary(articleId, visitorId)
+      return NextResponse.json({ liked: summary.likedByVisitor, summary, skipped: traffic.reason })
+    }
+
+    if (action === 'share') {
+      const summary = await getArticleEngagementSummary(articleId, visitorId)
+      return NextResponse.json({ ok: true, summary, skipped: traffic.reason })
+    }
+
+    if (action === 'view-enter' || action === 'view-qualified' || action === 'view-leave') {
+      return NextResponse.json({ ok: true, recorded: false, skipped: traffic.reason })
+    }
+  }
 
   if (action === 'view-enter') {
-    await recordArticleViewEnter(req, {
+    const recorded = await recordArticleViewEnter(req, {
       articleId,
       visitorId,
       sessionId,
       path,
       referrer,
+      deviceInfo,
       metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata as Record<string, unknown> : null,
     })
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, recorded })
   }
 
   if (action === 'view-qualified') {
@@ -58,9 +79,23 @@ export async function POST(req: NextRequest) {
       referrer,
       duration: typeof body.duration === 'number' ? body.duration : null,
       scrollDepth: typeof body.scrollDepth === 'number' ? body.scrollDepth : null,
+      deviceInfo,
       metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata as Record<string, unknown> : null,
     })
     return NextResponse.json({ ok: true, recorded })
+  }
+
+  if (action === 'view-leave') {
+    const updated = await recordArticleViewLeave({
+      articleId,
+      visitorId,
+      sessionId,
+      path,
+      referrer,
+      duration: typeof body.duration === 'number' ? body.duration : null,
+      deviceInfo,
+    })
+    return NextResponse.json({ ok: true, updated })
   }
 
   if (action === 'toggle-like') {
@@ -70,6 +105,7 @@ export async function POST(req: NextRequest) {
       sessionId,
       path,
       referrer,
+      deviceInfo,
     })
     return NextResponse.json(result)
   }
@@ -84,6 +120,7 @@ export async function POST(req: NextRequest) {
       referrer,
       mode,
       channel: typeof body.channel === 'string' ? body.channel : mode === 'image' ? 'image_download' : 'copy_link',
+      deviceInfo,
       metadata: typeof body.metadata === 'object' && body.metadata ? body.metadata as Record<string, unknown> : null,
     })
     return NextResponse.json({ ok: true, summary })

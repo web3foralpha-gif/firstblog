@@ -1,6 +1,8 @@
 import crypto from 'crypto'
 import { plainTextFromArticleContent } from '@/lib/article-content'
 
+export const SITE_TIME_ZONE = 'Asia/Shanghai'
+
 // 生成安全随机 token（64 位十六进制字符）
 export function generateAccessToken(): string {
   return crypto.randomBytes(32).toString('hex')
@@ -30,7 +32,48 @@ export function formatDate(date: Date | string): string {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
+    timeZone: SITE_TIME_ZONE,
   })
+}
+
+export function formatDateTime(date: Date | string): string {
+  return new Date(date).toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    timeZone: SITE_TIME_ZONE,
+  })
+}
+
+function getTimeZoneParts(date: Date, timeZone = SITE_TIME_ZONE) {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+
+  const parts = formatter.formatToParts(date)
+  const year = Number(parts.find(part => part.type === 'year')?.value)
+  const month = Number(parts.find(part => part.type === 'month')?.value)
+  const day = Number(parts.find(part => part.type === 'day')?.value)
+
+  return { year, month, day }
+}
+
+export function getDayRangeInTimeZone(date = new Date(), timeZone = SITE_TIME_ZONE) {
+  const { year, month, day } = getTimeZoneParts(date, timeZone)
+  const utcStart = new Date(Date.UTC(year, month - 1, day, -8, 0, 0, 0))
+  const utcEnd = new Date(Date.UTC(year, month - 1, day + 1, -8, 0, 0, 0))
+
+  return {
+    start: utcStart,
+    end: utcEnd,
+  }
 }
 
 // 心情列表

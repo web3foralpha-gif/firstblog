@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { invalidateOwnerTrafficRulesCache } from '@/lib/analytics-traffic'
 import { getAllSettings, updateSettings, SETTING_DEFS } from '@/lib/settings'
 import { maskSecret } from '@/lib/encrypt'
 import { revalidatePath } from 'next/cache'
@@ -24,6 +25,14 @@ const MAX_LENGTH_BY_KEY: Record<string, number> = {
   'mascot.knowledgeBase': 30000,
   'mascot.replyStyle': 4000,
   'mascot.quickPrompts': 4000,
+  'mascot.panelLabel': 200,
+  'mascot.panelTitle': 200,
+  'mascot.greeting': 2000,
+  'mascot.helperText': 300,
+  'mascot.closeText': 60,
+  'mascot.sendText': 60,
+  'mascot.sendingText': 120,
+  'mascot.typingText': 300,
   'pay.cryptoTips': 4000,
   'blog.cornerContent': 4000,
   'blog.friendLinks': 4000,
@@ -36,6 +45,12 @@ const MAX_LENGTH_BY_KEY: Record<string, number> = {
   'blog.aboutContacts': 4000,
   'blog.quickLinkAboutHref': 500,
   'blog.quickLinkGuestbookHref': 500,
+  'poster.headerLabel': 80,
+  'poster.scanText': 80,
+  'poster.footerDescription': 400,
+  'poster.fontFamily': 400,
+  'analytics.ownerIpAllowlist': 4000,
+  'analytics.ownerDeviceAllowlist': 4000,
 }
 
 const REVALIDATE_KEYS = new Set([
@@ -67,6 +82,10 @@ const REVALIDATE_KEYS = new Set([
   'blog.friendLinksTitle',
   'blog.friendLinks',
   'blog.themeVariant',
+  'poster.headerLabel',
+  'poster.scanText',
+  'poster.footerDescription',
+  'poster.fontFamily',
 ])
 
 export async function GET() {
@@ -117,6 +136,9 @@ export async function PUT(req: Request) {
   }
 
   await updateSettings(cleaned)
+  if ('analytics.ownerIpAllowlist' in cleaned || 'analytics.ownerDeviceAllowlist' in cleaned) {
+    invalidateOwnerTrafficRulesCache()
+  }
   if (Object.keys(cleaned).some(key => REVALIDATE_KEYS.has(key))) {
     revalidatePath('/', 'layout')
     revalidatePath('/')

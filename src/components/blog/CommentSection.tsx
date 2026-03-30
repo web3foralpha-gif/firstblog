@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { usePathname } from 'next/navigation'
+import { getClientDeviceInfoSync } from '@/lib/client-device'
 import { formatDate } from '@/lib/utils'
 import { getSafeReferrer, getSessionId, getVisitorId } from '@/lib/visitor'
 
@@ -20,12 +21,14 @@ export default function CommentSection({ articleId, comments }: { articleId: str
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    if (status === 'loading') return
     if (!form.nickname.trim() || !form.content.trim()) {
       setMsg('请填写昵称和评论内容')
       setStatus('error')
       return
     }
     setStatus('loading')
+    setMsg('')
     try {
       const res = await fetch('/api/comments', {
         method: 'POST',
@@ -37,6 +40,7 @@ export default function CommentSection({ articleId, comments }: { articleId: str
           sessionId: getSessionId(),
           path: pathname,
           referrer: getSafeReferrer(),
+          deviceInfo: getClientDeviceInfoSync(),
         }),
       })
       const data = await res.json().catch(() => null)

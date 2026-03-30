@@ -6,19 +6,28 @@ import { useCallback, useRef, useState } from 'react'
 type UploadResult = {
   url: string
   mediaId: string
-  type: 'IMAGE' | 'VIDEO'
+  type: 'IMAGE' | 'VIDEO' | 'AUDIO'
+}
+
+export type UploadLifecycleState = {
+  status: 'uploading' | 'success' | 'error'
+  progress: number | null
+  fileName?: string
+  message?: string
+  mode?: 'server' | 'direct'
 }
 
 type UploaderProps = {
-  accept?: 'image' | 'video' | 'both'
+  accept?: 'image' | 'video' | 'audio' | 'both'
   onSuccess: (result: UploadResult) => void
   label?: string
+  onUploadStateChange?: (state: UploadLifecycleState) => void
 }
 
-function buildUploadPath(file: File, type: 'IMAGE' | 'VIDEO') {
+function buildUploadPath(file: File, type: 'IMAGE' | 'VIDEO' | 'AUDIO') {
   const ext = file.name.includes('.') ? file.name.split('.').pop()?.toLowerCase() || '' : ''
   const safeExt = ext.replace(/[^a-z0-9]/gi, '')
-  const folder = type === 'IMAGE' ? 'images' : 'videos'
+  const folder = type === 'IMAGE' ? 'images' : type === 'VIDEO' ? 'videos' : 'audios'
   const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID().replace(/-/g, '')
     : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
@@ -39,9 +48,25 @@ function inferMimeType(file: File) {
     mp4: 'video/mp4',
     webm: 'video/webm',
     mov: 'video/quicktime',
+    mp3: 'audio/mpeg',
+    m4a: 'audio/mp4',
+    aac: 'audio/aac',
+    wav: 'audio/wav',
+    ogg: 'audio/ogg',
   }
 
   return ext ? byExt[ext] || '' : ''
+}
+
+function formatFileSize(size: number) {
+  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`
+  return `${(size / (1024 * 1024)).toFixed(size >= 10 * 1024 * 1024 ? 0 : 1)} MB`
+}
+
+function getUploadTypeLabel(type: UploadResult['type']) {
+  if (type === 'VIDEO') return '视频'
+  if (type === 'AUDIO') return '音频'
+  return '图片'
 }
 
 function uploadWithXhr<T>({
@@ -104,30 +129,48 @@ function uploadWithXhr<T>({
   })
 }
 
-export default function FileUploader({ accept = 'both', onSuccess, label }: UploaderProps) {
+export default function FileUploader({ accept = 'both', onSuccess, label, onUploadStateChange }: UploaderProps) {
   const [dragging, setDragging] = useState(false)
   const [progress, setProgress] = useState<number | null>(null)
   const [error, setError] = useState('')
   const [modeLabel, setModeLabel] = useState<'server' | 'direct'>('server')
+  const [currentFileName, setCurrentFileName] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const currentFileNameRef = useRef('')
+  const uploadModeRef = useRef<'server' | 'direct'>('server')
+
+  const emitUploadState = useCallback((state: UploadLifecycleState) => {
+    onUploadStateChange?.({
+      ...state,
+      fileName: state.fileName ?? currentFileNameRef.current,
+      mode: state.mode ?? uploadModeRef.current,
+    })
+  }, [onUploadStateChange])
+
+  const updateProgress = useCallback((value: number) => {
+    setProgress(value)
+    emitUploadState({ status: 'uploading', progress: value })
+  }, [emitUploadState])
 
   const acceptAttr =
     accept === 'image' ? 'image/jpeg,image/png,image/gif,image/webp'
     : accept === 'video' ? 'video/mp4,video/webm,video/quicktime'
-    : 'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime'
+    : accept === 'audio' ? 'audio/mpeg,audio/mp3,audio/mp4,audio/x-m4a,audio/aac,audio/wav,audio/x-wav,audio/ogg,audio/webm'
+    : 'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,audio/mpeg,audio/mp3,audio/mp4,audio/x-m4a,audio/aac,audio/wav,audio/x-wav,audio/ogg,audio/webm'
 
   const uploadMultipart = useCallback(async (file: File) => {
     const formData = new FormData()
     formData.append('file', file)
     setModeLabel('server')
+    uploadModeRef.current = 'server'
 
     return uploadWithXhr<UploadResult>({
       method: 'POST',
       url: '/api/houtai/upload',
       body: formData,
-      onProgress: setProgress,
+      onProgress: updateProgress,
     })
-  }, [])
+  }, [updateProgress])
 
   const finalizeUpload = useCallback(async (input: {
     key: string
@@ -136,7 +179,7 @@ export default function FileUploader({ accept = 'both', onSuccess, label }: Uplo
     url: string
     size: number
     mimeType: string
-    type: 'IMAGE' | 'VIDEO'
+    type: 'IMAGE' | 'VIDEO' | 'AUDIO'
   }) => {
     const res = await fetch('/api/houtai/upload', {
       method: 'POST',
@@ -156,7 +199,7 @@ export default function FileUploader({ accept = 'both', onSuccess, label }: Uplo
 
   const uploadBlob = useCallback(async (file: File) => {
     const mimeType = inferMimeType(file)
-    const type = mimeType.startsWith('video/') ? 'VIDEO' : 'IMAGE'
+    const type = mimeType.startsWith('video/') ? 'VIDEO' : mimeType.startsWith('audio/') ? 'AUDIO' : 'IMAGE'
     const pathname = buildUploadPath(file, type)
     const controller = new AbortController()
     let stalled = true
@@ -167,6 +210,7 @@ export default function FileUploader({ accept = 'both', onSuccess, label }: Uplo
     }, 12000)
 
     setModeLabel('direct')
+    uploadModeRef.current = 'direct'
     try {
       const blob = await blobUpload(pathname, file, {
         access: 'public',
@@ -186,7 +230,7 @@ export default function FileUploader({ accept = 'both', onSuccess, label }: Uplo
             stalled = false
             window.clearTimeout(stallTimer)
           }
-          setProgress(Math.round(event.percentage))
+          updateProgress(Math.round(event.percentage))
         },
       })
 
@@ -205,11 +249,20 @@ export default function FileUploader({ accept = 'both', onSuccess, label }: Uplo
     } finally {
       window.clearTimeout(stallTimer)
     }
-  }, [finalizeUpload])
+  }, [finalizeUpload, updateProgress])
 
   const runUpload = useCallback(async (file: File) => {
+    const fileLabel = `${file.name} · ${formatFileSize(file.size)}`
     setError('')
     setProgress(0)
+    setCurrentFileName(fileLabel)
+    currentFileNameRef.current = fileLabel
+    emitUploadState({
+      status: 'uploading',
+      progress: 0,
+      fileName: fileLabel,
+      message: `正在上传 ${file.name}`,
+    })
 
     try {
       let result: UploadResult
@@ -228,14 +281,27 @@ export default function FileUploader({ accept = 'both', onSuccess, label }: Uplo
       }
 
       setProgress(100)
+      emitUploadState({
+        status: 'success',
+        progress: 100,
+        fileName: fileLabel,
+        message: `${getUploadTypeLabel(result.type)}上传完成`,
+      })
       setTimeout(() => setProgress(null), 800)
       onSuccess(result)
       if (inputRef.current) inputRef.current.value = ''
     } catch (err) {
-      setError(err instanceof Error ? err.message : '上传失败')
+      const message = err instanceof Error ? err.message : '上传失败'
+      setError(message)
       setProgress(null)
+      emitUploadState({
+        status: 'error',
+        progress: null,
+        fileName: fileLabel,
+        message,
+      })
     }
-  }, [onSuccess, uploadBlob, uploadMultipart])
+  }, [emitUploadState, onSuccess, uploadBlob, uploadMultipart])
 
   function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return
@@ -270,6 +336,11 @@ export default function FileUploader({ accept = 'both', onSuccess, label }: Uplo
             <p className="text-sm text-[#8c7d68]">
               上传中… {progress}% {modeLabel === 'direct' ? '· 直传存储' : '· 服务器处理中'}
             </p>
+            {currentFileName ? (
+              <p className="text-xs text-[#a89880] break-all">
+                {currentFileName}
+              </p>
+            ) : null}
             <div className="w-full bg-[#f0ebe3] rounded-full h-1.5">
               <div
                 className="bg-[#d4711a] h-1.5 rounded-full transition-all duration-200"
@@ -280,7 +351,7 @@ export default function FileUploader({ accept = 'both', onSuccess, label }: Uplo
         ) : (
           <>
             <div className="text-2xl mb-2">
-              {accept === 'video' ? '🎬' : accept === 'image' ? '🖼️' : '📁'}
+              {accept === 'video' ? '🎬' : accept === 'image' ? '🖼️' : accept === 'audio' ? '🎵' : '📁'}
             </div>
             <p className="text-sm text-[#5a4f42] font-medium">
               {label || '点击或拖拽上传'}
@@ -288,13 +359,18 @@ export default function FileUploader({ accept = 'both', onSuccess, label }: Uplo
             <p className="text-xs text-[#a89880] mt-1">
               {accept === 'image' && 'JPG、PNG、GIF、WebP，最大 10MB'}
               {accept === 'video' && 'MP4、WebM、MOV，最大 200MB'}
-              {accept === 'both' && '图片（10MB）或视频（200MB）'}
+              {accept === 'audio' && 'MP3、M4A、AAC、WAV、OGG，最大 50MB'}
+              {accept === 'both' && '图片（10MB）、视频（200MB）或音频（50MB）'}
             </p>
+            {currentFileName ? <p className="mt-1 text-[11px] text-[#c1aa8d]">最近选择：{currentFileName}</p> : null}
           </>
         )}
       </div>
 
       {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+      {progress === null && currentFileName && !error ? (
+        <p className="mt-1 text-[11px] text-[#b59f84]">文件已就绪：{currentFileName}</p>
+      ) : null}
     </div>
   )
 }

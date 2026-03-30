@@ -62,6 +62,7 @@ export default function BlogIndexPage({
                     title={post.title}
                     excerpt={post.excerpt}
                     mood={post.mood}
+                    coverImage={post.coverImage}
                     pinned={post.pinned}
                     accessType={(post.accessType || "PUBLIC") as "PUBLIC" | "PASSWORD" | "PAID"}
                     price={post.price ?? null}

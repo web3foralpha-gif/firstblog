@@ -11,11 +11,11 @@ export async function GET(req: NextRequest) {
   if (error) return error
 
   const { searchParams } = new URL(req.url)
-  const type = searchParams.get('type')  // IMAGE | VIDEO | null（全部）
+  const type = searchParams.get('type')  // IMAGE | VIDEO | AUDIO | null（全部）
   const page = Math.max(1, Number(searchParams.get('page')) || 1)
   const limit = 24
 
-  const where = type ? { type: type as 'IMAGE' | 'VIDEO' } : {}
+  const where = type ? { type: type as 'IMAGE' | 'VIDEO' | 'AUDIO' } : {}
 
   const [items, total] = await Promise.all([
     prisma.media.findMany({

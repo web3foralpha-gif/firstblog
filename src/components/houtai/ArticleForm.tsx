@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { MOODS } from '@/lib/utils'
 import RichTextEditor from './RichTextEditor'
@@ -24,11 +24,111 @@ type ArticleFormProps = {
   }
 }
 
+type AccessType = 'PUBLIC' | 'PASSWORD' | 'PAID'
+
+type ArticleDraftSnapshot = {
+  title: string
+  content: string
+  mood: string
+  coverImage: string
+  accessType: AccessType
+  password: string
+  passwordHint: string
+  price: string
+  pinned: boolean
+  published: boolean
+  savedAt: number
+}
+
+type ArticleContentMetrics = {
+  textLength: number
+  blockCount: number
+  imageCount: number
+  videoCount: number
+  audioCount: number
+}
+
+function buildDraftStorageKey(mode: ArticleFormProps['mode'], articleId?: string) {
+  return `blog-fix:article-draft:${mode}:${articleId || 'new'}`
+}
+
+function serializeDraftComparable(draft: Omit<ArticleDraftSnapshot, 'savedAt'> | ArticleDraftSnapshot) {
+  return JSON.stringify({
+    title: draft.title,
+    content: draft.content,
+    mood: draft.mood,
+    coverImage: draft.coverImage,
+    accessType: draft.accessType,
+    password: draft.password,
+    passwordHint: draft.passwordHint,
+    price: draft.price,
+    pinned: draft.pinned,
+    published: draft.published,
+  })
+}
+
+function normalizeDraft(raw: unknown): ArticleDraftSnapshot | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+
+  const source = raw as Record<string, unknown>
+  const accessType = source.accessType === 'PASSWORD' || source.accessType === 'PAID' ? source.accessType : 'PUBLIC'
+
+  return {
+    title: typeof source.title === 'string' ? source.title : '',
+    content: typeof source.content === 'string' ? source.content : '',
+    mood: typeof source.mood === 'string' ? source.mood : '😊',
+    coverImage: typeof source.coverImage === 'string' ? source.coverImage : '',
+    accessType,
+    password: typeof source.password === 'string' ? source.password : '',
+    passwordHint: typeof source.passwordHint === 'string' ? source.passwordHint : '',
+    price: typeof source.price === 'string' ? source.price : '5',
+    pinned: Boolean(source.pinned),
+    published: source.published === undefined ? true : Boolean(source.published),
+    savedAt: typeof source.savedAt === 'number' ? source.savedAt : Date.now(),
+  }
+}
+
+function analyzeArticleContentMetrics(value: string): ArticleContentMetrics {
+  const source = value || ''
+  const plainText = source
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, '')
+    .trim()
+
+  const blockCount =
+    (source.match(/<(p|h2|h3|blockquote|li)\b/gi) || []).length ||
+    (plainText ? 1 : 0)
+
+  return {
+    textLength: plainText.length,
+    blockCount,
+    imageCount: (source.match(/<img\b/gi) || []).length,
+    videoCount: (source.match(/<video\b/gi) || []).length,
+    audioCount: (source.match(/<audio\b/gi) || []).length,
+  }
+}
+
+function formatDraftTime(value: number | null) {
+  if (!value) return '暂无'
+
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value))
+}
+
 export default function ArticleForm({ mode, articleId, defaultValues }: ArticleFormProps) {
   const router = useRouter()
   const d = defaultValues
+  const initialContent = d?.content || ''
+  const formRef = useRef<HTMLFormElement>(null)
   const [title, setTitle] = useState(d?.title || '')
-  const [content, setContent] = useState(d?.content || '')
+  const [content, setContent] = useState(initialContent)
   const [mood, setMood] = useState(d?.mood || '😊')
   const [coverImage, setCoverImage] = useState(d?.coverImage || '')
   const [accessType, setAccessType] = useState<'PUBLIC' | 'PASSWORD' | 'PAID'>(d?.accessType || 'PUBLIC')
@@ -40,10 +140,263 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [error, setError] = useState('')
   const [preview, setPreview] = useState(false)
+  const [autosaveState, setAutosaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'restored'>('idle')
+  const [autosavedAt, setAutosavedAt] = useState<number | null>(null)
+  const [recoverableDraft, setRecoverableDraft] = useState<ArticleDraftSnapshot | null>(null)
+  const contentRef = useRef(initialContent)
+  const autosaveTimerRef = useRef<number | null>(null)
+  const hasMountedRef = useRef(false)
+  const initialDraftComparableRef = useRef(
+    serializeDraftComparable({
+      title: d?.title || '',
+      content: initialContent,
+      mood: d?.mood || '😊',
+      coverImage: d?.coverImage || '',
+      accessType: (d?.accessType || 'PUBLIC') as AccessType,
+      password: d?.password || '',
+      passwordHint: d?.passwordHint || '',
+      price: d?.price ? String(d.price) : '5',
+      pinned: d?.pinned ?? false,
+      published: d?.published ?? true,
+    }),
+  )
+  const draftStorageKey = useMemo(() => buildDraftStorageKey(mode, articleId), [articleId, mode])
+
+  const syncContentState = useCallback(() => {
+    setContent(current => (current === contentRef.current ? current : contentRef.current))
+  }, [])
+
+  const clearAutosaveTimer = useCallback(() => {
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current)
+      autosaveTimerRef.current = null
+    }
+  }, [])
+
+  const buildCurrentDraft = useCallback(
+    (savedAt = Date.now()): ArticleDraftSnapshot => ({
+      title,
+      content: contentRef.current,
+      mood,
+      coverImage,
+      accessType,
+      password,
+      passwordHint,
+      price,
+      pinned,
+      published,
+      savedAt,
+    }),
+    [accessType, coverImage, mood, password, passwordHint, pinned, price, published, title],
+  )
+
+  const clearDraftStorage = useCallback(() => {
+    if (typeof window === 'undefined') return
+    clearAutosaveTimer()
+    window.localStorage.removeItem(draftStorageKey)
+    setAutosaveState('idle')
+    setAutosavedAt(null)
+    setRecoverableDraft(null)
+  }, [clearAutosaveTimer, draftStorageKey])
+
+  const persistDraftToLocal = useCallback(() => {
+    if (typeof window === 'undefined') return
+
+    const nextDraft = buildCurrentDraft()
+    const comparable = serializeDraftComparable(nextDraft)
+
+    if (comparable === initialDraftComparableRef.current) {
+      clearDraftStorage()
+      return
+    }
+
+    setAutosaveState('saving')
+    window.localStorage.setItem(draftStorageKey, JSON.stringify(nextDraft))
+    setAutosavedAt(nextDraft.savedAt)
+    setAutosaveState('saved')
+  }, [buildCurrentDraft, clearDraftStorage, draftStorageKey])
+
+  const scheduleAutosave = useCallback(() => {
+    if (typeof window === 'undefined' || !hasMountedRef.current) return
+
+    clearAutosaveTimer()
+    setAutosaveState(current => (current === 'dirty' || current === 'saving' ? current : 'dirty'))
+    autosaveTimerRef.current = window.setTimeout(() => {
+      persistDraftToLocal()
+    }, 1200)
+  }, [clearAutosaveTimer, persistDraftToLocal])
+
+  const handleContentChange = useCallback(
+    (nextValue: string) => {
+      contentRef.current = nextValue
+      scheduleAutosave()
+    },
+    [scheduleAutosave],
+  )
+
+  function applyDraft(snapshot: ArticleDraftSnapshot) {
+    setTitle(snapshot.title)
+    setContent(snapshot.content)
+    contentRef.current = snapshot.content
+    setMood(snapshot.mood)
+    setCoverImage(snapshot.coverImage)
+    setAccessType(snapshot.accessType)
+    setPassword(snapshot.password)
+    setPasswordHint(snapshot.passwordHint)
+    setPrice(snapshot.price)
+    setPinned(snapshot.pinned)
+    setPublished(snapshot.published)
+    setAutosavedAt(snapshot.savedAt)
+    setAutosaveState('restored')
+    setRecoverableDraft(null)
+  }
+
+  const hasUnsavedChanges = useCallback(() => {
+    if (status === 'loading') return true
+
+    const comparable = serializeDraftComparable(buildCurrentDraft(autosavedAt ?? Date.now()))
+    return comparable !== initialDraftComparableRef.current
+  }, [autosavedAt, buildCurrentDraft, status])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    try {
+      const raw = window.localStorage.getItem(draftStorageKey)
+      if (raw) {
+        const parsed = normalizeDraft(JSON.parse(raw))
+        if (parsed) {
+          const comparable = serializeDraftComparable(parsed)
+          if (comparable !== initialDraftComparableRef.current) {
+            setRecoverableDraft(parsed)
+            setAutosavedAt(parsed.savedAt)
+          } else {
+            window.localStorage.removeItem(draftStorageKey)
+          }
+        } else {
+          window.localStorage.removeItem(draftStorageKey)
+        }
+      }
+    } catch {
+      window.localStorage.removeItem(draftStorageKey)
+    } finally {
+      hasMountedRef.current = true
+    }
+
+    return () => {
+      clearAutosaveTimer()
+    }
+  }, [clearAutosaveTimer, draftStorageKey])
+
+  useEffect(() => {
+    if (!hasMountedRef.current) return
+    scheduleAutosave()
+  }, [accessType, coverImage, mood, password, passwordHint, pinned, price, published, scheduleAutosave, title])
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasUnsavedChanges()) return
+
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasUnsavedChanges])
+
+  useEffect(() => {
+    const handleDocumentNavigation = (event: MouseEvent) => {
+      if (!hasUnsavedChanges()) return
+      if (event.defaultPrevented || event.button !== 0) return
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+
+      const target = event.target
+      if (!(target instanceof Element)) return
+
+      const anchor = target.closest('a[href]') as HTMLAnchorElement | null
+      if (!anchor) return
+      if (anchor.hasAttribute('download')) return
+
+      const href = anchor.getAttribute('href')
+      const targetAttr = anchor.getAttribute('target')
+      if (!href || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:') || href.startsWith('tel:')) {
+        return
+      }
+      if (targetAttr && targetAttr !== '_self') return
+
+      const currentUrl = new URL(window.location.href)
+      const nextUrl = new URL(anchor.href, currentUrl)
+      if (nextUrl.origin !== currentUrl.origin) return
+      if (
+        nextUrl.pathname === currentUrl.pathname &&
+        nextUrl.search === currentUrl.search &&
+        nextUrl.hash === currentUrl.hash
+      ) {
+        return
+      }
+
+      if (!window.confirm('当前改动还没有正式保存到后台，确定离开当前编辑页吗？')) {
+        event.preventDefault()
+        event.stopPropagation()
+      }
+    }
+
+    document.addEventListener('click', handleDocumentNavigation, true)
+    return () => document.removeEventListener('click', handleDocumentNavigation, true)
+  }, [hasUnsavedChanges])
+
+  useEffect(() => {
+    const handleKeydown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 's') return
+      if (status === 'loading') return
+
+      event.preventDefault()
+      formRef.current?.requestSubmit()
+    }
+
+    window.addEventListener('keydown', handleKeydown)
+    return () => window.removeEventListener('keydown', handleKeydown)
+  }, [status])
+
+  const autosaveLabel = useMemo(() => {
+    if (status === 'loading') return '正在保存到后台…'
+    if (recoverableDraft) return '检测到上次未完成的本地草稿'
+    if (autosaveState === 'saving') return '正在自动暂存到当前浏览器…'
+    if (autosaveState === 'dirty') return '检测到改动，稍后自动暂存'
+    if ((autosaveState === 'saved' || autosaveState === 'restored') && autosavedAt) {
+      const time = new Intl.DateTimeFormat('zh-CN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).format(new Date(autosavedAt))
+      return `${autosaveState === 'restored' ? '已恢复' : '已自动暂存'} · ${time}`
+    }
+    return '自动暂存仅保存在当前浏览器，正式发布前仍建议手动保存'
+  }, [autosaveState, autosavedAt, recoverableDraft, status])
+  const currentContentValue = contentRef.current || content
+  const contentMetrics = analyzeArticleContentMetrics(currentContentValue)
+  const unsavedChanges = hasUnsavedChanges()
+  const accessSummary =
+    accessType === 'PASSWORD'
+      ? '加密访问'
+      : accessType === 'PAID'
+        ? `付费阅读 · ¥${price || '5'}`
+        : '公开可见'
+
+  function handleCancel() {
+    if (hasUnsavedChanges() && !window.confirm('当前改动还没有正式保存到后台，确定现在离开吗？')) {
+      return
+    }
+
+    router.back()
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!title.trim() || !hasMeaningfulArticleContent(content)) {
+    const currentContent = contentRef.current
+
+    if (!title.trim() || !hasMeaningfulArticleContent(currentContent)) {
       setError('标题和内容不能为空')
       setStatus('error')
       return
@@ -64,7 +417,7 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
 
     const body: Record<string, unknown> = {
       title: title.trim(),
-      content: content.trim(),
+      content: currentContent.trim(),
       mood,
       coverImage: coverImage || null,
       accessType,
@@ -104,6 +457,7 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
         return
       }
 
+      clearDraftStorage()
       router.push('/houtai/articles')
       router.refresh()
     } catch (err) {
@@ -116,7 +470,35 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
   }
 
   return (
-    <form onSubmit={submit} className="space-y-6 max-w-3xl">
+    <form ref={formRef} onSubmit={submit} className="mx-auto max-w-7xl space-y-6">
+      {recoverableDraft ? (
+        <div className="rounded-2xl border border-[#f2d1a7] bg-[#fff8ef] px-4 py-3 text-sm text-[#7b5b35]">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-medium">检测到一份未完成的本地草稿</p>
+              <p className="mt-1 text-xs text-[#9a7750]">
+                最近暂存时间：
+                {new Date(recoverableDraft.savedAt).toLocaleString('zh-CN', {
+                  month: '2-digit',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+                。你可以恢复继续编辑，或忽略它并从当前版本开始。
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => applyDraft(recoverableDraft)} className="btn-primary">
+                恢复草稿
+              </button>
+              <button type="button" onClick={clearDraftStorage} className="btn-secondary">
+                忽略草稿
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div>
         <label className="text-xs text-[#8c7d68] mb-1 block">文章标题 *</label>
         <input
@@ -222,24 +604,38 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
       </div>
 
       <div>
-        {!preview && <RichTextEditor value={content} onChange={setContent} />}
+        {!preview && <RichTextEditor value={content} onChange={handleContentChange} />}
 
         {preview ? (
           <div className="border border-[#ddd5c8] rounded-2xl p-6 min-h-[400px] bg-white">
             <div className="mb-4 rounded-xl bg-[#faf8f5] px-4 py-2 text-xs text-[#8c7d68]">
-              预览模式下不显示工具栏，切回编辑后可继续使用字体、字号、加粗、颜色、格式刷、自动排版以及图片视频插入。
+              预览模式下不显示工具栏，切回编辑后可继续使用公众号风格的排版、模板、首行缩进、段落间距以及图片视频音频插入。
             </div>
+            {coverImage && (
+              <div className="mb-6 overflow-hidden rounded-3xl border border-[#eadfce] bg-[#faf8f5]">
+                <img src={coverImage} alt={title || '文章封面'} className="block aspect-[16/9] w-full object-cover" />
+              </div>
+            )}
             <RichMarkdown content={content || '在这里预览你的文章效果…'} />
           </div>
         ) : (
           <div className="rounded-xl bg-[#faf8f5] px-4 py-2 text-xs text-[#8c7d68]">
-            正在使用富文本编辑器。旧文章会自动转成可编辑排版，新发布文章将按 HTML 富文本保存。
+            正在使用新版富文本编辑器。旧文章会自动转成可编辑排版，新发布文章将按 HTML 富文本保存。
           </div>
         )}
 
         <div className="flex items-center justify-between mt-1">
-          <p className="text-xs text-[#c4b8a7]">支持标题、加粗、斜体、颜色、格式刷、自动排版、图片和视频插入</p>
-          <button type="button" onClick={() => setPreview(current => !current)} className="text-xs text-[#d4711a] hover:underline">
+          <p className="text-xs text-[#c4b8a7]">支持标题、颜色高亮、首行缩进、段前段后、格式刷、模板、图片/视频/音频插入</p>
+          <button
+            type="button"
+            onClick={() => {
+              if (!preview) {
+                syncContentState()
+              }
+              setPreview(current => !current)
+            }}
+            className="text-xs text-[#d4711a] hover:underline"
+          >
             {preview ? '继续编辑' : '预览效果'}
           </button>
         </div>
@@ -281,11 +677,61 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 
-      <div className="flex gap-3 pt-2">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-[#eadfce] bg-white px-4 py-4">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-[#b1997f]">正文长度</p>
+          <p className="mt-2 text-2xl font-semibold text-[#3d3530]">{contentMetrics.textLength}</p>
+          <p className="mt-1 text-xs text-[#8c7d68]">约 {contentMetrics.blockCount} 个内容段落</p>
+        </div>
+        <div className="rounded-2xl border border-[#eadfce] bg-white px-4 py-4">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-[#b1997f]">媒体内容</p>
+          <p className="mt-2 text-2xl font-semibold text-[#3d3530]">
+            {contentMetrics.imageCount + contentMetrics.videoCount + contentMetrics.audioCount}
+          </p>
+          <p className="mt-1 text-xs text-[#8c7d68]">
+            图 {contentMetrics.imageCount} / 视 {contentMetrics.videoCount} / 音 {contentMetrics.audioCount}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-[#eadfce] bg-white px-4 py-4">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-[#b1997f]">发布状态</p>
+          <p className="mt-2 text-lg font-semibold text-[#3d3530]">{published ? '准备发布' : '后台草稿'}</p>
+          <p className="mt-1 text-xs text-[#8c7d68]">{accessSummary}</p>
+        </div>
+        <div className="rounded-2xl border border-[#eadfce] bg-white px-4 py-4">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-[#b1997f]">本地暂存</p>
+          <p className="mt-2 text-lg font-semibold text-[#3d3530]">{recoverableDraft ? '待恢复草稿' : formatDraftTime(autosavedAt)}</p>
+          <p className="mt-1 text-xs text-[#8c7d68]">
+            {coverImage ? '已设置封面图' : '未设置封面图'} · {unsavedChanges ? '仍有未保存改动' : '当前内容已对齐'}
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-[#eadfce] bg-[#faf8f5] px-4 py-3 text-xs text-[#8c7d68]">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-1">
+            <span className="block">{autosaveLabel}</span>
+            <span className="block text-[#b1997f]">离开当前页、切换后台菜单或刷新浏览器前，都会优先提醒你确认未保存改动。</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {(recoverableDraft || autosavedAt) ? (
+              <button
+                type="button"
+                onClick={clearDraftStorage}
+                className="rounded-full border border-[#decfb8] bg-white px-3 py-1.5 text-[11px] text-[#8c7d68] transition hover:border-[#d4711a] hover:text-[#d4711a]"
+              >
+                清空当前浏览器草稿
+              </button>
+            ) : null}
+            <span className="text-[#b1997f]">快捷键：Ctrl/Cmd + S 立即保存</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-3 pt-2">
         <button type="submit" className="btn-primary" disabled={status === 'loading'}>
           {status === 'loading' ? '保存中…' : mode === 'new' ? '发布文章' : '保存修改'}
         </button>
-        <button type="button" className="btn-secondary" onClick={() => router.back()}>
+        <button type="button" className="btn-secondary" onClick={handleCancel}>
           取消
         </button>
       </div>

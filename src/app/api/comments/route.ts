@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { inspectAnalyticsTraffic } from '@/lib/analytics-traffic'
 import { recordArticleCommentSubmission } from '@/lib/article-engagement'
 import { getGeoInfo } from '@/lib/geo'
 import { prisma } from '@/lib/prisma'
 
-function getClientIP(req: NextRequest): string {
-  const forwarded = req.headers.get('x-forwarded-for')
-  if (forwarded) return forwarded.split(',')[0].trim()
-  return req.headers.get('x-real-ip') || '127.0.0.1'
-}
-
 export async function POST(req: NextRequest) {
-  const { articleId, nickname, email, content, visitorId, sessionId, path, referrer } = await req.json()
+  const { articleId, nickname, email, content, visitorId, sessionId, path, referrer, deviceInfo } = await req.json()
   const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : ''
 
   if (!articleId || !nickname?.trim() || !content?.trim()) {
@@ -31,9 +26,10 @@ export async function POST(req: NextRequest) {
   })
   if (!article) return NextResponse.json({ error: '文章不存在' }, { status: 404 })
 
-  const ipAddress = getClientIP(req)
+  const traffic = await inspectAnalyticsTraffic(req, { deviceInfo })
+  const ipAddress = traffic.ipAddress || '127.0.0.1'
   const geo = await getGeoInfo(ipAddress)
-  const userAgent = (req.headers.get('user-agent') || '').slice(0, 200)
+  const userAgent = traffic.userAgent.slice(0, 200)
 
   const comment = await prisma.comment.create({
     data: {
@@ -52,7 +48,7 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  if (typeof visitorId === 'string' && visitorId) {
+  if (!traffic.skipped && typeof visitorId === 'string' && visitorId) {
     await recordArticleCommentSubmission(req, {
       articleId,
       visitorId,

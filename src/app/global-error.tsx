@@ -1,4 +1,5 @@
-'use client'
+"use client";
+
 export default function GlobalError({ error, reset }: { error: Error; reset: () => void }) {
   return (
     <html><body style={{ margin:0, minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'sans-serif', background:'#faf8f5' }}>

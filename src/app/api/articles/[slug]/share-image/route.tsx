@@ -1,23 +1,45 @@
 import QRCode from 'qrcode'
 import { ImageResponse } from 'next/og'
 import { getPostBySlug } from '@/lib/posts'
-import { prisma, runWithDatabase } from '@/lib/db'
-import { getSetting } from '@/lib/settings'
+import { runWithDatabase } from '@/lib/db'
+import { getAllSettings } from '@/lib/settings'
+import { resolveSharedFontStack } from '@/lib/shared-fonts'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 const POSTER_WIDTH = 1080
-const POSTER_MIN_HEIGHT = 1920
-const POSTER_MAX_HEIGHT = 2400
-const SIDE_PADDING = 58
-const CONTENT_WIDTH = POSTER_WIDTH - SIDE_PADDING * 2
-const BODY_FONT_SIZE = 52
-const BODY_LINE_HEIGHT = 84
-const TITLE_FONT_SIZE = 80
-const TITLE_LINE_HEIGHT = 108
-const FOOTER_RESERVED_HEIGHT = 420
+const POSTER_MIN_HEIGHT = 1380
+const POSTER_MAX_HEIGHT = 2160
+const FRAME_INSET = 38
+const FRAME_PADDING_X = 52
+const FRAME_PADDING_TOP = 52
+const FRAME_PADDING_BOTTOM = 42
+const CONTENT_WIDTH = POSTER_WIDTH - (FRAME_INSET + FRAME_PADDING_X) * 2
+const HEADER_ROW_HEIGHT = 220
+const HEADER_GAP = 30
+const TITLE_FONT_SIZE = 76
+const TITLE_LINE_HEIGHT = 98
+const TITLE_SECTION_TOP_PADDING = 30
+const TITLE_SECTION_BOTTOM_PADDING = 28
+const DATE_TOP_MARGIN = 24
+const DATE_HEIGHT = 36
+const BODY_TOP_MARGIN = 34
+const BODY_FONT_SIZE = 34
+const BODY_LINE_HEIGHT = 62
+const BODY_PARAGRAPH_GAP = 20
+const BODY_MAX_UNITS = 18.2
+const BODY_FALLBACK_LINES = 5
+const BODY_MAX_PARAGRAPHS = 5
+const BODY_PREVIEW_RATIO = 0.25
+const BODY_PREVIEW_MIN_LINES = 5
+const BODY_PREVIEW_MAX_LINES = 9
+const FOOTER_TOP_MARGIN = 28
+const FOOTER_RESERVED_HEIGHT = 268
+const QR_SIZE = 220
+const MASCOT_CARD_SIZE = 220
+const MASCOT_SIZE = 156
 
 type RouteContext = {
   params: Promise<{ slug: string }>
@@ -65,7 +87,7 @@ function stripMarkdown(content: string) {
     .replace(/```[\s\S]*?```/g, '\n')
     .replace(/`([^`]+)`/g, '$1')
     .replace(/!\[[^\]]*]\([^)]+\)/g, ' ')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/\[([^\]]+)]\([^)]+\)/g, '$1')
     .replace(/^>\s?/gm, '')
     .replace(/^#{1,6}\s+/gm, '')
     .replace(/^\s*[-*+]\s+/gm, '• ')
@@ -114,6 +136,11 @@ function estimateLineCount(text: string, maxUnits: number) {
   return Math.max(1, Math.ceil(charUnits(text) / maxUnits))
 }
 
+function appendPosterEllipsis(text: string) {
+  const cleaned = text.trim().replace(/[，。、“”‘’；：！？,.!?;:…]+$/g, '')
+  return cleaned ? `${cleaned}……` : '打开原文，继续阅读完整内容。'
+}
+
 function trimParagraphToUnits(text: string, maxUnits: number) {
   if (charUnits(text) <= maxUnits) return text
 
@@ -127,17 +154,38 @@ function trimParagraphToUnits(text: string, maxUnits: number) {
     currentUnits = nextUnits
   }
 
-  return `${result.trim()}……`
+  return appendPosterEllipsis(result)
 }
 
-function fitParagraphsToHeight(paragraphs: string[], maxHeight: number) {
+function fitParagraphsToHeight(
+  paragraphs: string[],
+  maxHeight: number,
+  options: {
+    maxUnitsPerLine: number
+    lineHeight: number
+    paragraphGap: number
+    fallbackLines?: number
+    maxParagraphs?: number
+  },
+) {
+  const {
+    maxUnitsPerLine,
+    lineHeight,
+    paragraphGap,
+    fallbackLines = BODY_FALLBACK_LINES,
+    maxParagraphs,
+  } = options
+
+  const source = typeof maxParagraphs === 'number' ? paragraphs.slice(0, maxParagraphs) : paragraphs
+  const hiddenByLimit = source.length < paragraphs.length
   const fitted: string[] = []
   let usedHeight = 0
+  let truncated = false
 
-  for (const paragraph of paragraphs) {
-    const lineCount = estimateLineCount(paragraph, 18)
-    const gap = fitted.length > 0 ? 28 : 0
-    const paragraphHeight = lineCount * BODY_LINE_HEIGHT + gap
+  for (const paragraph of source) {
+    const lineCount = estimateLineCount(paragraph, maxUnitsPerLine)
+    const gap = fitted.length > 0 ? paragraphGap : 0
+    const paragraphHeight = lineCount * lineHeight + gap
 
     if (usedHeight + paragraphHeight <= maxHeight) {
       fitted.push(paragraph)
@@ -146,27 +194,81 @@ function fitParagraphsToHeight(paragraphs: string[], maxHeight: number) {
     }
 
     const remainingHeight = maxHeight - usedHeight - gap
-    const remainingLines = Math.floor(remainingHeight / BODY_LINE_HEIGHT)
+    const remainingLines = Math.floor(remainingHeight / lineHeight)
 
     if (remainingLines > 0) {
-      fitted.push(trimParagraphToUnits(paragraph, remainingLines * 18))
+      fitted.push(trimParagraphToUnits(paragraph, remainingLines * maxUnitsPerLine))
     }
 
+    truncated = true
     break
   }
 
-  return fitted.length > 0 ? fitted : [trimParagraphToUnits(paragraphs[0] || '打开原文，继续阅读完整内容。', 18 * 6)]
+  if (fitted.length === 0) {
+    return [trimParagraphToUnits(source[0] || '打开原文，继续阅读完整内容。', maxUnitsPerLine * fallbackLines)]
+  }
+
+  if (truncated || hiddenByLimit) {
+    fitted[fitted.length - 1] = appendPosterEllipsis(fitted[fitted.length - 1])
+  }
+
+  return fitted
 }
 
-function formatDateLabel(input: string) {
+function extractPosterBodyFontFamily(content: string) {
+  const styleMatcher = /style=(['"])(.*?)\1/gi
+  let styleMatch: RegExpExecArray | null
+
+  while ((styleMatch = styleMatcher.exec(content)) !== null) {
+    const declarations = styleMatch[2] || ''
+    const fontMatch = declarations.match(/font-family\s*:\s*([^;]+)/i)
+    const fontFamily = fontMatch?.[1]?.trim()
+    if (fontFamily) return fontFamily
+  }
+
+  const classMap: Record<string, string> = {
+    'ql-font-serif': "'Noto Serif SC', Georgia, serif",
+    'ql-font-sans': "'Noto Sans SC', system-ui, sans-serif",
+    'ql-font-song': "'Songti SC', 'STSong', 'SimSun', serif",
+    'ql-font-hei': "'PingFang SC', 'Microsoft YaHei', sans-serif",
+    'ql-font-mono': "'JetBrains Mono', 'Fira Code', monospace",
+  }
+
+  const classMatcher = /class=(['"])(.*?)\1/gi
+  let classMatch: RegExpExecArray | null
+
+  while ((classMatch = classMatcher.exec(content)) !== null) {
+    const classNames = (classMatch[2] || '').split(/\s+/)
+    for (const className of classNames) {
+      if (classMap[className]) return classMap[className]
+    }
+  }
+
+  return ''
+}
+
+function formatPosterDate(input: string) {
   const date = new Date(input)
-  if (Number.isNaN(date.getTime())) return ''
+  if (Number.isNaN(date.getTime())) {
+    return {
+      weekday: '',
+      fullDate: '',
+    }
+  }
 
   const weekday = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][date.getDay()]
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
-  return `${weekday}  ${year}-${month}-${day}`
+
+  return {
+    weekday,
+    fullDate: `${year}-${month}-${day}`,
+  }
+}
+
+function resolvePosterMascotUrl(origin: string) {
+  return `${origin}/pets/pikachu-shimeji/shime44.png`
 }
 
 async function getShareArticleData(slug: string): Promise<ShareArticleData | null> {
@@ -212,45 +314,97 @@ async function getShareArticleData(slug: string): Promise<ShareArticleData | nul
 
 export async function GET(req: Request, { params }: RouteContext) {
   const { slug } = await params
-  const [siteTitleRaw, article] = await Promise.all([
-    getSetting('site.title'),
-    getShareArticleData(slug),
-  ])
+  const [allSettings, article] = await Promise.all([getAllSettings(), getShareArticleData(slug)])
 
   if (!article) {
     return new Response('Article not found', { status: 404 })
   }
 
-  const siteTitle = siteTitleRaw.trim() || '我的小站'
+  const siteTitle = (allSettings['site.title'] || '').trim() || '我的小站'
+  const posterHeaderSetting = (allSettings['poster.headerLabel'] || '').trim()
+  const posterHeaderText = trimParagraphToUnits(
+    posterHeaderSetting && posterHeaderSetting.toLowerCase() !== 'article poster'
+      ? posterHeaderSetting
+      : '文章分享海报',
+    18,
+  )
+  const posterScanText = trimParagraphToUnits(
+    (allSettings['poster.scanText'] || '').trim() || '扫码查看原文',
+    12,
+  )
+  const posterFooterDescription = trimParagraphToUnits(
+    (allSettings['poster.footerDescription'] || '').trim() || '把想说的话，好好留在这里。',
+    40,
+  )
+  const posterFontFamily = resolveSharedFontStack(allSettings['poster.fontFamily'])
+  const articleBodyFontFamily = extractPosterBodyFontFamily(article.content) || posterFontFamily
   const origin = resolveOrigin(req)
   const articleUrl = `${origin}${article.articlePath}`
-  const publishedLabel = formatDateLabel(article.publishedAt)
+  const siteDomain = new URL(articleUrl).host.replace(/^www\./, '')
+  const published = formatPosterDate(article.publishedAt)
   const paragraphs = splitParagraphs(article.content)
   const rawParagraphs = paragraphs.length > 0 ? paragraphs : [article.excerpt || '打开原文，继续阅读完整内容。']
+  const mascotUrl = resolvePosterMascotUrl(origin)
 
-  const titleLines = estimateLineCount(article.title, 12)
+  const titleLines = estimateLineCount(article.title, 11.6)
   const titleBlockHeight = titleLines * TITLE_LINE_HEIGHT
-  const coverBlockHeight = article.coverImage ? 360 : 0
-  const maxContentHeight =
-    POSTER_MAX_HEIGHT - 360 - titleBlockHeight - 120 - coverBlockHeight - FOOTER_RESERVED_HEIGHT
-  const contentParagraphs = fitParagraphsToHeight(rawParagraphs, Math.max(maxContentHeight, BODY_LINE_HEIGHT * 6))
-  const contentLineCount = contentParagraphs.reduce((total, paragraph) => total + estimateLineCount(paragraph, 18), 0)
-  const paragraphGap = Math.max(0, contentParagraphs.length - 1) * 28
-  const contentBlockHeight = contentLineCount * BODY_LINE_HEIGHT + paragraphGap
+  const fixedHeight =
+    FRAME_INSET * 2 +
+    FRAME_PADDING_TOP +
+    FRAME_PADDING_BOTTOM +
+    HEADER_ROW_HEIGHT +
+    HEADER_GAP +
+    TITLE_SECTION_TOP_PADDING +
+    titleBlockHeight +
+    DATE_TOP_MARGIN +
+    DATE_HEIGHT +
+    TITLE_SECTION_BOTTOM_PADDING +
+    BODY_TOP_MARGIN +
+    FOOTER_TOP_MARGIN +
+    FOOTER_RESERVED_HEIGHT
+  const maxContentHeight = POSTER_MAX_HEIGHT - fixedHeight
+  const rawLineEstimate = rawParagraphs.reduce(
+    (total, paragraph) => total + estimateLineCount(paragraph, BODY_MAX_UNITS),
+    0,
+  )
+  const previewTargetLines = Math.max(
+    BODY_PREVIEW_MIN_LINES,
+    Math.min(BODY_PREVIEW_MAX_LINES, Math.ceil(rawLineEstimate * BODY_PREVIEW_RATIO)),
+  )
+  const previewGapAllowance =
+    Math.max(0, Math.min(rawParagraphs.length - 1, BODY_MAX_PARAGRAPHS - 1, 2)) * BODY_PARAGRAPH_GAP
+  const previewMaxHeight = previewTargetLines * BODY_LINE_HEIGHT + previewGapAllowance
+  const contentParagraphs = fitParagraphsToHeight(
+    rawParagraphs,
+    Math.max(
+      Math.min(maxContentHeight, previewMaxHeight),
+      BODY_LINE_HEIGHT * BODY_FALLBACK_LINES,
+    ),
+    {
+      maxUnitsPerLine: BODY_MAX_UNITS,
+      lineHeight: BODY_LINE_HEIGHT,
+      paragraphGap: BODY_PARAGRAPH_GAP,
+      fallbackLines: BODY_FALLBACK_LINES,
+      maxParagraphs: BODY_MAX_PARAGRAPHS,
+    },
+  )
+  const contentLineCount = contentParagraphs.reduce(
+    (total, paragraph) => total + estimateLineCount(paragraph, BODY_MAX_UNITS),
+    0,
+  )
+  const contentGapHeight = Math.max(0, contentParagraphs.length - 1) * BODY_PARAGRAPH_GAP
+  const contentBlockHeight = contentLineCount * BODY_LINE_HEIGHT + contentGapHeight
   const posterHeight = Math.min(
     POSTER_MAX_HEIGHT,
-    Math.max(
-      POSTER_MIN_HEIGHT,
-      360 + titleBlockHeight + 120 + coverBlockHeight + contentBlockHeight + FOOTER_RESERVED_HEIGHT,
-    ),
+    Math.max(POSTER_MIN_HEIGHT, fixedHeight + contentBlockHeight),
   )
 
   const qrDataUrl = await QRCode.toDataURL(articleUrl, {
     margin: 1,
-    width: 240,
-    errorCorrectionLevel: 'M',
+    width: QR_SIZE,
+    errorCorrectionLevel: 'H',
     color: {
-      dark: '#111111',
+      dark: '#221812',
       light: '#ffffff',
     },
   })
@@ -262,174 +416,218 @@ export async function GET(req: Request, { params }: RouteContext) {
           width: `${POSTER_WIDTH}px`,
           height: `${posterHeight}px`,
           display: 'flex',
-          flexDirection: 'column',
-          backgroundColor: '#f6f1e9',
-          color: '#111111',
-          fontFamily: '"PingFang SC", "Noto Sans SC", sans-serif',
           position: 'relative',
+          background: 'linear-gradient(180deg, #eee0ce 0%, #e5d3bc 100%)',
+          color: '#1f140d',
+          fontFamily: posterFontFamily,
+          overflow: 'hidden',
         }}
       >
         <div
           style={{
             position: 'absolute',
-            inset: 0,
+            inset: `${FRAME_INSET}px`,
             display: 'flex',
-            flexDirection: 'column',
-            background: 'linear-gradient(180deg, #060606 0px, #111111 240px, #f8f8f8 420px, #ffffff 100%)',
+            border: '3px solid #694f3d',
+            borderRadius: 32,
+            background: 'linear-gradient(180deg, #fbf7f0 0%, #f4e8d7 100%)',
           }}
         />
 
         <div
           style={{
-            position: 'absolute',
-            top: -22,
-            left: 24,
-            display: 'flex',
-            fontSize: 136,
-            letterSpacing: 6,
-            fontWeight: 700,
-            color: 'rgba(255,255,255,0.09)',
-          }}
-        >
-          BLOG POSTER
-        </div>
-
-        <div
-          style={{
             display: 'flex',
             flexDirection: 'column',
-            padding: `${SIDE_PADDING}px`,
-            paddingTop: '86px',
             width: '100%',
             height: '100%',
             position: 'relative',
+            zIndex: 1,
+            padding: `${FRAME_INSET + FRAME_PADDING_TOP}px ${FRAME_INSET + FRAME_PADDING_X}px ${FRAME_INSET + FRAME_PADDING_BOTTOM}px`,
           }}
         >
           <div
             style={{
               display: 'flex',
               flexDirection: 'column',
-              width: '100%',
-              color: '#ffffff',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 14,
-                fontSize: 22,
-                letterSpacing: 3,
-                textTransform: 'uppercase',
-                color: 'rgba(255,255,255,0.72)',
-              }}
-            >
-              <div style={{ display: 'flex' }}>Article Poster</div>
-              <div style={{ display: 'flex', width: 80, height: 1, backgroundColor: 'rgba(255,255,255,0.32)' }} />
-              <div style={{ display: 'flex' }}>{siteTitle}</div>
-            </div>
-
-            <div
-              style={{
-                display: 'flex',
-                marginTop: 34,
-                fontSize: 36,
-                fontWeight: 700,
-                color: '#ffffff',
-              }}
-            >
-              {siteTitle}
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              marginTop: 84,
-              width: '100%',
-              borderRadius: 42,
-              backgroundColor: '#ffffff',
-              padding: '56px 56px 48px',
-              boxShadow: '0 36px 80px rgba(15, 23, 42, 0.14)',
-              minHeight: `${posterHeight - 250}px`,
+              width: `${CONTENT_WIDTH}px`,
+              height: '100%',
             }}
           >
             <div
               style={{
                 display: 'flex',
                 width: '100%',
-                fontSize: `${TITLE_FONT_SIZE}px`,
-                lineHeight: `${TITLE_LINE_HEIGHT}px`,
-                fontWeight: 700,
-                letterSpacing: 1,
-                color: '#101010',
+                height: `${HEADER_ROW_HEIGHT}px`,
+                justifyContent: 'space-between',
+                alignItems: 'stretch',
               }}
             >
-              {article.title}
-            </div>
-
-            {publishedLabel ? (
               <div
                 style={{
                   display: 'flex',
-                  alignItems: 'center',
-                  gap: 14,
-                  marginTop: 38,
-                  fontSize: 28,
-                  color: '#7a7a7a',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  width: 640,
+                  paddingTop: 8,
                 }}
               >
                 <div
                   style={{
                     display: 'flex',
-                    width: 28,
-                    height: 28,
-                    borderRadius: 999,
-                    border: '2px solid #b7b7b7',
+                    alignSelf: 'flex-start',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 16,
-                    color: '#9a9a9a',
+                    padding: '16px 24px',
+                    border: '2px solid #725947',
+                    borderRadius: 999,
+                    backgroundColor: '#fff8f0',
+                    maxWidth: 480,
                   }}
                 >
-                  •
+                  <div
+                    style={{
+                      display: 'flex',
+                      fontSize: 22,
+                      letterSpacing: 2.6,
+                      color: '#7d6552',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {posterHeaderText}
+                  </div>
                 </div>
-                <div style={{ display: 'flex' }}>{publishedLabel}</div>
-              </div>
-            ) : null}
 
-            {article.coverImage ? (
-              <div
-                style={{
-                  display: 'flex',
-                  width: '100%',
-                  marginTop: 36,
-                  borderRadius: 28,
-                  overflow: 'hidden',
-                  backgroundColor: '#f5f5f5',
-                }}
-              >
-                <img
-                  src={article.coverImage}
-                  alt={article.title}
+                <div
                   style={{
-                    width: `${CONTENT_WIDTH}px`,
-                    height: '360px',
-                    objectFit: 'cover',
+                    display: 'flex',
+                    flexDirection: 'column',
                   }}
-                />
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      fontSize: 58,
+                      lineHeight: '64px',
+                      fontWeight: 700,
+                      color: '#25170f',
+                    }}
+                  >
+                    {siteTitle}
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      marginTop: 12,
+                      fontSize: 24,
+                      color: '#7d6856',
+                      letterSpacing: 0.2,
+                    }}
+                  >
+                    {siteDomain}
+                  </div>
+                </div>
               </div>
-            ) : null}
+
+              {mascotUrl ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    width: `${MASCOT_CARD_SIZE}px`,
+                    height: `${MASCOT_CARD_SIZE}px`,
+                    padding: '18px 14px 14px',
+                    border: '2px solid #725947',
+                    borderRadius: 26,
+                    background: 'linear-gradient(180deg, #f0dfcc 0%, #fff5ea 100%)',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      fontSize: 22,
+                      fontWeight: 700,
+                      color: '#5e4939',
+                    }}
+                  >
+                    纸杯吖
+                  </div>
+                  <img
+                    src={mascotUrl}
+                    alt="网站宠物"
+                    style={{
+                      width: `${MASCOT_SIZE}px`,
+                      height: `${MASCOT_SIZE}px`,
+                      objectFit: 'contain',
+                    }}
+                  />
+                </div>
+              ) : null}
+            </div>
 
             <div
               style={{
                 display: 'flex',
                 flexDirection: 'column',
                 width: '100%',
-                marginTop: article.coverImage ? 42 : 56,
-                gap: 28,
-                color: '#111111',
+                marginTop: `${HEADER_GAP}px`,
+                padding: `${TITLE_SECTION_TOP_PADDING}px 0 ${TITLE_SECTION_BOTTOM_PADDING}px`,
+                borderTop: '2px solid #6b523f',
+                borderBottom: '2px solid #6b523f',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  width: '100%',
+                  justifyContent: 'center',
+                  textAlign: 'center',
+                  fontSize: `${TITLE_FONT_SIZE}px`,
+                  lineHeight: `${TITLE_LINE_HEIGHT}px`,
+                  fontWeight: 800,
+                  letterSpacing: 0.36,
+                  color: '#23160e',
+                }}
+              >
+                {article.title}
+              </div>
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  marginTop: `${DATE_TOP_MARGIN}px`,
+                  height: `${DATE_HEIGHT}px`,
+                  fontSize: 24,
+                  color: '#7f6957',
+                  letterSpacing: 0.2,
+                }}
+              >
+                <div style={{ display: 'flex' }}>{published.weekday || '发布于'}</div>
+                <div
+                  style={{
+                    display: 'flex',
+                    width: 8,
+                    height: 8,
+                    borderRadius: 999,
+                    backgroundColor: '#b5967c',
+                    margin: '0 14px',
+                  }}
+                />
+                <div style={{ display: 'flex' }}>{published.fullDate || siteDomain}</div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                width: '100%',
+                marginTop: `${BODY_TOP_MARGIN}px`,
+                padding: '0 4px',
+                color: '#20150f',
+                fontFamily: articleBodyFontFamily,
               }}
             >
               {contentParagraphs.map((paragraph, index) => (
@@ -438,10 +636,12 @@ export async function GET(req: Request, { params }: RouteContext) {
                   style={{
                     display: 'flex',
                     width: '100%',
+                    marginTop: index === 0 ? 0 : `${BODY_PARAGRAPH_GAP}px`,
                     fontSize: `${BODY_FONT_SIZE}px`,
                     lineHeight: `${BODY_LINE_HEIGHT}px`,
-                    letterSpacing: 0.5,
+                    letterSpacing: 0.08,
                     whiteSpace: 'pre-wrap',
+                    color: '#281b12',
                   }}
                 >
                   {paragraph}
@@ -453,9 +653,10 @@ export async function GET(req: Request, { params }: RouteContext) {
               style={{
                 display: 'flex',
                 width: '100%',
-                marginTop: 'auto',
-                paddingTop: 64,
-                alignItems: 'flex-end',
+                marginTop: `${FOOTER_TOP_MARGIN}px`,
+                paddingTop: 28,
+                borderTop: '2px solid #6b523f',
+                alignItems: 'flex-start',
                 justifyContent: 'space-between',
               }}
             >
@@ -463,23 +664,62 @@ export async function GET(req: Request, { params }: RouteContext) {
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
-                  maxWidth: '56%',
-                  color: '#111111',
+                  justifyContent: 'space-between',
+                  width: 592,
+                  minHeight: `${FOOTER_RESERVED_HEIGHT}px`,
+                  padding: '30px 34px',
+                  border: '2px solid #725947',
+                  borderRadius: 30,
+                  background: 'linear-gradient(180deg, rgba(236, 219, 199, 0.96) 0%, rgba(248, 239, 227, 0.98) 100%)',
                 }}
               >
-                <div style={{ display: 'flex', fontSize: 58, fontWeight: 800 }}>{siteTitle}</div>
                 <div
                   style={{
                     display: 'flex',
-                    marginTop: 14,
-                    width: '100%',
-                    height: 2,
-                    backgroundColor: '#222222',
-                    opacity: 0.2,
+                    flexDirection: 'column',
                   }}
-                />
-                <div style={{ display: 'flex', marginTop: 18, fontSize: 28, color: '#444444' }}>扫码查看原文</div>
-                <div style={{ display: 'flex', marginTop: 12, fontSize: 22, color: '#7a7a7a' }}>{articleUrl}</div>
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      fontSize: 44,
+                      fontWeight: 700,
+                      color: '#24170f',
+                    }}
+                  >
+                    {siteTitle}
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      marginTop: 18,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        fontSize: 28,
+                        lineHeight: '44px',
+                        color: '#4e3d30',
+                        whiteSpace: 'pre-wrap',
+                      }}
+                    >
+                      {posterFooterDescription}
+                    </div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        marginTop: 22,
+                        fontSize: 22,
+                        color: '#7c6857',
+                      }}
+                    >
+                      {siteDomain}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div
@@ -487,21 +727,48 @@ export async function GET(req: Request, { params }: RouteContext) {
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: 14,
+                  justifyContent: 'flex-end',
+                  width: 260,
+                  minHeight: `${FOOTER_RESERVED_HEIGHT}px`,
                 }}
               >
                 <div
                   style={{
                     display: 'flex',
-                    padding: 18,
-                    borderRadius: 18,
-                    backgroundColor: '#ffffff',
-                    border: '2px solid #d8e3ff',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 254,
+                    height: 254,
+                    padding: 16,
+                    border: '2px solid #725947',
+                    borderRadius: 28,
+                    backgroundColor: '#fffdf9',
                   }}
                 >
-                  <img src={qrDataUrl} alt="文章二维码" style={{ width: 220, height: 220 }} />
+                  <img src={qrDataUrl} alt="文章二维码" style={{ width: QR_SIZE, height: QR_SIZE }} />
                 </div>
-                <div style={{ display: 'flex', fontSize: 24, color: '#222222' }}>扫码查看原文</div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    marginTop: 20,
+                    fontSize: 24,
+                    color: '#25180f',
+                    fontWeight: 700,
+                  }}
+                >
+                  {posterScanText}
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    marginTop: 10,
+                    fontSize: 18,
+                    color: '#89715f',
+                  }}
+                >
+                  {siteDomain}
+                </div>
               </div>
             </div>
           </div>

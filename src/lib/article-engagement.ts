@@ -2,6 +2,7 @@ import 'server-only'
 
 import type { Prisma } from '@prisma/client'
 import type { NextRequest } from 'next/server'
+import { enrichDeviceInfoWithSignature } from '@/lib/analytics-traffic'
 import { runWithDatabase } from '@/lib/db'
 import { prisma } from '@/lib/prisma'
 import { getGeoInfo } from '@/lib/geo'
@@ -36,7 +37,10 @@ type InteractionPayload = {
   scrollDepth?: number | null
   channel?: string | null
   metadata?: Record<string, unknown> | null
+  deviceInfo?: unknown
 }
+
+const RECENT_VIEW_DEDUP_WINDOW_MS = 12 * 1000
 
 function sanitizeReferrer(referrer: string | null | undefined) {
   if (!referrer) return null
@@ -58,6 +62,27 @@ function toJsonMetadata(
 ): Prisma.InputJsonValue | undefined {
   if (!metadata) return undefined
   return JSON.parse(JSON.stringify(metadata)) as Prisma.InputJsonValue
+}
+
+function mergeInteractionMetadata(
+  metadata: Record<string, unknown> | null | undefined,
+  userAgent: string,
+  deviceInfo: unknown,
+): Prisma.InputJsonValue | undefined {
+  const safeDeviceInfo = enrichDeviceInfoWithSignature(userAgent, deviceInfo)
+  if (!safeDeviceInfo) return toJsonMetadata(metadata)
+  return toJsonMetadata({
+    ...(metadata || {}),
+    deviceInfo: safeDeviceInfo,
+  })
+}
+
+function getNormalizedPagePath(payload: InteractionPayload) {
+  return payload.path || `/article/${payload.articleId}`
+}
+
+function getTrackingSessionId(payload: InteractionPayload) {
+  return payload.sessionId || payload.visitorId
 }
 
 async function buildRequestContext(req: NextRequest): Promise<RequestContext> {
@@ -130,9 +155,48 @@ async function createInteraction(
       ipRegion: context.ipRegion,
       ipCity: context.ipCity,
       userAgent: context.userAgent,
-      metadata: toJsonMetadata(payload.metadata),
+      metadata: mergeInteractionMetadata(payload.metadata, context.userAgent, payload.deviceInfo),
     },
   })
+}
+
+async function updateLatestPageViewDuration(payload: InteractionPayload, duration: number | null | undefined) {
+  const safeDuration = clampDuration(duration)
+  if (!safeDuration) return false
+
+  const sessionId = getTrackingSessionId(payload)
+  const path = getNormalizedPagePath(payload)
+  const record = await prisma.pageView.findFirst({
+    where: {
+      sessionId,
+      articleId: payload.articleId,
+      path,
+    },
+    orderBy: { enteredAt: 'desc' },
+    select: {
+      id: true,
+      duration: true,
+      deviceInfo: true,
+      userAgent: true,
+    },
+  })
+
+  if (!record) return false
+  if (record.duration && record.duration >= safeDuration) return false
+
+  const safeDeviceInfo = enrichDeviceInfoWithSignature(record.userAgent, payload.deviceInfo)
+
+  await prisma.pageView.update({
+    where: { id: record.id },
+    data: {
+      duration: safeDuration,
+      ...(safeDeviceInfo && !record.deviceInfo
+        ? { deviceInfo: safeDeviceInfo as Prisma.InputJsonValue }
+        : {}),
+    },
+  })
+
+  return true
 }
 
 export async function getArticleEngagementSummary(articleId: string, visitorId?: string | null): Promise<ArticleEngagementSummary> {
@@ -225,7 +289,23 @@ export async function getArticleEngagementSeedBySlug(slug: string) {
 }
 
 export async function recordArticleViewEnter(req: NextRequest, payload: InteractionPayload) {
+  const dedupWindowStart = new Date(Date.now() - RECENT_VIEW_DEDUP_WINDOW_MS)
+  const recentDuplicate = await prisma.articleInteraction.findFirst({
+    where: {
+      articleId: payload.articleId,
+      visitorId: payload.visitorId,
+      sessionId: payload.sessionId || null,
+      path: payload.path || null,
+      type: 'VIEW_ENTER',
+      createdAt: { gte: dedupWindowStart },
+    },
+    select: { id: true },
+  })
+
+  if (recentDuplicate) return false
+
   const context = await buildRequestContext(req)
+  const safeDeviceInfo = enrichDeviceInfoWithSignature(context.userAgent, payload.deviceInfo)
   const existingVisitor = await prisma.articleInteraction.findFirst({
     where: {
       articleId: payload.articleId,
@@ -237,15 +317,16 @@ export async function recordArticleViewEnter(req: NextRequest, payload: Interact
   await prisma.$transaction([
     prisma.pageView.create({
       data: {
-        sessionId: payload.sessionId || payload.visitorId,
+        sessionId: getTrackingSessionId(payload),
         visitorId: payload.visitorId,
         articleId: payload.articleId,
         ipAddress: context.ipAddress,
         ipRegion: context.ipRegion,
         ipCity: context.ipCity,
-        path: payload.path || `/article/${payload.articleId}`,
+        path: getNormalizedPagePath(payload),
         referrer: sanitizeReferrer(payload.referrer),
         userAgent: context.userAgent,
+        ...(safeDeviceInfo ? { deviceInfo: safeDeviceInfo as Prisma.InputJsonValue } : {}),
       },
     }),
     prisma.articleInteraction.create({
@@ -260,7 +341,7 @@ export async function recordArticleViewEnter(req: NextRequest, payload: Interact
         ipRegion: context.ipRegion,
         ipCity: context.ipCity,
         userAgent: context.userAgent,
-        metadata: toJsonMetadata(payload.metadata),
+        metadata: mergeInteractionMetadata(payload.metadata, context.userAgent, payload.deviceInfo),
       },
     }),
     prisma.articleAggregate.upsert({
@@ -276,6 +357,8 @@ export async function recordArticleViewEnter(req: NextRequest, payload: Interact
       },
     }),
   ])
+
+  return true
 }
 
 export async function recordArticleQualifiedView(req: NextRequest, payload: InteractionPayload) {
@@ -289,12 +372,20 @@ export async function recordArticleQualifiedView(req: NextRequest, payload: Inte
     select: { id: true },
   })
 
-  if (existing) return false
+  if (existing) {
+    await updateLatestPageViewDuration(payload, payload.duration)
+    return false
+  }
 
   const context = await buildRequestContext(req)
   await createInteraction('VIEW_QUALIFIED', payload, context)
+  await updateLatestPageViewDuration(payload, payload.duration)
   await upsertAggregate(payload.articleId, { qualifiedViewCount: 1 })
   return true
+}
+
+export async function recordArticleViewLeave(payload: InteractionPayload) {
+  return updateLatestPageViewDuration(payload, payload.duration)
 }
 
 export async function toggleArticleLike(req: NextRequest, payload: InteractionPayload) {
@@ -330,6 +421,7 @@ export async function toggleArticleLike(req: NextRequest, payload: InteractionPa
         ipRegion: context.ipRegion,
         ipCity: context.ipCity,
         userAgent: context.userAgent,
+        metadata: mergeInteractionMetadata(null, context.userAgent, payload.deviceInfo),
       },
     }),
     prisma.articleAggregate.upsert({

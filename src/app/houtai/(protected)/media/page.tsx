@@ -6,7 +6,7 @@ type MediaItem = {
   id: string
   originalName: string
   url: string
-  type: 'IMAGE' | 'VIDEO'
+  type: 'IMAGE' | 'VIDEO' | 'AUDIO'
   size: number
   createdAt: string
 }
@@ -21,7 +21,7 @@ export default function MediaLibraryPage() {
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  const [filter, setFilter] = useState<'ALL' | 'IMAGE' | 'VIDEO'>('ALL')
+  const [filter, setFilter] = useState<'ALL' | 'IMAGE' | 'VIDEO' | 'AUDIO'>('ALL')
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
@@ -77,7 +77,7 @@ export default function MediaLibraryPage() {
 
       {/* 筛选 */}
       <div className="flex gap-2 mb-4">
-        {(['ALL', 'IMAGE', 'VIDEO'] as const).map(f => (
+        {(['ALL', 'IMAGE', 'VIDEO', 'AUDIO'] as const).map(f => (
           <button
             key={f}
             onClick={() => { setFilter(f); setPage(1) }}
@@ -87,7 +87,7 @@ export default function MediaLibraryPage() {
                 : 'border-[#ddd5c8] text-[#5a4f42] hover:border-[#d4711a]'
             }`}
           >
-            {f === 'ALL' ? '全部' : f === 'IMAGE' ? '🖼 图片' : '🎬 视频'}
+            {f === 'ALL' ? '全部' : f === 'IMAGE' ? '🖼 图片' : f === 'VIDEO' ? '🎬 视频' : '🎵 音频'}
           </button>
         ))}
       </div>
@@ -111,6 +111,11 @@ export default function MediaLibraryPage() {
               <div className="aspect-square bg-[#f0ebe3] flex items-center justify-center">
                 {item.type === 'IMAGE' ? (
                   <img src={item.url} alt={item.originalName} className="w-full h-full object-cover" />
+                ) : item.type === 'AUDIO' ? (
+                  <div className="text-center p-2">
+                    <div className="text-3xl">🎵</div>
+                    <p className="text-xs text-[#8c7d68] mt-1 truncate px-1">{item.originalName}</p>
+                  </div>
                 ) : (
                   <div className="text-center p-2">
                     <div className="text-3xl">🎬</div>
@@ -149,7 +154,9 @@ export default function MediaLibraryPage() {
               <p className="text-sm font-medium text-[#3d3530] truncate flex-1 mr-2">{item.originalName}</p>
               <button onClick={() => setSelected(null)} className="text-[#a89880] hover:text-[#5a4f42] text-lg leading-none">×</button>
             </div>
-            <p className="text-xs text-[#a89880] mb-1">{item.type === 'IMAGE' ? '图片' : '视频'} · {formatSize(item.size)}</p>
+            <p className="text-xs text-[#a89880] mb-1">
+              {item.type === 'IMAGE' ? '图片' : item.type === 'VIDEO' ? '视频' : '音频'} · {formatSize(item.size)}
+            </p>
             <p className="text-xs text-[#a89880] font-mono break-all mb-3 bg-[#faf8f5] p-2 rounded">{item.url}</p>
             <button
               onClick={() => copyUrl(item.url, item.id)}

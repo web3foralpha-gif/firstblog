@@ -167,6 +167,17 @@ export default async function ArticlePage({ params, searchParams }: Props) {
             <time className="text-sm text-[var(--text-subtle)]">{formatDate(article.createdAt)}</time>
           </header>
 
+          {article.coverImage && (
+            <div className="mb-8 overflow-hidden rounded-3xl border border-[var(--border-color)] bg-[var(--surface-bg)]">
+              <img
+                src={article.coverImage}
+                alt={article.title}
+                className="block h-auto w-full"
+                loading="eager"
+              />
+            </div>
+          )}
+
           <ArticleContent
             slug={slug}
             content={article.content}
