@@ -188,9 +188,16 @@ model SunflowerState {
 }
 
 model SunflowerInteraction {
-  ipHash    String   @id
-  action    String
-  createdAt DateTime @default(now())
+  ipHash     String   @id
+  action     String
+  ipAddress  String?
+  ipCountry  String?
+  ipRegion   String?
+  ipCity     String?
+  ipIsp      String?
+  userAgent  String?
+  deviceInfo Json?
+  createdAt  DateTime @default(now())
 }
 
 model Setting {

@@ -1,0 +1,2 @@
+-- This migration was intentionally left empty after the album feature was removed.
+-- Keeping the file allows Prisma migrate deploy to replay migration history safely.

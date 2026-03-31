@@ -35,6 +35,19 @@ type SiteMetricsRow = {
   articleAvgDuration: number | null
 }
 
+type TrafficTrendRow = {
+  bucket: Date | string
+  views: number
+  visitors: number
+  articleViews: number
+}
+
+type EngagementTrendRow = {
+  bucket: Date | string
+  qualifiedReads: number
+  interactions: number
+}
+
 type TopPageRow = {
   path: string
   views: number
@@ -44,6 +57,12 @@ type TopPageRow = {
 type ReferrerRow = {
   referrer: string
   views: number
+}
+
+type RegionRow = {
+  regionLabel: string
+  views: number
+  visitors: number
 }
 
 type InteractionTotalsRow = {
@@ -165,12 +184,59 @@ type MascotRecentRow = {
   createdAt: Date | string
 }
 
+type VisitorQualityRow = {
+  knownIpCount: number
+  unknownIpCount: number
+  returningIpCount: number
+  singleVisitIpCount: number
+  avgSessionsPerIp: number | null
+  avgViewsPerIp: number | null
+}
+
+type DetailedVisitorRow = {
+  ipAddress: string | null
+  ipRegion: string | null
+  ipCity: string | null
+  views: number
+  sessions: number
+  uniquePaths: number
+  avgDuration: number | null
+  firstSeen: Date | string
+  lastSeen: Date | string
+  userAgent: string | null
+  deviceCount: number
+}
+
+type SelectedIpSummaryRow = {
+  views: number
+  sessions: number
+  uniquePaths: number
+  avgDuration: number | null
+  firstSeen: Date | string | null
+  lastSeen: Date | string | null
+  ipRegion: string | null
+  ipCity: string | null
+}
+
 type RankItem = {
   label: string
   value: number
   meta?: string
   href?: string
   highlighted?: boolean
+}
+
+type TimelinePoint = {
+  key: string
+  label: string
+  shortLabel: string
+  value: number
+}
+
+type SegmentItem = {
+  label: string
+  value: number
+  tone: string
 }
 
 const RANGE_OPTIONS: Array<{ key: RangeKey; label: string; hours?: number }> = [
@@ -218,6 +284,7 @@ const INTERACTION_TONES: Record<string, string> = {
 
 const RECENT_VISIT_GROUP_WINDOW_MS = 30 * 60 * 1000
 const RECENT_INTERACTION_GROUP_WINDOW_MS = 45 * 60 * 1000
+const ANALYTICS_TIMEZONE = 'Asia/Shanghai'
 
 function resolveRange(rangeParam?: string | string[]): { key: RangeKey; from: Date | null } {
   const raw = Array.isArray(rangeParam) ? rangeParam[0] : rangeParam
@@ -300,6 +367,11 @@ function buildIpFilterSql(columnName: string, ipAddress: string | null) {
   return Prisma.sql`AND ${Prisma.raw(columnName)} = ${ipAddress}`
 }
 
+function buildTimeBucketSql(columnName: string, rangeKey: RangeKey) {
+  const bucketUnit = rangeKey === '24h' ? 'hour' : 'day'
+  return Prisma.raw(`date_trunc('${bucketUnit}', timezone('${ANALYTICS_TIMEZONE}', ${columnName}))`)
+}
+
 function formatNumber(value: number) {
   return new Intl.NumberFormat('zh-CN').format(Math.round(value))
 }
@@ -336,6 +408,14 @@ function formatLatency(latencyMs: number | null | undefined) {
 
 function formatIpAddress(ipAddress: string | null | undefined) {
   return ipAddress?.trim() || '未知 IP'
+}
+
+function formatDecimal(value: number | null | undefined, digits = 1) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '—'
+  return new Intl.NumberFormat('zh-CN', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: digits,
+  }).format(Number(value))
 }
 
 function formatLocation(region?: string | null, city?: string | null) {
@@ -464,6 +544,97 @@ function toTimestamp(value: Date | string) {
   return Number.isNaN(date.getTime()) ? 0 : date.getTime()
 }
 
+function getRangeBucketStep(rangeKey: RangeKey) {
+  return rangeKey === '24h' ? 'hour' : 'day'
+}
+
+function startOfBucket(date: Date, rangeKey: RangeKey) {
+  const next = new Date(date)
+  if (rangeKey === '24h') {
+    next.setMinutes(0, 0, 0)
+  } else {
+    next.setHours(0, 0, 0, 0)
+  }
+  return next
+}
+
+function addBucket(date: Date, rangeKey: RangeKey) {
+  const next = new Date(date)
+  if (rangeKey === '24h') {
+    next.setHours(next.getHours() + 1)
+  } else {
+    next.setDate(next.getDate() + 1)
+  }
+  return next
+}
+
+function formatTrendShortLabel(date: Date, rangeKey: RangeKey) {
+  if (rangeKey === '24h') {
+    return new Intl.DateTimeFormat('zh-CN', { hour: '2-digit' }).format(date)
+  }
+  return new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric' }).format(date)
+}
+
+function formatTrendLabel(date: Date, rangeKey: RangeKey) {
+  if (rangeKey === '24h') {
+    return new Intl.DateTimeFormat('zh-CN', {
+      month: 'numeric',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date)
+  }
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  }).format(date)
+}
+
+function buildTimelinePoints(
+  rows: Array<{ bucket: Date | string; value: number }>,
+  rangeKey: RangeKey,
+  now: Date,
+  from: Date | null,
+) {
+  const sortedRows = rows
+    .map(row => ({ bucket: new Date(row.bucket), value: Number(row.value ?? 0) }))
+    .filter(row => !Number.isNaN(row.bucket.getTime()))
+    .sort((left, right) => left.bucket.getTime() - right.bucket.getTime())
+
+  const rowMap = new Map<string, number>()
+  for (const row of sortedRows) {
+    rowMap.set(startOfBucket(row.bucket, rangeKey).toISOString(), row.value)
+  }
+
+  const points: TimelinePoint[] = []
+
+  if (from) {
+    let cursor = startOfBucket(from, rangeKey)
+    const limit = rangeKey === '24h' ? 30 : rangeKey === '7d' ? 10 : 40
+    let guard = 0
+    while (cursor.getTime() <= now.getTime() && guard < limit) {
+      const value = rowMap.get(cursor.toISOString()) ?? 0
+      points.push({
+        key: cursor.toISOString(),
+        label: formatTrendLabel(cursor, rangeKey),
+        shortLabel: formatTrendShortLabel(cursor, rangeKey),
+        value,
+      })
+      cursor = addBucket(cursor, rangeKey)
+      guard += 1
+    }
+    return points
+  }
+
+  return sortedRows.slice(-30).map(row => ({
+    key: row.bucket.toISOString(),
+    label: formatTrendLabel(row.bucket, rangeKey),
+    shortLabel: formatTrendShortLabel(row.bucket, rangeKey),
+    value: row.value,
+  }))
+}
+
 function groupRecentVisits<
   T extends {
     sessionId: string
@@ -549,12 +720,22 @@ function SectionCard({ children, className = '' }: { children: React.ReactNode; 
   return <section className={`rounded-[28px] border border-slate-200 bg-white shadow-sm ${className}`}>{children}</section>
 }
 
-function MetricCard({ label, value, note }: { label: string; value: string; note: string }) {
+function MetricCard({
+  label,
+  value,
+  note,
+  toneClass = 'from-slate-900 via-slate-800 to-slate-700',
+}: {
+  label: string
+  value: string
+  note: string
+  toneClass?: string
+}) {
   return (
-    <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">{label}</p>
-      <p className="mt-3 text-3xl font-semibold text-slate-900">{value}</p>
-      <p className="mt-2 text-sm text-slate-500">{note}</p>
+    <div className={`rounded-[24px] border border-slate-200 bg-gradient-to-br ${toneClass} p-5 text-white shadow-sm`}>
+      <p className="text-xs uppercase tracking-[0.22em] text-white/60">{label}</p>
+      <p className="mt-3 text-3xl font-semibold text-white">{value}</p>
+      <p className="mt-2 text-sm text-white/72">{note}</p>
     </div>
   )
 }
@@ -622,6 +803,193 @@ function InsightCard({
       <p className="mt-3 text-base font-semibold text-slate-900">{title}</p>
       <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
     </div>
+  )
+}
+
+function TimelineChartCard({
+  title,
+  description,
+  points,
+  toneClass,
+  valueNote,
+}: {
+  title: string
+  description: string
+  points: TimelinePoint[]
+  toneClass: string
+  valueNote?: string
+}) {
+  const maxValue = Math.max(...points.map(point => point.value), 1)
+  const labelStep = points.length > 18 ? 4 : points.length > 10 ? 2 : 1
+  const gradientId = `chart-${title.replace(/[^a-zA-Z0-9_-]+/g, '-') || 'trend'}`
+  const polyline = points
+    .map((point, index) => {
+      const x = points.length === 1 ? 50 : (index / Math.max(points.length - 1, 1)) * 100
+      const y = 100 - (point.value / maxValue) * 100
+      return `${x},${Math.max(0, Math.min(100, y))}`
+    })
+    .join(' ')
+
+  return (
+    <SectionCard className="overflow-hidden px-5 py-5 sm:px-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
+          <p className="mt-1 text-xs text-slate-400">{description}</p>
+        </div>
+        {valueNote ? <p className="text-xs text-slate-400">{valueNote}</p> : null}
+      </div>
+
+      {points.length === 0 ? (
+        <p className="mt-6 text-sm text-slate-400">当前范围还没有趋势数据。</p>
+      ) : (
+        <>
+          <div className="relative mt-5">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-36 rounded-[26px] bg-gradient-to-b from-slate-50 via-slate-50/70 to-transparent" />
+            <svg
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+              className="pointer-events-none absolute inset-x-0 top-4 z-[1] h-28 w-full px-1"
+              aria-hidden="true"
+            >
+              <defs>
+                <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="rgb(14 165 233)" />
+                  <stop offset="50%" stopColor="rgb(45 212 191)" />
+                  <stop offset="100%" stopColor="rgb(16 185 129)" />
+                </linearGradient>
+              </defs>
+              <polyline
+                fill="none"
+                stroke={`url(#${gradientId})`}
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                points={polyline}
+              />
+            </svg>
+          </div>
+          <div className="mt-1 flex h-44 items-end gap-2">
+            {points.map(point => {
+              const heightPercent = Math.max(10, Math.round((point.value / maxValue) * 100))
+              return (
+                <div key={point.key} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+                  <div className="flex h-36 w-full items-end rounded-[20px] bg-slate-100/80 px-1 pb-1">
+                    <div
+                      className={`w-full rounded-[16px] bg-gradient-to-t ${toneClass}`}
+                      style={{ height: `${heightPercent}%` }}
+                      title={`${point.label} · ${formatNumber(point.value)}`}
+                    />
+                  </div>
+                  <div className="min-h-[28px] text-center text-[10px] leading-4 text-slate-400">
+                    {points.length <= 8 || points.indexOf(point) % labelStep === 0 || point === points[points.length - 1]
+                      ? point.shortLabel
+                      : '·'}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-400">
+            <span>峰值 {formatNumber(maxValue)}</span>
+            <span>·</span>
+            <span>均值 {formatDecimal(points.reduce((sum, point) => sum + point.value, 0) / Math.max(points.length, 1))}</span>
+            <span>·</span>
+            <span>末段 {formatNumber(points[points.length - 1]?.value ?? 0)}</span>
+          </div>
+        </>
+      )}
+    </SectionCard>
+  )
+}
+
+function SegmentBarCard({
+  title,
+  description,
+  segments,
+}: {
+  title: string
+  description: string
+  segments: SegmentItem[]
+}) {
+  const total = segments.reduce((sum, segment) => sum + segment.value, 0)
+
+  return (
+    <SectionCard className="px-5 py-5 sm:px-6">
+      <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
+      <p className="mt-1 text-xs text-slate-400">{description}</p>
+      <div className="mt-5 flex h-4 overflow-hidden rounded-full bg-slate-100">
+        {segments.map(segment => (
+          <div
+            key={segment.label}
+            className={segment.tone}
+            style={{ width: `${total > 0 ? (segment.value / total) * 100 : 0}%` }}
+            title={`${segment.label} · ${formatNumber(segment.value)}`}
+          />
+        ))}
+      </div>
+      <div className="mt-4 space-y-3">
+        {segments.map(segment => (
+          <div key={segment.label} className="flex items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className={`h-2.5 w-2.5 rounded-full ${segment.tone}`} />
+              <span className="truncate text-sm text-slate-600">{segment.label}</span>
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-medium text-slate-800">{formatNumber(segment.value)}</p>
+              <p className="text-[11px] text-slate-400">{formatPercent(segment.value, total)}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </SectionCard>
+  )
+}
+
+function BarListChartCard({
+  title,
+  description,
+  items,
+  emptyText = '暂无数据',
+}: {
+  title: string
+  description: string
+  items: RankItem[]
+  emptyText?: string
+}) {
+  const maxValue = Math.max(...items.map(item => item.value), 0)
+
+  return (
+    <SectionCard className="px-5 py-5 sm:px-6">
+      <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
+      <p className="mt-1 text-xs text-slate-400">{description}</p>
+      {items.length === 0 ? (
+        <p className="mt-6 text-sm text-slate-400">{emptyText}</p>
+      ) : (
+        <div className="mt-5 space-y-4">
+          {items.map((item, index) => (
+            <div key={`${item.label}-${item.value}`}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="inline-flex h-5 w-5 flex-none items-center justify-center rounded-full bg-slate-100 text-[10px] font-semibold text-slate-500">
+                    {index + 1}
+                  </span>
+                  <p className="truncate text-sm text-slate-700">{item.label}</p>
+                </div>
+                <p className="text-sm font-medium text-slate-800">{formatNumber(item.value)}</p>
+              </div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-sky-500 via-cyan-400 to-emerald-400"
+                  style={{ width: `${maxValue > 0 ? (item.value / maxValue) * 100 : 0}%` }}
+                />
+              </div>
+              {item.meta ? <p className="mt-1 text-[11px] text-slate-400">{item.meta}</p> : null}
+            </div>
+          ))}
+        </div>
+      )}
+    </SectionCard>
   )
 }
 
@@ -778,7 +1146,24 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
       : {}),
   }
 
-  const [siteMetricsResult, topPagesRaw, rawReferrers, interactionTotalsResult, articlePerformanceRaw, topIpsRaw, recentVisitsRaw, userAgentGroupsRaw, ipTraceRaw, recentInteractionsRaw] =
+  const [
+    siteMetricsResult,
+    trafficTrendRaw,
+    engagementTrendRaw,
+    regionRowsRaw,
+    visitorQualityResult,
+    detailedVisitorsRaw,
+    selectedIpSummaryResult,
+    topPagesRaw,
+    rawReferrers,
+    interactionTotalsResult,
+    articlePerformanceRaw,
+    topIpsRaw,
+    recentVisitsRaw,
+    userAgentGroupsRaw,
+    ipTraceRaw,
+    recentInteractionsRaw,
+  ] =
     await Promise.all([
       prisma.$queryRaw<SiteMetricsRow[]>(Prisma.sql`
         SELECT
@@ -799,6 +1184,103 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
           COALESCE(AVG("duration") FILTER (WHERE "duration" IS NOT NULL AND "articleId" IS NOT NULL), 0)::float AS "articleAvgDuration"
         ${pageViewBaseSql}
       `),
+      prisma.$queryRaw<TrafficTrendRow[]>(Prisma.sql`
+        SELECT
+          ${buildTimeBucketSql('"enteredAt"', rangeState.key)} AS "bucket",
+          COUNT(*)::int AS "views",
+          COUNT(DISTINCT COALESCE(NULLIF("visitorId", ''), "sessionId"))::int AS "visitors",
+          COUNT(*) FILTER (WHERE "articleId" IS NOT NULL)::int AS "articleViews"
+        ${pageViewBaseSql}
+        GROUP BY 1
+        ORDER BY 1 ASC
+      `),
+      prisma.$queryRaw<EngagementTrendRow[]>(Prisma.sql`
+        SELECT
+          ${buildTimeBucketSql('"createdAt"', rangeState.key)} AS "bucket",
+          COUNT(*) FILTER (WHERE "type" = 'VIEW_QUALIFIED')::int AS "qualifiedReads",
+          COUNT(*) FILTER (WHERE "type" IN ('LIKE', 'SHARE_LINK', 'SHARE_IMAGE', 'COMMENT_SUBMIT'))::int AS "interactions"
+        ${interactionBaseSql}
+        GROUP BY 1
+        ORDER BY 1 ASC
+      `),
+      prisma.$queryRaw<RegionRow[]>(Prisma.sql`
+        SELECT
+          COALESCE(
+            NULLIF(
+              TRIM(CONCAT_WS(' · ', NULLIF("ipRegion", ''), NULLIF("ipCity", ''))),
+              ''
+            ),
+            '地区待识别'
+          ) AS "regionLabel",
+          COUNT(*)::int AS "views",
+          COUNT(DISTINCT COALESCE(NULLIF("ipAddress", ''), "sessionId"))::int AS "visitors"
+        ${pageViewBaseSql}
+        GROUP BY 1
+        ORDER BY 2 DESC
+        LIMIT 8
+      `),
+      prisma.$queryRaw<VisitorQualityRow[]>(Prisma.sql`
+        SELECT
+          COUNT(*) FILTER (WHERE "isKnownIp" = true)::int AS "knownIpCount",
+          COUNT(*) FILTER (WHERE "isKnownIp" = false)::int AS "unknownIpCount",
+          COUNT(*) FILTER (WHERE "views" = 1)::int AS "singleVisitIpCount",
+          COUNT(*) FILTER (WHERE "sessions" >= 2 OR "views" >= 3)::int AS "returningIpCount",
+          COALESCE(AVG("sessions"), 0)::float AS "avgSessionsPerIp",
+          COALESCE(AVG("views"), 0)::float AS "avgViewsPerIp"
+        FROM (
+          SELECT
+            CASE
+              WHEN COALESCE(NULLIF("ipAddress", ''), '') <> '' THEN NULLIF("ipAddress", '')
+              ELSE CONCAT(
+                'unknown:',
+                COALESCE(NULLIF("visitorId", ''), NULLIF("sessionId", ''), CAST("id" AS TEXT))
+              )
+            END AS "visitorKey",
+            COALESCE(NULLIF("ipAddress", ''), '') <> '' AS "isKnownIp",
+            COUNT(*)::int AS "views",
+            COUNT(DISTINCT COALESCE(NULLIF("sessionId", ''), CAST("id" AS TEXT)))::int AS "sessions"
+          ${pageViewBaseSql}
+          GROUP BY 1, 2
+        ) AS "visitorStats"
+      `),
+      prisma.$queryRaw<DetailedVisitorRow[]>(Prisma.sql`
+        SELECT
+          COALESCE(NULLIF("ipAddress", ''), '未知 IP') AS "ipAddress",
+          MAX(NULLIF("ipRegion", '')) AS "ipRegion",
+          MAX(NULLIF("ipCity", '')) AS "ipCity",
+          COUNT(*)::int AS "views",
+          COUNT(DISTINCT "sessionId")::int AS "sessions",
+          COUNT(DISTINCT "path")::int AS "uniquePaths",
+          COALESCE(AVG("duration") FILTER (WHERE "duration" IS NOT NULL), 0)::float AS "avgDuration",
+          MIN("enteredAt") AS "firstSeen",
+          MAX("enteredAt") AS "lastSeen",
+          MAX(NULLIF("userAgent", '')) AS "userAgent",
+          COUNT(
+            DISTINCT COALESCE(
+              NULLIF("deviceInfo"->>'signature', ''),
+              NULLIF("userAgent", ''),
+              "sessionId"
+            )
+          )::int AS "deviceCount"
+        ${pageViewBaseSql}
+        GROUP BY 1
+        ORDER BY COUNT(*) DESC, MAX("enteredAt") DESC
+        LIMIT 12
+      `),
+      selectedIp
+        ? prisma.$queryRaw<SelectedIpSummaryRow[]>(Prisma.sql`
+            SELECT
+              COUNT(*)::int AS "views",
+              COUNT(DISTINCT "sessionId")::int AS "sessions",
+              COUNT(DISTINCT "path")::int AS "uniquePaths",
+              COALESCE(AVG("duration") FILTER (WHERE "duration" IS NOT NULL), 0)::float AS "avgDuration",
+              MIN("enteredAt") AS "firstSeen",
+              MAX("enteredAt") AS "lastSeen",
+              MAX(NULLIF("ipRegion", '')) AS "ipRegion",
+              MAX(NULLIF("ipCity", '')) AS "ipCity"
+            ${pageViewBaseSql}
+          `)
+        : Promise.resolve([]),
       prisma.$queryRaw<TopPageRow[]>(Prisma.sql`
         SELECT
           "path" AS "path",
@@ -844,6 +1326,14 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
             ${rangeState.from ? Prisma.sql`AND ai."createdAt" >= ${rangeState.from}` : Prisma.empty}
             ${buildDeviceFilterSql('ai."userAgent"', deviceState)}
             ${buildIpFilterSql('ai."ipAddress"', selectedIp)}
+            ${buildOwnerTrafficExcludeSql({
+              ipColumn: 'ai."ipAddress"',
+              deviceSignatureSql: `ai."metadata"->'deviceInfo'->>'signature'`,
+              rules: ownerTrafficRules,
+            })}
+            ${shouldHideCurrentVisitor && currentVisitorIp
+              ? Prisma.sql`AND COALESCE(NULLIF(ai."ipAddress", ''), '') <> ${currentVisitorIp}`
+              : Prisma.empty}
           GROUP BY ai."articleId"
           HAVING COUNT(*) FILTER (
             WHERE ai."type" IN ('VIEW_ENTER', 'VIEW_QUALIFIED', 'LIKE', 'SHARE_LINK', 'SHARE_IMAGE', 'COMMENT_SUBMIT')
@@ -1080,6 +1570,17 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
     providerErrors: 0,
   }
 
+  const visitorQuality = visitorQualityResult[0] ?? {
+    knownIpCount: 0,
+    unknownIpCount: 0,
+    returningIpCount: 0,
+    singleVisitIpCount: 0,
+    avgSessionsPerIp: 0,
+    avgViewsPerIp: 0,
+  }
+
+  const selectedIpSummary = selectedIpSummaryResult[0] ?? null
+
   const pathSlugs = Array.from(
     new Set(
       [...topPagesRaw, ...recentVisitsRaw]
@@ -1221,6 +1722,46 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
     deviceProfile: describeDevice(item.userAgent, sanitizeDeviceInfo(item.deviceInfo)),
   }))
 
+  const trafficTrendPoints = buildTimelinePoints(
+    trafficTrendRaw.map(item => ({ bucket: item.bucket, value: Number(item.views ?? 0) })),
+    rangeState.key,
+    now,
+    rangeState.from,
+  )
+  const engagementTrendPoints = buildTimelinePoints(
+    engagementTrendRaw.map(item => ({ bucket: item.bucket, value: Number(item.interactions ?? 0) })),
+    rangeState.key,
+    now,
+    rangeState.from,
+  )
+  const trafficVisitorsTotal = trafficTrendRaw.reduce((sum, item) => sum + Number(item.visitors ?? 0), 0)
+  const trafficArticleViewsTotal = trafficTrendRaw.reduce((sum, item) => sum + Number(item.articleViews ?? 0), 0)
+  const engagementQualifiedTotal = engagementTrendRaw.reduce((sum, item) => sum + Number(item.qualifiedReads ?? 0), 0)
+  const internalPv = Math.max(
+    Number(siteMetrics.pv ?? 0) - Number(siteMetrics.directPv ?? 0) - Number(siteMetrics.externalPv ?? 0),
+    0,
+  )
+  const knownVisitorCount = Number(visitorQuality.knownIpCount ?? 0)
+  const unknownVisitorCount = Number(visitorQuality.unknownIpCount ?? 0)
+  const totalVisitorBuckets = knownVisitorCount + unknownVisitorCount
+
+  const trafficSourceSegments: SegmentItem[] = [
+    { label: '直接访问', value: Number(siteMetrics.directPv ?? 0), tone: 'bg-slate-500' },
+    { label: '站外来源', value: Number(siteMetrics.externalPv ?? 0), tone: 'bg-sky-500' },
+    { label: '站内流转', value: internalPv, tone: 'bg-emerald-500' },
+  ]
+
+  const realIpSegments: SegmentItem[] = [
+    { label: '真实 IP', value: knownVisitorCount, tone: 'bg-emerald-500' },
+    { label: '未知访客', value: unknownVisitorCount, tone: 'bg-amber-400' },
+  ]
+
+  const topRegions: RankItem[] = regionRowsRaw.map(item => ({
+    label: item.regionLabel,
+    value: Number(item.views ?? 0),
+    meta: `${formatNumber(Number(item.visitors ?? 0))} 位访客`,
+  }))
+
   const topIps: RankItem[] = topIpsRaw.map(item => ({
     label: formatIpAddress(item.ipAddress),
     value: Number(item.views ?? 0),
@@ -1228,6 +1769,18 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
     href: buildAnalyticsHref(rangeState.key, deviceState, formatIpAddress(item.ipAddress), selfState, 'visitors'),
     highlighted: Boolean(selectedIp && selectedIp === formatIpAddress(item.ipAddress)),
   }))
+  const realTopIps = topIps.filter(item => item.label !== '未知 IP')
+  const visitorIpLeaderboard = realTopIps.length > 0 ? realTopIps : topIps
+
+  const detailedVisitors = detailedVisitorsRaw.map(item => ({
+    ...item,
+    displayIp: formatIpAddress(item.ipAddress),
+    displayLocation: formatLocation(item.ipRegion, item.ipCity),
+    deviceProfile: describeDevice(item.userAgent),
+    traceHref: buildAnalyticsHref(rangeState.key, deviceState, formatIpAddress(item.ipAddress), selfState, 'visitors'),
+  }))
+  const realDetailedVisitors = detailedVisitors.filter(item => item.displayIp !== '未知 IP')
+  const visitorLeaderboard = realDetailedVisitors.length > 0 ? realDetailedVisitors : detailedVisitors
 
   const articleRows = articlePerformanceRaw.map(row => {
     const article = articleById.get(row.articleId)
@@ -1499,10 +2052,10 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
       {selectedTab === 'overview' ? (
         <>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="总访问" value={formatNumber(siteMetrics.pv)} note={`文章页占比 ${formatPercent(siteMetrics.articlePv, siteMetrics.pv)}`} />
-            <MetricCard label="独立访客" value={formatNumber(siteMetrics.uv)} note={`识别到 ${formatNumber(siteMetrics.uniqueIp)} 个访问 IP`} />
-            <MetricCard label="有效阅读" value={formatNumber(interactionTotals.qualifiedRead)} note={`完成率 ${formatPercent(interactionTotals.qualifiedRead, interactionTotals.articleEnter)}`} />
-            <MetricCard label="新增互动" value={formatNumber(interactionTotals.interactions)} note={`赞 ${formatNumber(interactionTotals.likes)} · 转 ${formatNumber(interactionTotals.shares)} · 评 ${formatNumber(interactionTotals.comments)}`} />
+            <MetricCard label="总访问" value={formatNumber(siteMetrics.pv)} note={`文章页占比 ${formatPercent(siteMetrics.articlePv, siteMetrics.pv)}`} toneClass="from-sky-700 via-sky-600 to-cyan-500" />
+            <MetricCard label="独立访客" value={formatNumber(siteMetrics.uv)} note={`识别到 ${formatNumber(siteMetrics.uniqueIp)} 个访问 IP`} toneClass="from-emerald-700 via-emerald-600 to-teal-500" />
+            <MetricCard label="有效阅读" value={formatNumber(interactionTotals.qualifiedRead)} note={`完成率 ${formatPercent(interactionTotals.qualifiedRead, interactionTotals.articleEnter)}`} toneClass="from-violet-700 via-fuchsia-600 to-purple-500" />
+            <MetricCard label="新增互动" value={formatNumber(interactionTotals.interactions)} note={`赞 ${formatNumber(interactionTotals.likes)} · 转 ${formatNumber(interactionTotals.shares)} · 评 ${formatNumber(interactionTotals.comments)}`} toneClass="from-rose-700 via-pink-600 to-orange-500" />
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -1517,39 +2070,62 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
           </div>
 
           <div className="grid gap-6 xl:grid-cols-2">
+            <TimelineChartCard
+              title="访问趋势"
+              description="按当前时间范围自动切小时 / 天，能直接看出访问高峰是不是来自真实流量。"
+              points={trafficTrendPoints}
+              toneClass="from-sky-500 via-cyan-400 to-emerald-400"
+              valueNote={`访客 ${formatNumber(trafficVisitorsTotal)} · 文章页 ${formatNumber(trafficArticleViewsTotal)}`}
+            />
+            <TimelineChartCard
+              title="互动趋势"
+              description="把点赞、转发、评论合并成一条趋势线，方便看内容有没有真正带动反馈。"
+              points={engagementTrendPoints}
+              toneClass="from-violet-500 via-fuchsia-400 to-rose-400"
+              valueNote={`有效阅读 ${formatNumber(engagementQualifiedTotal)} · 互动 ${formatNumber(interactionTotals.interactions)}`}
+            />
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
+            <SegmentBarCard
+              title="流量来源结构"
+              description={`现在改成互斥口径：直接访问、站外引流、站内流转。文章页访问 ${formatPercent(siteMetrics.articlePv, siteMetrics.pv)} 作为质量补充单独看。`}
+              segments={trafficSourceSegments}
+            />
+            <BarListChartCard
+              title="地区热度"
+              description="优先看真实访问集中在哪些地区，方便判断是不是某篇内容被外部扩散了。"
+              items={topRegions}
+              emptyText="当前范围还没有可识别的地区数据。"
+            />
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
             <SectionCard className="px-5 py-5 sm:px-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-sm font-semibold text-slate-800">流量结构</h2>
-                  <p className="mt-1 text-xs text-slate-400">先看访问质量，再判断内容是否真的被读进去。</p>
+                  <h2 className="text-sm font-semibold text-slate-800">访客质量速读</h2>
+                  <p className="mt-1 text-xs text-slate-400">
+                    这里优先看真实 IP、回访比例和浏览深度，不让你被自己的调试流量带偏。
+                  </p>
                 </div>
               </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <CompactStat label="直接访问占比" value={directRate} note={`${formatNumber(siteMetrics.directPv)} 次访问`} />
-                <CompactStat label="站外来源占比" value={externalRate} note={`${formatNumber(siteMetrics.externalPv)} 次访问`} />
-                <CompactStat label="平均停留" value={formatDuration(siteMetrics.avgDuration)} note="全站范围" />
-                <CompactStat label="文章页平均停留" value={formatDuration(siteMetrics.articleAvgDuration)} note="只看文章页" />
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <CompactStat label="真实 IP" value={formatNumber(knownVisitorCount)} note={`占比 ${formatPercent(knownVisitorCount, totalVisitorBuckets)}`} />
+                <CompactStat label="未知访客" value={formatNumber(unknownVisitorCount)} note={`占比 ${formatPercent(unknownVisitorCount, totalVisitorBuckets)}`} />
+                <CompactStat label="回访访客" value={formatNumber(visitorQuality.returningIpCount)} note={`占比 ${formatPercent(visitorQuality.returningIpCount, totalVisitorBuckets)}`} />
+                <CompactStat label="一次即走" value={formatNumber(visitorQuality.singleVisitIpCount)} note={`占比 ${formatPercent(visitorQuality.singleVisitIpCount, totalVisitorBuckets)}`} />
+                <CompactStat label="平均会话" value={formatDecimal(visitorQuality.avgSessionsPerIp)} note="每个访客平均触发的会话数" />
+                <CompactStat label="平均浏览页数" value={formatDecimal(visitorQuality.avgViewsPerIp)} note={`主力设备 ${topDeviceEntry?.[0] || '待识别'}`} />
               </div>
             </SectionCard>
 
-            <SectionCard className="px-5 py-5 sm:px-6">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-sm font-semibold text-slate-800">访客画像</h2>
-                  <p className="mt-1 text-xs text-slate-400">把主力设备、系统和互动倾向单独拎出来看。</p>
-                </div>
-              </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <CompactStat
-                  label="主力设备"
-                  value={topDeviceEntry ? `${topDeviceEntry[0]} ${formatPercent(topDeviceEntry[1], siteMetrics.pv)}` : '设备待识别'}
-                  note={`${topOsEntry?.[0] || '系统待识别'} · ${topBrowserEntry?.[0] || '浏览器待识别'}`}
-                />
-                <CompactStat label="互动率" value={interactionRate} note={`${formatNumber(interactionTotals.interactions)} 次互动 / ${formatNumber(interactionTotals.articleEnter)} 次进入`} />
-                <CompactStat label="转发占比" value={shareRate} note={`链接 + 海报共 ${formatNumber(interactionTotals.shares)} 次`} />
-                <CompactStat label="当前设备筛选" value={selectedDeviceLabel} note={selectedIp ? `仅看 ${selectedIp}` : '未限定单个 IP'} />
-              </div>
-            </SectionCard>
+            <BarListChartCard
+              title="来源 Top"
+              description="快速看哪些入口最稳定地把人带到站里。"
+              items={topReferrers}
+              emptyText="当前范围没有可识别的来源记录。"
+            />
           </div>
         </>
       ) : null}
@@ -1659,10 +2235,10 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
       {selectedTab === 'content' ? (
         <>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="文章进入" value={formatNumber(interactionTotals.articleEnter)} note={`当前范围 ${selectedRangeLabel}`} />
-            <MetricCard label="有效阅读" value={formatNumber(interactionTotals.qualifiedRead)} note={`完成率 ${formatPercent(interactionTotals.qualifiedRead, interactionTotals.articleEnter)}`} />
-            <MetricCard label="转发" value={formatNumber(interactionTotals.shares)} note={`占总互动 ${shareRate}`} />
-            <MetricCard label="评论" value={formatNumber(interactionTotals.comments)} note={`点赞 ${formatNumber(interactionTotals.likes)} · 总互动 ${formatNumber(interactionTotals.interactions)}`} />
+            <MetricCard label="文章进入" value={formatNumber(interactionTotals.articleEnter)} note={`当前范围 ${selectedRangeLabel}`} toneClass="from-slate-800 via-slate-700 to-slate-600" />
+            <MetricCard label="有效阅读" value={formatNumber(interactionTotals.qualifiedRead)} note={`完成率 ${formatPercent(interactionTotals.qualifiedRead, interactionTotals.articleEnter)}`} toneClass="from-violet-700 via-indigo-600 to-sky-500" />
+            <MetricCard label="转发" value={formatNumber(interactionTotals.shares)} note={`占总互动 ${shareRate}`} toneClass="from-amber-600 via-orange-500 to-rose-500" />
+            <MetricCard label="评论" value={formatNumber(interactionTotals.comments)} note={`点赞 ${formatNumber(interactionTotals.likes)} · 总互动 ${formatNumber(interactionTotals.interactions)}`} toneClass="from-emerald-700 via-teal-600 to-cyan-500" />
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
@@ -1773,45 +2349,132 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
       {selectedTab === 'visitors' ? (
         <>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="独立访客" value={formatNumber(siteMetrics.uv)} note={`识别到 ${formatNumber(siteMetrics.uniqueIp)} 个访问 IP`} />
-            <MetricCard label="主力设备" value={topDeviceEntry?.[0] || '待识别'} note={`${topBrowserEntry?.[0] || '浏览器待识别'} · ${topOsEntry?.[0] || '系统待识别'}`} />
-            <MetricCard label="最近访问" value={formatNumber(recentVisits.length)} note={selectedIp ? `当前锁定 ${selectedIp}` : '按当前筛选自动去重展示'} />
-            <MetricCard label="当前来源结构" value={directRate} note={`站外占比 ${externalRate}`} />
+            <MetricCard label="独立访客" value={formatNumber(siteMetrics.uv)} note={`识别到 ${formatNumber(siteMetrics.uniqueIp)} 个访问 IP`} toneClass="from-sky-700 via-cyan-600 to-teal-500" />
+            <MetricCard label="真实 IP" value={formatNumber(knownVisitorCount)} note={`未知访客 ${formatNumber(unknownVisitorCount)}`} toneClass="from-emerald-700 via-emerald-600 to-lime-500" />
+            <MetricCard label="回访访客" value={formatNumber(visitorQuality.returningIpCount)} note={`一次即走 ${formatNumber(visitorQuality.singleVisitIpCount)}`} toneClass="from-violet-700 via-fuchsia-600 to-pink-500" />
+            <MetricCard
+              label={selectedIp ? '当前追踪' : '平均浏览深度'}
+              value={selectedIp ? selectedIp : `${formatDecimal(visitorQuality.avgViewsPerIp)} 页`}
+              note={
+                selectedIp
+                  ? selectedIpSummary
+                    ? `${formatLocation(selectedIpSummary.ipRegion, selectedIpSummary.ipCity)} · ${formatNumber(selectedIpSummary.uniquePaths)} 个页面`
+                    : '当前筛选下还没有这条 IP 的访问摘要'
+                  : `平均 ${formatDecimal(visitorQuality.avgSessionsPerIp)} 次会话 · ${topDeviceEntry?.[0] || '设备待识别'}`
+              }
+              toneClass="from-slate-800 via-slate-700 to-slate-600"
+            />
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-            <div className="grid gap-6">
-              <RankListCard title="高频 IP" items={topIps} />
-              <RankListCard title="高频页面" items={topPages} />
-            </div>
-            <div className="grid gap-6">
-              <RankListCard title="来源 Top" items={topReferrers} />
-              <SectionCard className="px-5 py-5 sm:px-6">
-                <div>
-                  <h2 className="text-sm font-semibold text-slate-800">当前筛选速读</h2>
-                  <p className="mt-1 text-xs text-slate-400">这里把访客明细里最重要的结论先拎出来。</p>
-                </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <CompactStat label="设备筛选" value={selectedDeviceLabel} note={selectedIp ? `只看 ${selectedIp}` : '未锁定单个 IP'} />
-                  <CompactStat label="查看范围" value={selectedRangeLabel} note={rangeText} />
-                  <CompactStat label="主力浏览器" value={topBrowserEntry?.[0] || '待识别'} note={`系统 ${topOsEntry?.[0] || '待识别'}`} />
-                  <CompactStat label="会话密度最高 IP" value={topIps[0]?.label || '暂无'} note={topIps[0]?.meta || '还没有可比较的会话数据'} />
-                </div>
-              </SectionCard>
-            </div>
+          <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
+            <SegmentBarCard
+              title="真实访客结构"
+              description="把可识别真实 IP 和未知访客拆开看，先判断这批统计是不是足够干净。"
+              segments={realIpSegments}
+            />
+            <SectionCard className="px-5 py-5 sm:px-6">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-800">{selectedIp ? '当前 IP 摘要' : '当前筛选速读'}</h2>
+                <p className="mt-1 text-xs text-slate-400">
+                  {selectedIp ? '锁定单个 IP 后，先看访问密度、页面数和地区，再决定要不要继续追踪轨迹。' : '这里把设备、范围和最值得继续追的信号先收拢到一块。'}
+                </p>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {selectedIp ? (
+                  <>
+                    <CompactStat label="追踪 IP" value={selectedIp} note={selectedIpSummary ? formatLocation(selectedIpSummary.ipRegion, selectedIpSummary.ipCity) : '地区待识别'} />
+                    <CompactStat label="访问次数" value={formatNumber(selectedIpSummary?.views ?? 0)} note={`会话 ${formatNumber(selectedIpSummary?.sessions ?? 0)} 次`} />
+                    <CompactStat label="访问页面" value={formatNumber(selectedIpSummary?.uniquePaths ?? 0)} note={`平均停留 ${formatDuration(selectedIpSummary?.avgDuration ?? 0)}`} />
+                    <CompactStat label="首次出现" value={selectedIpSummary?.firstSeen ? formatDateTime(selectedIpSummary.firstSeen) : '—'} />
+                    <CompactStat label="最近出现" value={selectedIpSummary?.lastSeen ? formatDateTime(selectedIpSummary.lastSeen) : '—'} />
+                    <CompactStat label="设备筛选" value={selectedDeviceLabel} note={selectedRangeLabel} />
+                  </>
+                ) : (
+                  <>
+                    <CompactStat label="设备筛选" value={selectedDeviceLabel} note="可随时切换手机 / 桌面 / 爬虫" />
+                    <CompactStat label="查看范围" value={selectedRangeLabel} note={rangeText} />
+                    <CompactStat label="主力浏览器" value={topBrowserEntry?.[0] || '待识别'} note={`系统 ${topOsEntry?.[0] || '待识别'}`} />
+                    <CompactStat label="主力设备" value={topDeviceEntry?.[0] || '待识别'} note={`占比 ${topDeviceEntry ? formatPercent(topDeviceEntry[1], siteMetrics.pv) : '—'}`} />
+                    <CompactStat label="热点地区" value={topRegions[0]?.label || '地区待识别'} note={topRegions[0]?.meta || '等更多真实访问后会更准'} />
+                    <CompactStat label="建议追踪 IP" value={visitorIpLeaderboard[0]?.label || '暂无'} note={visitorIpLeaderboard[0]?.meta || '当前还没有足够密集的访问'} />
+                  </>
+                )}
+              </div>
+            </SectionCard>
           </div>
 
           <div className="grid gap-6 xl:grid-cols-3">
-            <RankListCard title="设备分布" items={deviceBreakdown} />
-            <RankListCard title="浏览器排行" items={topBrowsers} />
-            <RankListCard title="系统排行" items={topOperatingSystems} />
+            <BarListChartCard title="设备分布" description="按设备类型汇总，快速看手机、桌面和平板谁更活跃。" items={deviceBreakdown} emptyText="当前范围没有设备类型数据。" />
+            <BarListChartCard title="浏览器排行" description="看访客主要用什么浏览器进站，排查兼容问题会更直观。" items={topBrowsers} emptyText="当前范围没有浏览器数据。" />
+            <BarListChartCard title="系统排行" description="系统分布能帮助你判断问题更集中在 iOS、Android 还是桌面端。" items={topOperatingSystems} emptyText="当前范围没有系统数据。" />
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+            <SectionCard>
+              <div className="border-b border-slate-100 px-5 py-4">
+                <h2 className="text-sm font-semibold text-slate-800">详细访客榜</h2>
+                <p className="mt-1 text-xs text-slate-400">优先展示真实 IP 的访问密度、设备和停留情况，匿名访客会在上面的结构里单独统计。</p>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {visitorLeaderboard.length === 0 ? (
+                  <p className="px-5 py-12 text-sm text-slate-400">当前范围还没有可展示的访客数据。</p>
+                ) : (
+                  visitorLeaderboard.map(item => (
+                    <div
+                      key={`${item.displayIp}-${toTimestamp(item.lastSeen)}-${item.sessions}`}
+                      className="flex items-start justify-between gap-4 px-5 py-4 transition hover:bg-slate-50/80"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+                            {item.displayLocation}
+                          </span>
+                          <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-1 font-mono text-[11px] text-slate-500">
+                            {item.displayIp}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-sm font-medium text-slate-800">{item.deviceProfile.summary}</p>
+                        {item.deviceProfile.detail ? <p className="mt-1 text-xs text-slate-400">{item.deviceProfile.detail}</p> : null}
+                        <p className="mt-2 text-xs text-slate-400">
+                          会话 {formatNumber(item.sessions)} 次 · 页面 {formatNumber(item.uniquePaths)} 个 · 设备 {formatNumber(item.deviceCount)} 台
+                        </p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          首访 {formatDateTime(item.firstSeen)} · 最近 {formatDateTime(item.lastSeen)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xl font-semibold text-slate-900">{formatNumber(item.views)}</p>
+                        <p className="mt-1 text-xs text-slate-400">总访问</p>
+                        <p className="mt-3 text-xs text-slate-400">平均停留 {formatDuration(item.avgDuration)}</p>
+                        <Link
+                          href={item.traceHref}
+                          className="mt-3 inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                        >
+                          查看轨迹
+                        </Link>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </SectionCard>
+
+            <div className="grid gap-6">
+              <RankListCard title="高频 IP" items={visitorIpLeaderboard} />
+              <BarListChartCard
+                title="地区热度"
+                description="按访问量汇总地区，看看真实流量主要落在哪些地方。"
+                items={topRegions}
+                emptyText="当前范围还没有可识别的地区数据。"
+              />
+            </div>
           </div>
 
           {selectedIp ? (
             <SectionCard>
               <div className="border-b border-slate-100 px-5 py-4">
                 <h2 className="text-sm font-semibold text-slate-800">单个 IP 访问轨迹</h2>
-                <p className="mt-1 text-xs text-slate-400">按时间倒序展示这个 IP 在当前筛选条件下的访问路径。</p>
+                <p className="mt-1 text-xs text-slate-400">按时间倒序展示这个 IP 在当前筛选条件下的访问路径和来源。</p>
               </div>
               <div className="divide-y divide-slate-100">
                 {ipTraceRows.length === 0 ? (

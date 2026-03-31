@@ -1,4 +1,7 @@
+import type { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
+import { enrichDeviceInfoWithSignature } from '@/lib/analytics-traffic'
+import { getGeoInfo } from '@/lib/geo'
 import { prisma } from '@/lib/prisma'
 import { getStageInfo, hashIP, getClientIP } from '@/lib/sunflower'
 
@@ -35,20 +38,34 @@ export async function GET() {
 
 // POST：记录一次互动
 export async function POST(req: NextRequest) {
-  const { action } = await req.json()
+  const body = await req.json()
+  const action = typeof body?.action === 'string' ? body.action : ''
   if (!['water', 'fertilize', 'sun'].includes(action)) {
     return NextResponse.json({ error: '无效操作' }, { status: 400 })
   }
 
   const ip = getClientIP(req)
   const ipHash = hashIP(ip)
+  const userAgent = (req.headers.get('user-agent') || '').slice(0, 200)
+  const safeDeviceInfo = enrichDeviceInfoWithSignature(userAgent, body?.deviceInfo)
+  const geo = await getGeoInfo(ip)
 
   // 用数据库事务保证原子性：尝试插入 IP 记录，若已存在则说明已互动
   try {
     const [, state] = await prisma.$transaction(async (tx) => {
       // 尝试插入（主键冲突则抛出异常）
       const interaction = await tx.sunflowerInteraction.create({
-        data: { ipHash, action },
+        data: {
+          ipHash,
+          action,
+          ipAddress: ip,
+          ipCountry: geo?.country || null,
+          ipRegion: geo?.region || null,
+          ipCity: geo?.city || null,
+          ipIsp: geo?.isp || null,
+          userAgent,
+          ...(safeDeviceInfo ? { deviceInfo: safeDeviceInfo as Prisma.InputJsonValue } : {}),
+        },
       })
 
       // 插入成功 → 计数 +1

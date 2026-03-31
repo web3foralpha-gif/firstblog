@@ -1,6 +1,8 @@
 'use client'
+import type { Prisma } from '@prisma/client'
 import { useState, useEffect, useCallback } from 'react'
 import { PageHeader, Card, useToast, useConfirm } from '@/components/houtai/ui'
+import { describeDevice, sanitizeDeviceInfo } from '@/lib/device-info'
 
 interface SfState {
   stage: number; name: string; emoji: string
@@ -11,11 +13,27 @@ interface SfState {
 }
 interface Interaction {
   id: string; action: string; ipHash: string; createdAt: string
+  ipAddress?: string
+  ipCountry?: string
   ipRegion?: string; ipCity?: string
+  ipIsp?: string
+  userAgent?: string
+  deviceInfo?: Prisma.JsonValue | null
 }
 
 const STAGE_NAMES = ['种子','发芽','长茎','长叶','花骨朵','盛开']
 const ACTION_LABELS: Record<string, string> = { water: '💧 浇水', fertilize: '💩 施肥', sun: '☀️ 晒太阳' }
+
+function formatLocation(log: Interaction) {
+  const parts = [log.ipCountry, log.ipRegion, log.ipCity].filter(Boolean)
+  return parts.length > 0 ? parts.join(' · ') : '地区待识别'
+}
+
+function formatIpHash(ipHash: string) {
+  if (!ipHash) return '未记录指纹'
+  if (ipHash.length <= 14) return ipHash
+  return `${ipHash.slice(0, 8)}…${ipHash.slice(-6)}`
+}
 
 export default function SunflowerAdminPage() {
   const toast = useToast()
@@ -142,18 +160,49 @@ export default function SunflowerAdminPage() {
         <div className="divide-y divide-slate-50">
           {logs.length === 0 ? (
             <p className="py-8 text-center text-slate-400 text-sm">暂无互动记录</p>
-          ) : logs.slice(0, 50).map((log, i) => (
-            <div key={log.id ?? i} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50/50 transition-colors">
-              <span className="text-base">{ACTION_LABELS[log.action]?.split(' ')[0] ?? '❓'}</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-slate-700">{ACTION_LABELS[log.action] ?? log.action}</p>
-                <p className="text-xs text-slate-400">{log.ipRegion ?? ''} {log.ipCity ?? ''}</p>
+          ) : logs.slice(0, 50).map((log, i) => {
+            const deviceProfile = describeDevice(log.userAgent, sanitizeDeviceInfo(log.deviceInfo))
+            const ipText = log.ipAddress?.trim() || '旧记录未采集 IP'
+
+            return (
+              <div
+                key={log.id ?? i}
+                className="grid gap-3 px-4 py-3 transition-colors hover:bg-slate-50/50 md:grid-cols-[140px_minmax(0,1fr)_96px]"
+              >
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 text-base">{ACTION_LABELS[log.action]?.split(' ')[0] ?? '❓'}</span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-700">{ACTION_LABELS[log.action] ?? log.action}</p>
+                    <p className="mt-1 text-xs text-slate-400">{formatLocation(log)}</p>
+                  </div>
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex flex-wrap gap-2">
+                    <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-mono text-[11px] text-slate-600">
+                      {ipText}
+                    </span>
+                    <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-500">
+                      指纹 {formatIpHash(log.ipHash)}
+                    </span>
+                    {log.ipIsp ? (
+                      <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-500">
+                        {log.ipIsp}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">{deviceProfile.summary || '设备待识别'}</p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    {deviceProfile.detail || (log.userAgent?.trim() ? log.userAgent : '旧记录未采集设备详情')}
+                  </p>
+                </div>
+
+                <div className="shrink-0 text-right text-xs text-slate-400">
+                  {new Date(log.createdAt).toLocaleString('zh-CN', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}
+                </div>
               </div>
-              <span className="text-xs text-slate-400 flex-shrink-0">
-                {new Date(log.createdAt).toLocaleString('zh-CN', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}
-              </span>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </Card>
 

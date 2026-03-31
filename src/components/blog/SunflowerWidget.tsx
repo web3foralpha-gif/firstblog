@@ -1,5 +1,6 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { collectClientDeviceInfo, getClientDeviceInfoSync } from '@/lib/client-device'
 import SunflowerIllustration from './SunflowerIllustration'
 
 type SunflowerState = {
@@ -52,6 +53,7 @@ function buildFallbackState(message = '向日葵今天在休息，晚一点再�
 }
 
 export default function SunflowerWidget() {
+  const deviceInfoRef = useRef(getClientDeviceInfoSync())
   const [state, setState] = useState<SunflowerState | null>(null)
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState(false)
@@ -105,6 +107,18 @@ export default function SunflowerWidget() {
     return () => clearInterval(interval)
   }, [fetchState])
 
+  useEffect(() => {
+    let disposed = false
+    void collectClientDeviceInfo().then(deviceInfo => {
+      if (!disposed && deviceInfo) {
+        deviceInfoRef.current = deviceInfo
+      }
+    })
+    return () => {
+      disposed = true
+    }
+  }, [])
+
   async function interact(action: string, actionFeedback: string) {
     if (acting || alreadyDone) {
       if (alreadyDone) {
@@ -119,7 +133,7 @@ export default function SunflowerWidget() {
       const res = await fetch('/api/sunflower', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, deviceInfo: deviceInfoRef.current }),
       })
       const data = await res.json()
 
