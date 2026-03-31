@@ -9,6 +9,7 @@ type BlogIndexPageProps = {
   posts: BlogPostSummary[]
   title?: string
   description?: string
+  searchQuery?: string
   cornerTitle?: string
   cornerLines?: string[]
   quickLinksTitle?: string
@@ -22,6 +23,7 @@ export default function BlogIndexPage({
   posts,
   title = '近期文章',
   description = '写下生活里的小事，也留下此刻的心情。',
+  searchQuery = '',
   cornerTitle = '小站角落',
   cornerLines = [
     '适合慢慢读几篇文章，发一会儿呆。',
@@ -44,13 +46,42 @@ export default function BlogIndexPage({
             <div className="mb-6 sm:mb-8">
               <h1 className="mb-1 font-serif text-2xl font-medium text-[var(--text-primary)] sm:text-3xl">{title}</h1>
               <p className="text-sm text-[var(--text-subtle)]">{description}</p>
-              <p className="mt-1 text-sm text-[var(--text-subtle)]">共 {posts.length} 篇</p>
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-[var(--text-subtle)]">
+                  {searchQuery ? `当前筛选：${searchQuery} · ` : ''}共 {posts.length} 篇
+                </p>
+                <form action="/blog" method="get" className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    type="search"
+                    name="q"
+                    defaultValue={searchQuery}
+                    placeholder="搜标题、摘要、关键词…"
+                    className="min-w-0 rounded-full border border-[var(--border-color)] bg-white/80 px-4 py-2 text-sm text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-faint)] focus:border-[var(--accent)]"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="submit"
+                      className="rounded-full border border-[var(--border-color)] bg-[var(--nav-pill-bg)] px-4 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                    >
+                      搜索
+                    </button>
+                    {searchQuery ? (
+                      <a
+                        href="/blog"
+                        className="rounded-full border border-[var(--border-color)] px-4 py-2 text-sm text-[var(--text-subtle)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                      >
+                        清除
+                      </a>
+                    ) : null}
+                  </div>
+                </form>
+              </div>
             </div>
 
             {posts.length === 0 ? (
               <div className="py-20 text-center text-[var(--text-subtle)]">
                 <p className="text-4xl mb-4">📝</p>
-                <p>还没有公开文章，过几天再来看看吧。</p>
+                <p>{searchQuery ? '暂时没有匹配这组关键词的文章。' : '还没有公开文章，过几天再来看看吧。'}</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -91,6 +122,12 @@ export default function BlogIndexPage({
                 </a>
                 <a href={guestbookHref} className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--nav-pill-hover)] hover:text-[var(--accent)]">
                   <span>💬</span> {guestbookLabel}
+                </a>
+                <a href="/archive" className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--nav-pill-hover)] hover:text-[var(--accent)]">
+                  <span>🗂</span> 归档
+                </a>
+                <a href="/rss.xml" className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--nav-pill-hover)] hover:text-[var(--accent)]">
+                  <span>📡</span> RSS
                 </a>
               </div>
             </div>

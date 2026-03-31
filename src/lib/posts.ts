@@ -49,6 +49,10 @@ function normalizeText(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+function normalizeSearchQuery(value: string) {
+  return normalizeText(value).toLowerCase()
+}
+
 function normalizeTags(tags: PostFrontmatter['tags']) {
   if (Array.isArray(tags)) {
     return tags.map(tag => normalizeText(tag)).filter(Boolean)
@@ -308,6 +312,63 @@ export async function getAllPosts(): Promise<BlogPostSummary[]> {
 
       return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
     })
+}
+
+function buildSearchablePostText(post: BlogPostSummary) {
+  return [
+    post.title,
+    post.excerpt,
+    post.description,
+    post.slug,
+    post.tags.join(' '),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+}
+
+export function filterPostsByQuery(posts: BlogPostSummary[], query: string) {
+  const normalizedQuery = normalizeSearchQuery(query)
+  if (!normalizedQuery) return posts
+
+  const tokens = normalizedQuery.split(/\s+/).filter(Boolean)
+  if (tokens.length === 0) return posts
+
+  return posts.filter(post => {
+    const haystack = buildSearchablePostText(post)
+    return tokens.every(token => haystack.includes(token))
+  })
+}
+
+export async function getRelatedPosts(currentSlug: string, tags: string[] = [], limit = 3): Promise<BlogPostSummary[]> {
+  const posts = await getAllPosts()
+  const normalizedTags = new Set(tags.map(tag => normalizeSearchQuery(tag)).filter(Boolean))
+
+  return posts
+    .filter(post => post.slug !== currentSlug)
+    .map(post => {
+      const sharedTagCount = post.tags.reduce((count, tag) => {
+        return normalizedTags.has(normalizeSearchQuery(tag)) ? count + 1 : count
+      }, 0)
+
+      return {
+        post,
+        score: sharedTagCount,
+      }
+    })
+    .sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score
+      }
+
+      if (Boolean(right.post.pinned) !== Boolean(left.post.pinned)) {
+        return right.post.pinned ? 1 : -1
+      }
+
+      return new Date(right.post.publishedAt).getTime() - new Date(left.post.publishedAt).getTime()
+    })
+    .slice(0, limit)
+    .map(item => item.post)
 }
 
 export async function getPostBySlug(slug: string): Promise<BlogPost | null> {

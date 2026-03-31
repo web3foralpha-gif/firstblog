@@ -16,6 +16,14 @@ export default async function SiteFooter({ compact = false }: SiteFooterProps) {
   const resolvedFooterText = footerText.trim() || '用文字记录生活'
   const resolvedLinksTitle = linksTitle.trim() || '友情链接'
   const year = new Date().getFullYear()
+  const navLinks = [
+    { href: '/', label: '首页' },
+    { href: '/blog', label: '文章' },
+    { href: '/archive', label: '归档' },
+    { href: '/about', label: '关于' },
+    { href: '/guestbook', label: '留言板' },
+    { href: '/rss.xml', label: 'RSS' },
+  ]
 
   return (
     <footer className={`border-t border-[var(--border-color)] ${compact ? 'mt-10 sm:mt-14' : 'mt-12 sm:mt-16'} py-6 sm:py-8`}>
@@ -26,6 +34,17 @@ export default async function SiteFooter({ compact = false }: SiteFooterProps) {
             <p className="mt-2 text-sm text-[var(--text-secondary)]">
               {resolvedFooterText} · {year}
             </p>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+              {navLinks.map(link => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  className="rounded-full border border-[var(--border-soft)] bg-white/45 px-3 py-1.5 text-xs text-[var(--text-subtle)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
           </div>
 
           {links.length > 0 && (

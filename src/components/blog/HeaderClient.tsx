@@ -6,7 +6,9 @@ import { useState } from 'react'
 export default function HeaderClient({ siteName }: { siteName: string }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const navItems = [
+    ['/', '首页'],
     ['/blog', '文章'],
+    ['/archive', '归档'],
     ['/about', '关于'],
     ['/guestbook', '留言板'],
   ] as Array<readonly [string, string]>
@@ -14,7 +16,7 @@ export default function HeaderClient({ siteName }: { siteName: string }) {
   return (
     <header className="sticky top-0 z-30 border-b border-[var(--header-border)] bg-[var(--header-bg)] backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
-        <Link href="/blog" className="group inline-flex items-center gap-3 rounded-full border border-[var(--border-color)] bg-[var(--nav-pill-bg)] px-3 py-2 shadow-[0_10px_30px_var(--card-shadow)] transition-all hover:-translate-y-0.5 hover:border-[var(--accent)]">
+        <Link href="/" className="group inline-flex items-center gap-3 rounded-full border border-[var(--border-color)] bg-[var(--nav-pill-bg)] px-3 py-2 shadow-[0_10px_30px_var(--card-shadow)] transition-all hover:-translate-y-0.5 hover:border-[var(--accent)]">
           <span className="flex h-10 w-12 items-center justify-center rounded-full bg-[var(--accent-soft)] shadow-inner shadow-white/70">
             <svg width="34" height="24" viewBox="0 0 68 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <path d="M4 17C10 10 18 8 18 13C18 18 10 17 10 21C10 25 16 24 16 29" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeDasharray="5 5" className="text-[var(--accent)] opacity-70" />
@@ -62,16 +64,16 @@ export default function HeaderClient({ siteName }: { siteName: string }) {
       {menuOpen && (
         <div className="border-t border-[var(--header-border)] bg-[var(--page-bg-overlay)] px-4 py-3 backdrop-blur-xl sm:hidden">
           <div className="theme-panel-soft space-y-1 p-2">
-          {navItems.map(([href, label]) => (
-            <Link
-              key={href}
-              href={href}
-              onClick={() => setMenuOpen(false)}
-              className="flex items-center rounded-2xl px-3 py-2.5 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--nav-pill-hover)] hover:text-[var(--accent)]"
-            >
-              {label}
-            </Link>
-          ))}
+            {navItems.map(([href, label]) => (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center rounded-2xl px-3 py-2.5 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--nav-pill-hover)] hover:text-[var(--accent)]"
+              >
+                {label}
+              </Link>
+            ))}
           </div>
         </div>
       )}

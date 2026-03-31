@@ -10,7 +10,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     name: site.siteName,
     short_name: site.siteName,
     description: site.siteDescription,
-    start_url: '/blog',
+    start_url: '/',
     scope: '/',
     display: 'standalone',
     background_color: '#faf8f5',

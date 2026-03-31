@@ -24,6 +24,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 1,
     },
     {
+      url: absoluteUrl('/archive'),
+      lastModified: latestPostDate,
+      changeFrequency: 'daily',
+      priority: 0.8,
+    },
+    {
       url: absoluteUrl('/about'),
       lastModified: new Date(),
       changeFrequency: 'weekly',

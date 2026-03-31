@@ -7,10 +7,11 @@ import Header from '@/components/blog/Header'
 import PikachuWidget from '@/components/blog/PikachuWidget'
 import CommentSection from '@/components/blog/CommentSection'
 import ArticleContent from '@/components/blog/ArticleContent'
+import RelatedPosts from '@/components/blog/RelatedPosts'
 import SiteFooter from '@/components/blog/SiteFooter'
 import StructuredData from '@/components/StructuredData'
 import { getRestrictedArticlePreview } from '@/lib/article-access'
-import { getPostBySlug } from '@/lib/posts'
+import { getPostBySlug, getRelatedPosts } from '@/lib/posts'
 import { getArticleEngagementSummary } from '@/lib/article-engagement'
 import { getLegacyArticleBySlug, getLegacyArticleTitleBySlug, hasLegacyArticleTokenAccess } from '@/lib/services/legacy-article-service'
 import { absoluteUrl } from '@/lib/site'
@@ -121,7 +122,10 @@ export default async function ArticlePage({ params, searchParams }: Props) {
     email: c.email ?? undefined,
     createdAt: c.createdAt.toISOString(),
   }))
-  const engagement = await getArticleEngagementSummary(article.id)
+  const [engagement, relatedPosts] = await Promise.all([
+    getArticleEngagementSummary(article.id),
+    getRelatedPosts(slug, [], 3),
+  ])
   const description = summarizeText(
     getRestrictedArticlePreview(article.accessType, article.price) || article.excerpt || article.content,
     180,
@@ -201,6 +205,7 @@ export default async function ArticlePage({ params, searchParams }: Props) {
           />
 
           <CommentSection articleId={article.id} comments={comments} />
+          <RelatedPosts posts={relatedPosts} />
         </main>
 
         <SiteFooter compact />

@@ -6,7 +6,7 @@ import StructuredData from '@/components/StructuredData'
 import { absoluteUrl } from '@/lib/site'
 import { buildBlogSchema, buildCollectionPageSchema, buildSeoImageCandidates, getSiteSeoData } from '@/lib/seo'
 import { getSetting } from '@/lib/settings'
-import { getAllPosts } from '@/lib/posts'
+import { filterPostsByQuery, getAllPosts } from '@/lib/posts'
 
 const GENERIC_BLOG_TITLES = new Set(['博客', '博客文章', '最新文章'])
 const GENERIC_BLOG_DESCRIPTIONS = new Set([
@@ -46,7 +46,9 @@ export async function generateMetadata(): Promise<Metadata> {
     .filter(Boolean)
 
   return {
-    title,
+    title: {
+      absolute: title,
+    },
     description,
     keywords: keywords.length > 0 ? keywords : undefined,
     alternates: {
@@ -72,14 +74,19 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export const revalidate = 3600
 
+type BlogPageProps = {
+  searchParams?: Promise<{ q?: string }>
+}
+
 const DEFAULT_CORNER_LINES = [
   '适合慢慢读几篇文章，发一会儿呆。',
   '右边的向日葵会记得每一次浇水、施肥和晒太阳。',
   '如果想留下点什么，留言板一直开着。',
 ]
 
-export default async function BlogPage() {
+export default async function BlogPage({ searchParams }: BlogPageProps) {
   const [
+    resolvedSearchParams,
     posts,
     site,
     pageTitle,
@@ -92,6 +99,7 @@ export default async function BlogPage() {
     quickLinkGuestbookLabel,
     quickLinkGuestbookHref,
   ] = await Promise.all([
+    searchParams ?? Promise.resolve<{ q?: string }>({}),
     getAllPosts(),
     getSiteSeoData(),
     getSetting('blog.homeTitle'),
@@ -104,13 +112,17 @@ export default async function BlogPage() {
     getSetting('blog.quickLinkGuestbookLabel'),
     getSetting('blog.quickLinkGuestbookHref'),
   ])
+  const searchQuery = resolvedSearchParams.q?.trim() || ''
   const parsedCornerLines = (cornerContent || '')
     .split('\n')
     .map(line => line.trim())
     .filter(Boolean)
-  const resolvedTitle = pageTitle.trim() || '最新文章'
-  const resolvedDescription = resolveBlogSeoDescription(pageDescription)
-  const listedPosts = posts.slice(0, 12).map(post => ({
+  const filteredPosts = filterPostsByQuery(posts, searchQuery)
+  const resolvedTitle = searchQuery ? `与“${searchQuery}”相关的文章` : pageTitle.trim() || '最新文章'
+  const resolvedDescription = searchQuery
+    ? `这里整理了和“${searchQuery}”相关的公开文章、摘要与延伸阅读入口。`
+    : resolveBlogSeoDescription(pageDescription)
+  const listedPosts = filteredPosts.slice(0, 12).map(post => ({
     title: post.title,
     url: absoluteUrl(post.href || `/article/${post.slug}`),
     description: post.description,
@@ -132,9 +144,10 @@ export default async function BlogPage() {
         ]}
       />
       <BlogIndexPage
-        posts={posts}
+        posts={filteredPosts}
         title={resolvedTitle}
         description={resolvedDescription}
+        searchQuery={searchQuery}
         cornerTitle={cornerTitle.trim() || '小站角落'}
         cornerLines={parsedCornerLines.length > 0 ? parsedCornerLines : DEFAULT_CORNER_LINES}
         quickLinksTitle={quickLinksTitle.trim() || '快速入口'}

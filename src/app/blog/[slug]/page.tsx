@@ -6,15 +6,17 @@ import BlogTheme from '@/components/blog/BlogTheme'
 import Header from '@/components/blog/Header'
 import MarkdownContent from '@/components/blog/MarkdownContent'
 import PikachuWidget from '@/components/blog/PikachuWidget'
+import RelatedPosts from '@/components/blog/RelatedPosts'
 import SiteFooter from '@/components/blog/SiteFooter'
 import StructuredData from '@/components/StructuredData'
 import { getRestrictedArticlePreview } from '@/lib/article-access'
 import { getArticleEngagementSeedBySlug } from '@/lib/article-engagement'
-import { getAllPostSlugs, getPostBySlug, syncMarkdownPostsToDatabase } from '@/lib/posts'
+import { getAllPostSlugs, getPostBySlug, getRelatedPosts, syncMarkdownPostsToDatabase } from '@/lib/posts'
 import { getLegacyArticleTitleBySlug } from '@/lib/services/legacy-article-service'
 import { absoluteUrl } from '@/lib/site'
 import { buildArticleSchema, buildBreadcrumbSchema, buildSeoImageCandidates, getSiteSeoData } from '@/lib/seo'
 import { formatDate } from '@/lib/utils'
+import Link from 'next/link'
 
 export const revalidate = 3600
 
@@ -118,9 +120,10 @@ export default async function BlogPostPage({ params }: Props) {
     notFound()
   }
 
-  const [site, engagement] = await Promise.all([
+  const [site, engagement, relatedPosts] = await Promise.all([
     getSiteSeoData(),
     getArticleEngagementSeedBySlug(slug),
+    getRelatedPosts(slug, post.tags, 3),
   ])
   const description = post.description
   const breadcrumbs = buildBreadcrumbSchema([
@@ -167,9 +170,13 @@ export default async function BlogPostPage({ params }: Props) {
             {post.tags.length > 0 && (
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 {post.tags.map(tag => (
-                  <span key={tag} className="rounded-full bg-[var(--surface-soft)] px-3 py-1 text-xs text-[var(--text-secondary)]">
+                  <Link
+                    key={tag}
+                    href={`/blog?q=${encodeURIComponent(tag)}`}
+                    className="rounded-full bg-[var(--surface-soft)] px-3 py-1 text-xs text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)]"
+                  >
                     #{tag}
-                  </span>
+                  </Link>
                 ))}
               </div>
             )}
@@ -198,6 +205,8 @@ export default async function BlogPostPage({ params }: Props) {
               initialSummary={engagement.summary}
             />
           ) : null}
+
+          <RelatedPosts posts={relatedPosts} />
 
           <div className="mt-12 border-t border-[var(--border-color)] pt-6">
             <a href="/blog" className="text-sm text-[var(--text-subtle)] transition-colors hover:text-[var(--accent)]">
