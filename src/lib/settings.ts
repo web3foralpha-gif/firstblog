@@ -13,9 +13,9 @@ export const SETTING_DEFS: Record<string, {
   label: string
 }> = {
   // 基本信息
-  'site.title':           { type: 'string',  default: '我的小站',          public: true,  label: '网站标题' },
-  'site.description':     { type: 'string',  default: '记录生活，分享心情', public: true,  label: 'SEO 描述' },
-  'site.keywords':        { type: 'string',  default: '',                  public: true,  label: 'SEO 关键词' },
+  'site.title':           { type: 'string',  default: '纸杯的自留地',          public: true,  label: '网站标题' },
+  'site.description':     { type: 'string',  default: '一个记录日常、美食、方言文化和人生思考的个人博客，分享正在发生的小事与真实感悟。', public: true,  label: 'SEO 描述' },
+  'site.keywords':        { type: 'string',  default: '个人博客,生活感悟,方言文化,辉县话,第一性原理,美食记录,人生思考',                  public: true,  label: 'SEO 关键词' },
   'site.favicon':         { type: 'string',  default: '',                  public: true,  label: '站点标签图标' },
   'site.googleVerification': { type: 'string', default: '',               public: false, label: 'Google 验证码' },
   'site.bingVerification': { type: 'string',  default: '',                public: false, label: 'Bing 验证码' },
@@ -24,8 +24,8 @@ export const SETTING_DEFS: Record<string, {
   'site.pageSize':        { type: 'number',  default: '10',                public: false, label: '每页文章数' },
   'site.commentReview':   { type: 'boolean', default: 'true',              public: false, label: '评论需要审核' },
   'site.guestbookReview': { type: 'boolean', default: 'true',              public: false, label: '留言需要审核' },
-  'blog.homeTitle':       { type: 'string',  default: '博客文章',          public: true,  label: '博客首页标题' },
-  'blog.homeDescription': { type: 'string',  default: '写下生活、心情与一些正在发生的小事。', public: true, label: '博客首页副标题' },
+  'blog.homeTitle':       { type: 'string',  default: '最新文章',          public: true,  label: '博客首页标题' },
+  'blog.homeDescription': { type: 'string',  default: '记录生活小事、方言与人生感悟，也写下正在发生的真实心情。', public: true, label: '博客首页副标题' },
   'blog.cornerTitle':     { type: 'string',  default: '小站角落',          public: true,  label: '小站角落标题' },
   'blog.cornerContent':   { type: 'string',  default: '适合慢慢读几篇文章，发一会儿呆。\n右边的向日葵会记得每一次浇水、施肥和晒太阳。\n如果想留下点什么，留言板一直开着。', public: true, label: '小站角落文案' },
   'blog.quickLinksTitle': { type: 'string',  default: '快速入口',         public: true,  label: '快速入口标题' },

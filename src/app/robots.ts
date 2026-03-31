@@ -8,12 +8,12 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
-        disallow: ['/houtai', '/api/auth'],
+        disallow: ['/houtai', '/api', '/api/auth'],
       },
       {
         userAgent: 'Googlebot',
         allow: '/',
-        disallow: ['/houtai', '/api/auth'],
+        disallow: ['/houtai', '/api', '/api/auth'],
       },
     ],
     host: absoluteUrl('/'),

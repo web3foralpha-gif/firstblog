@@ -8,19 +8,47 @@ import { buildBlogSchema, buildCollectionPageSchema, buildSeoImageCandidates, ge
 import { getSetting } from '@/lib/settings'
 import { getAllPosts } from '@/lib/posts'
 
+const GENERIC_BLOG_TITLES = new Set(['博客', '博客文章', '最新文章'])
+const GENERIC_BLOG_DESCRIPTIONS = new Set([
+  '写下生活、心情与一些正在发生的小事。',
+  '记录生活小事、方言与人生感悟，也写下正在发生的真实心情。',
+])
+
+function resolveBlogSeoTitle(rawTitle: string, siteName: string) {
+  const cleanTitle = rawTitle.trim()
+  if (!cleanTitle || GENERIC_BLOG_TITLES.has(cleanTitle)) {
+    return `${siteName} | 记录生活小事、方言与人生感悟`
+  }
+  return cleanTitle
+}
+
+function resolveBlogSeoDescription(rawDescription: string) {
+  const cleanDescription = rawDescription.trim()
+  if (!cleanDescription || GENERIC_BLOG_DESCRIPTIONS.has(cleanDescription)) {
+    return '一个记录日常、美食、方言文化和人生思考的个人博客，分享正在发生的小事与真实感悟。'
+  }
+  return cleanDescription
+}
+
 export async function generateMetadata(): Promise<Metadata> {
-  const [titleSetting, descriptionSetting, site] = await Promise.all([
+  const [titleSetting, descriptionSetting, keywordsSetting, site] = await Promise.all([
     getSetting('blog.homeTitle'),
     getSetting('blog.homeDescription'),
+    getSetting('site.keywords'),
     getSiteSeoData(),
   ])
-  const title = titleSetting.trim() || '博客'
-  const description = descriptionSetting.trim() || '写下生活、心情与一些正在发生的小事。'
+  const title = resolveBlogSeoTitle(titleSetting, site.siteName)
+  const description = resolveBlogSeoDescription(descriptionSetting)
   const images = buildSeoImageCandidates(site.coverImage, site.authorImage, site.favicon)
+  const keywords = keywordsSetting
+    .split(',')
+    .map(keyword => keyword.trim())
+    .filter(Boolean)
 
   return {
     title,
     description,
+    keywords: keywords.length > 0 ? keywords : undefined,
     alternates: {
       canonical: '/blog',
     },
@@ -80,8 +108,8 @@ export default async function BlogPage() {
     .split('\n')
     .map(line => line.trim())
     .filter(Boolean)
-  const resolvedTitle = pageTitle.trim() || '博客文章'
-  const resolvedDescription = pageDescription.trim() || '写下生活、心情与一些正在发生的小事。'
+  const resolvedTitle = pageTitle.trim() || '最新文章'
+  const resolvedDescription = resolveBlogSeoDescription(pageDescription)
   const listedPosts = posts.slice(0, 12).map(post => ({
     title: post.title,
     url: absoluteUrl(post.href || `/article/${post.slug}`),

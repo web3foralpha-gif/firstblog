@@ -38,6 +38,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return {
       title: article.title,
       description,
+      keywords: [article.title].filter(Boolean),
       alternates: {
         canonical: `/article/${slug}`,
       },
@@ -71,6 +72,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: markdownPost.title,
     description: markdownPost.description,
+    keywords: [markdownPost.title, ...(markdownPost.tags || [])].filter(Boolean),
     alternates: {
       canonical: `/blog/${slug}`,
     },

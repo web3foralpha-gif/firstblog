@@ -74,10 +74,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const images = buildSeoImageCandidates(post.coverImage, site.coverImage, site.authorImage, site.favicon)
+  const keywords = [post.title, ...post.tags].filter(Boolean)
 
   return {
     title: post.title,
     description: post.description,
+    keywords,
     alternates: {
       canonical: `/blog/${post.slug}`,
     },

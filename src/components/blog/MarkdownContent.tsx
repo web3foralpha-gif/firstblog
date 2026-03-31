@@ -8,6 +8,19 @@ type MarkdownContentProps = {
   className?: string
 }
 
+function buildImageAltText(src?: string, alt?: string) {
+  const cleanAlt = alt?.trim()
+  if (cleanAlt) return cleanAlt
+
+  if (src) {
+    const normalized = src.split('?')[0].split('#')[0].split('/').pop()?.trim()
+    const decoded = normalized ? decodeURIComponent(normalized).replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ').trim() : ''
+    if (decoded) return decoded
+  }
+
+  return '文章插图'
+}
+
 const components: Components = {
   a({ href, children, ...props }) {
     const isExternal = typeof href === 'string' && /^https?:\/\//.test(href)
@@ -29,7 +42,7 @@ const components: Components = {
     return (
       <img
         src={src}
-        alt={alt || ''}
+        alt={buildImageAltText(src, alt)}
         loading="lazy"
         decoding="async"
         {...props}

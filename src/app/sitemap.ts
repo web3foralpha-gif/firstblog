@@ -7,10 +7,19 @@ export const dynamic = 'force-dynamic'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const posts = await getAllPosts()
+  const latestPostDate = posts.length > 0
+    ? new Date(posts[0].updatedAt || posts[0].publishedAt)
+    : new Date()
   const staticRoutes: MetadataRoute.Sitemap = [
     {
+      url: absoluteUrl('/'),
+      lastModified: latestPostDate,
+      changeFrequency: 'daily',
+      priority: 1,
+    },
+    {
       url: absoluteUrl('/blog'),
-      lastModified: new Date(),
+      lastModified: latestPostDate,
       changeFrequency: 'daily',
       priority: 1,
     },
@@ -25,6 +34,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: new Date(),
       changeFrequency: 'daily',
       priority: 0.7,
+    },
+    {
+      url: absoluteUrl('/rss.xml'),
+      lastModified: latestPostDate,
+      changeFrequency: 'daily',
+      priority: 0.5,
     },
   ]
 
