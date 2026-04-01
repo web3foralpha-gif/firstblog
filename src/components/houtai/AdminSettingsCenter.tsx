@@ -30,6 +30,8 @@ type SettingsSectionMeta = {
   label: string
   tone: string
   note: string
+  icon: string
+  scope: string[]
 }
 
 function getSectionMeta(sectionId: string): SettingsSectionMeta {
@@ -38,6 +40,68 @@ function getSectionMeta(sectionId: string): SettingsSectionMeta {
       label: '品牌 / SEO',
       tone: 'border-sky-200 bg-sky-50 text-sky-700',
       note: '搜索引擎、站点识别与标签页表现会直接受影响。',
+      icon: '🪪',
+      scope: ['搜索结果', '浏览器标签页', '全站主题'],
+    }
+  }
+
+  if (sectionId === 'navigation') {
+    return {
+      label: '全站导航',
+      tone: 'border-violet-200 bg-violet-50 text-violet-700',
+      note: '控制顶部导航、页脚入口和 RSS 对访客的可见性。',
+      icon: '🧭',
+      scope: ['顶部导航', '页脚导航', 'RSS'],
+    }
+  }
+
+  if (sectionId === 'home') {
+    return {
+      label: '首页编排',
+      tone: 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700',
+      note: '首页标题、搜索栏、角落卡片和快捷入口会即时同步到前台。',
+      icon: '🏠',
+      scope: ['首页标题', '搜索栏', '侧边卡片'],
+    }
+  }
+
+  if (sectionId === 'archive') {
+    return {
+      label: '归档页面',
+      tone: 'border-cyan-200 bg-cyan-50 text-cyan-700',
+      note: '适合单独调整归档页的标题、说明和按钮，不再和首页内容混在一起。',
+      icon: '🗂',
+      scope: ['归档页头', 'CTA 按钮'],
+    }
+  }
+
+  if (sectionId === 'footer') {
+    return {
+      label: '页脚信息',
+      tone: 'border-stone-200 bg-stone-50 text-stone-700',
+      note: '会影响全站底部说明、友链展示和站点氛围。',
+      icon: '🦶',
+      scope: ['页脚短句', '友情链接'],
+    }
+  }
+
+  if (sectionId === 'about') {
+    return {
+      label: '个人介绍',
+      tone: 'border-amber-200 bg-amber-50 text-amber-700',
+      note: '头像、头图、联系信息和正文都会直接反映在关于页。',
+      icon: '👤',
+      scope: ['关于页', '联系方式'],
+    }
+  }
+
+  if (sectionId === 'poster') {
+    return {
+      label: '分享素材',
+      tone: 'border-rose-200 bg-rose-50 text-rose-700',
+      note: '文章海报的字体、顶部标签和扫码说明统一在这里维护。',
+      icon: '🖼',
+      scope: ['分享海报', '二维码说明'],
     }
   }
 
@@ -46,6 +110,8 @@ function getSectionMeta(sectionId: string): SettingsSectionMeta {
       label: '服务接入',
       tone: 'border-violet-200 bg-violet-50 text-violet-700',
       note: '这里包含外部平台接入信息，保存前建议再次核对。',
+      icon: sectionId === 'payments' ? '💳' : '🤖',
+      scope: sectionId === 'payments' ? ['打赏配置', '支付提示'] : ['AI 分身', '模型接入'],
     }
   }
 
@@ -54,6 +120,18 @@ function getSectionMeta(sectionId: string): SettingsSectionMeta {
       label: '统计治理',
       tone: 'border-amber-200 bg-amber-50 text-amber-700',
       note: '用于剔除站长自测流量，让访问与互动统计更接近真实访客。',
+      icon: '📊',
+      scope: ['IP 白名单', '设备白名单'],
+    }
+  }
+
+  if (sectionId === 'interaction') {
+    return {
+      label: '互动体验',
+      tone: 'border-indigo-200 bg-indigo-50 text-indigo-700',
+      note: '会影响宠物和向日葵在前台给访客的互动反馈。',
+      icon: '✨',
+      scope: ['宠物文案', '向日葵反馈'],
     }
   }
 
@@ -62,6 +140,8 @@ function getSectionMeta(sectionId: string): SettingsSectionMeta {
       label: '敏感配置',
       tone: 'border-rose-200 bg-rose-50 text-rose-700',
       note: '涉及后台登录与权限安全，改动后建议立即验证登录流程。',
+      icon: '🔐',
+      scope: ['管理员账号', '登录安全'],
     }
   }
 
@@ -69,6 +149,8 @@ function getSectionMeta(sectionId: string): SettingsSectionMeta {
     label: '前台展示',
     tone: 'border-emerald-200 bg-emerald-50 text-emerald-700',
     note: '会直接影响访客前台看到的内容、文案与视觉表现。',
+    icon: '🪄',
+    scope: ['前台展示'],
   }
 }
 
@@ -763,7 +845,10 @@ export default function AdminSettingsCenter({
                       className="rounded-[24px] border border-slate-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm"
                     >
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-base font-semibold text-slate-800">{section.title}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-50 text-lg">{sectionMeta.icon}</span>
+                          <span className="text-base font-semibold text-slate-800">{section.title}</span>
+                        </div>
                         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500">
                           {section.fields.length} 字段
                         </span>
@@ -778,6 +863,13 @@ export default function AdminSettingsCenter({
                             {dirtyCountForSection} 项待保存
                           </span>
                         ) : null}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {sectionMeta.scope.map(item => (
+                          <span key={`${section.id}-${item}`} className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-500">
+                            {item}
+                          </span>
+                        ))}
                       </div>
                       <p className="mt-3 text-sm leading-6 text-slate-500">{section.description}</p>
                     </Link>
@@ -808,8 +900,20 @@ export default function AdminSettingsCenter({
                       最近保存 {formatSavedTime(savedSectionTimestamps[selectedSection.id])}
                     </span>
                   </div>
-                  <h2 className="mt-3 text-xl font-semibold text-slate-900">{selectedSection.title}</h2>
+                  <div className="mt-3 flex items-center gap-3">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-xl">
+                      {getSectionMeta(selectedSection.id).icon}
+                    </span>
+                    <h2 className="text-xl font-semibold text-slate-900">{selectedSection.title}</h2>
+                  </div>
                   <p className="mt-2 text-sm leading-6 text-slate-500">{selectedSection.description}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {getSectionMeta(selectedSection.id).scope.map(item => (
+                      <span key={`${selectedSection.id}-${item}`} className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-500">
+                        {item}
+                      </span>
+                    ))}
+                  </div>
                   <p className="mt-2 text-xs leading-5 text-slate-400">{getSectionMeta(selectedSection.id).note}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -1072,7 +1176,10 @@ export default function AdminSettingsCenter({
                       className="rounded-[24px] border border-slate-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm"
                     >
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-base font-semibold text-slate-800">{section.title}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-50 text-lg">{sectionMeta.icon}</span>
+                          <span className="text-base font-semibold text-slate-800">{section.title}</span>
+                        </div>
                         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500">
                           {section.fields.length} 字段
                         </span>
@@ -1087,6 +1194,13 @@ export default function AdminSettingsCenter({
                             {dirtyCountForSection} 项待保存
                           </span>
                         ) : null}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {sectionMeta.scope.map(item => (
+                          <span key={`${section.id}-${item}`} className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-500">
+                            {item}
+                          </span>
+                        ))}
                       </div>
                       <p className="mt-3 text-sm leading-6 text-slate-500">{section.description}</p>
                     </button>

@@ -9,17 +9,23 @@ import StructuredData from '@/components/StructuredData'
 import { getAllPosts, type BlogPostSummary } from '@/lib/posts'
 import { absoluteUrl } from '@/lib/site'
 import { buildCollectionPageSchema, getSiteSeoData } from '@/lib/seo'
+import { getSetting } from '@/lib/settings'
 import { formatDate } from '@/lib/utils'
 
 export const revalidate = 3600
 
 export async function generateMetadata(): Promise<Metadata> {
-  const site = await getSiteSeoData()
-  const title = `文章归档 | ${site.siteName}`
-  const description = '按时间整理博客文章，方便从年份和更新节奏里查看站点内容。'
+  const [site, archiveTitle, archiveDescription] = await Promise.all([
+    getSiteSeoData(),
+    getSetting('archive.pageTitle'),
+    getSetting('archive.pageDescription'),
+  ])
+  const resolvedArchiveTitle = archiveTitle.trim() || '文章归档'
+  const description = archiveDescription.trim() || '按时间整理博客文章，方便从年份和更新节奏里查看站点内容。'
+  const title = `${resolvedArchiveTitle} | ${site.siteName}`
 
   return {
-    title: '文章归档',
+    title: resolvedArchiveTitle,
     description,
     alternates: {
       canonical: '/archive',
@@ -51,10 +57,18 @@ function groupPostsByYear(posts: BlogPostSummary[]) {
 }
 
 export default async function ArchivePage() {
-  const [site, posts] = await Promise.all([
+  const [site, posts, archiveEyebrow, archiveTitle, archiveDescription, backHomeLabel, rssButtonLabel, showRss] = await Promise.all([
     getSiteSeoData(),
     getAllPosts(),
+    getSetting('archive.eyebrowLabel'),
+    getSetting('archive.pageTitle'),
+    getSetting('archive.pageDescription'),
+    getSetting('archive.backHomeLabel'),
+    getSetting('archive.rssButtonLabel'),
+    getSetting('nav.showRss'),
   ])
+  const resolvedArchiveTitle = archiveTitle.trim() || '文章归档'
+  const resolvedArchiveDescription = archiveDescription.trim() || '这里按时间整理所有公开文章。想按主题找内容，也可以去首页直接搜关键词。'
   const groupedPosts = Array.from(groupPostsByYear(posts).entries())
   const listedPosts = posts.slice(0, 20).map(post => ({
     title: post.title,
@@ -69,8 +83,8 @@ export default async function ArchivePage() {
       <StructuredData
         data={buildCollectionPageSchema(site, {
           path: '/archive',
-          title: '文章归档',
-          description: '按时间整理博客文章，方便从年份和更新节奏里查看站点内容。',
+          title: resolvedArchiveTitle,
+          description: resolvedArchiveDescription,
           items: listedPosts,
         })}
       />
@@ -80,18 +94,20 @@ export default async function ArchivePage() {
 
         <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
           <section className="theme-panel-soft p-6 sm:p-8">
-            <p className="text-xs uppercase tracking-[0.28em] text-[var(--text-faint)]">Archive</p>
-            <h1 className="mt-3 font-serif text-3xl font-medium text-[var(--text-primary)] sm:text-4xl">文章归档</h1>
+            <p className="text-xs uppercase tracking-[0.28em] text-[var(--text-faint)]">{archiveEyebrow.trim() || 'Archive'}</p>
+            <h1 className="mt-3 font-serif text-3xl font-medium text-[var(--text-primary)] sm:text-4xl">{resolvedArchiveTitle}</h1>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--text-secondary)]">
-              这里按时间整理所有公开文章。想按主题找内容，也可以去文章页直接搜关键词。
+              {resolvedArchiveDescription}
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <Link href="/blog" className="rounded-full border border-[var(--border-color)] px-5 py-2.5 text-sm text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]">
-                返回文章页
+              <Link href="/" className="rounded-full border border-[var(--border-color)] px-5 py-2.5 text-sm text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]">
+                {backHomeLabel.trim() || '返回首页'}
               </Link>
-              <a href="/rss.xml" className="rounded-full border border-[var(--border-color)] px-5 py-2.5 text-sm text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]">
-                RSS 订阅
-              </a>
+              {showRss === 'true' ? (
+                <a href="/rss.xml" className="rounded-full border border-[var(--border-color)] px-5 py-2.5 text-sm text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]">
+                  {rssButtonLabel.trim() || 'RSS 订阅'}
+                </a>
+              ) : null}
             </div>
           </section>
 

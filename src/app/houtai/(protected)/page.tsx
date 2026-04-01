@@ -164,27 +164,42 @@ export default async function AdminDashboard() {
 
   const settingsGroups: SettingsGroup[] = [
     {
-      title: '品牌与前台',
-      description: '把搜索展示、首页文案、关于页和海报入口收在一起。',
-      items: ['site', 'blog', 'about', 'poster'].map(sectionId => ({
+      title: '品牌与首页',
+      description: '站点身份、导航和首页编排分开收纳，改起来更像专业控制台。',
+      items: ['site', 'navigation', 'home'].map(sectionId => ({
         label: ADMIN_SETTING_SECTION_MAP[sectionId].title,
         description: ADMIN_SETTING_SECTION_MAP[sectionId].description,
         href: `/houtai/settings?section=${sectionId}`,
       })),
     },
     {
-      title: '运营与互动',
-      description: '评论、支付、互动文案和统计过滤都集中在这一列。',
-      items: ['payments', 'interaction', 'analytics'].map(sectionId => ({
+      title: '页面与传播',
+      description: '关于页、归档页、页脚和分享海报分别单独编辑，不再互相挤在一起。',
+      items: ['archive', 'about', 'footer', 'poster'].map(sectionId => ({
         label: ADMIN_SETTING_SECTION_MAP[sectionId].title,
         description: ADMIN_SETTING_SECTION_MAP[sectionId].description,
         href: `/houtai/settings?section=${sectionId}`,
       })),
     },
     {
-      title: 'AI 与安全',
-      description: '数字分身、管理员登录和数据备份不再散落在首页。',
+      title: '运营与服务',
+      description: '互动文案、统计治理、支付、AI 和安全配置统一归到运营层。',
       items: [
+        {
+          label: ADMIN_SETTING_SECTION_MAP.interaction.title,
+          description: ADMIN_SETTING_SECTION_MAP.interaction.description,
+          href: '/houtai/settings?section=interaction',
+        },
+        {
+          label: ADMIN_SETTING_SECTION_MAP.analytics.title,
+          description: ADMIN_SETTING_SECTION_MAP.analytics.description,
+          href: '/houtai/settings?section=analytics',
+        },
+        {
+          label: ADMIN_SETTING_SECTION_MAP.payments.title,
+          description: ADMIN_SETTING_SECTION_MAP.payments.description,
+          href: '/houtai/settings?section=payments',
+        },
         {
           label: ADMIN_SETTING_SECTION_MAP.ai.title,
           description: ADMIN_SETTING_SECTION_MAP.ai.description,
@@ -194,11 +209,6 @@ export default async function AdminDashboard() {
           label: ADMIN_SETTING_SECTION_MAP.security.title,
           description: ADMIN_SETTING_SECTION_MAP.security.description,
           href: '/houtai/settings?section=security',
-        },
-        {
-          label: '备份导出',
-          description: '手动备份当前数据，导出留档或迁移使用。',
-          href: '/houtai/backup',
         },
       ],
     },
@@ -212,12 +222,12 @@ export default async function AdminDashboard() {
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Dashboard</p>
               <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-medium text-slate-500">
-                现在改成“概览 → 内容 → 配置中心”的收纳结构
+                现在改成“概览 → 内容 → 前台配置 / 服务配置”的收纳结构
               </span>
             </div>
             <h1 className="mt-3 text-2xl font-semibold text-slate-900">后台工作台</h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500">
-              首页只保留今天最该看的信息：文章、待办、访问和收入。设置项不再全部铺开，统一收进配置中心，点进对应板块再单独编辑。
+              首页只保留今天最该看的信息：文章、待办、访问和收入。前台相关配置被拆成更清晰的场景分组，点进对应板块就能直接编辑导航、首页、归档、关于页和页脚。
             </p>
           </div>
 
@@ -241,7 +251,7 @@ export default async function AdminDashboard() {
               查看访问统计
             </Link>
             <Link
-              href="/blog"
+              href="/"
               target="_blank"
               className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
@@ -300,9 +310,9 @@ export default async function AdminDashboard() {
 
             <Card className="overflow-hidden border-slate-200">
               <div className="border-b border-slate-100 px-5 py-4">
-                <h2 className="font-semibold text-slate-800">配置中心</h2>
-                <p className="mt-1 text-xs text-slate-400">设置不再塞满首页，只保留分组入口。</p>
-              </div>
+              <h2 className="font-semibold text-slate-800">配置中心</h2>
+              <p className="mt-1 text-xs text-slate-400">把前台可编辑能力拆成独立模块，入口更清楚，修改更少绕路。</p>
+            </div>
               <div className="space-y-3 px-5 py-5">
                 {settingsGroups.map(group => (
                   <div key={group.title} className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-4">

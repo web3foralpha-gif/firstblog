@@ -1,17 +1,22 @@
 'use client'
 
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 
-export default function HeaderClient({ siteName }: { siteName: string }) {
+type HeaderClientProps = {
+  siteName: string
+  navItems: Array<{ href: string; label: string }>
+}
+
+export default function HeaderClient({ siteName, navItems }: HeaderClientProps) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const navItems = [
-    ['/', '首页'],
-    ['/blog', '文章'],
-    ['/archive', '归档'],
-    ['/about', '关于'],
-    ['/guestbook', '留言板'],
-  ] as Array<readonly [string, string]>
+  const pathname = usePathname()
+
+  function isActive(href: string) {
+    if (href === '/') return pathname === '/'
+    return pathname === href || pathname.startsWith(`${href}/`)
+  }
 
   return (
     <header className="sticky top-0 z-30 border-b border-[var(--header-border)] bg-[var(--header-bg)] backdrop-blur-xl">
@@ -33,11 +38,15 @@ export default function HeaderClient({ siteName }: { siteName: string }) {
         </Link>
 
         <nav className="hidden items-center gap-2 rounded-full border border-[var(--border-color)] bg-[var(--nav-pill-bg)] p-1 shadow-[0_14px_40px_var(--card-shadow)] sm:flex">
-          {navItems.map(([href, label]) => (
+          {navItems.map(({ href, label }) => (
             <Link
               key={href}
               href={href}
-              className="rounded-full px-4 py-2 text-sm text-[var(--text-secondary)] transition-all hover:bg-[var(--nav-pill-hover)] hover:text-[var(--accent)]"
+              className={`rounded-full px-4 py-2 text-sm transition-all hover:bg-[var(--nav-pill-hover)] hover:text-[var(--accent)] ${
+                isActive(href)
+                  ? 'bg-[var(--nav-pill-hover)] text-[var(--accent)]'
+                  : 'text-[var(--text-secondary)]'
+              }`}
             >
               {label}
             </Link>
@@ -64,12 +73,16 @@ export default function HeaderClient({ siteName }: { siteName: string }) {
       {menuOpen && (
         <div className="border-t border-[var(--header-border)] bg-[var(--page-bg-overlay)] px-4 py-3 backdrop-blur-xl sm:hidden">
           <div className="theme-panel-soft space-y-1 p-2">
-            {navItems.map(([href, label]) => (
+            {navItems.map(({ href, label }) => (
               <Link
                 key={href}
                 href={href}
                 onClick={() => setMenuOpen(false)}
-                className="flex items-center rounded-2xl px-3 py-2.5 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--nav-pill-hover)] hover:text-[var(--accent)]"
+                className={`flex items-center rounded-2xl px-3 py-2.5 text-sm transition-colors hover:bg-[var(--nav-pill-hover)] hover:text-[var(--accent)] ${
+                  isActive(href)
+                    ? 'bg-[var(--nav-pill-hover)] text-[var(--accent)]'
+                    : 'text-[var(--text-secondary)]'
+                }`}
               >
                 {label}
               </Link>

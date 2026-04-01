@@ -1,36 +1,39 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 
-import ArticleCard from '@/components/blog/ArticleCard'
 import BlogTheme from '@/components/blog/BlogTheme'
-import Header from '@/components/blog/Header'
-import PikachuWidget from '@/components/blog/PikachuWidget'
-import SiteFooter from '@/components/blog/SiteFooter'
+import BlogIndexPage from '@/components/blog/BlogIndexPage'
 import StructuredData from '@/components/StructuredData'
-import { getAllPosts } from '@/lib/posts'
+import { filterPostsByQuery, getAllPosts } from '@/lib/posts'
 import { absoluteUrl } from '@/lib/site'
-import { buildCollectionPageSchema, buildSeoImageCandidates, getSiteSeoData } from '@/lib/seo'
+import { buildBlogSchema, buildCollectionPageSchema, buildSeoImageCandidates, getSiteSeoData } from '@/lib/seo'
 import { getSetting } from '@/lib/settings'
-import { formatDate } from '@/lib/utils'
 
 export const revalidate = 3600
 
-function parseKeywords(rawKeywords: string, fallback: string[]) {
-  const keywords = rawKeywords
-    .split(',')
-    .map(keyword => keyword.trim())
-    .filter(Boolean)
+type HomePageProps = {
+  searchParams?: Promise<{ q?: string }>
+}
 
-  return [...new Set([...keywords, ...fallback])].slice(0, 12)
+function resolveHomeTitle(siteName: string) {
+  return `${siteName} | 记录生活小事、方言与人生感悟`
+}
+
+function resolveHomeDescription(rawDescription: string, fallback: string) {
+  const cleanDescription = rawDescription.trim()
+  if (!cleanDescription) {
+    return fallback
+  }
+  return cleanDescription
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const [site, keywordsSetting] = await Promise.all([
+  const [site, pageDescription, keywordsSetting] = await Promise.all([
     getSiteSeoData(),
+    getSetting('blog.homeDescription'),
     getSetting('site.keywords'),
   ])
-  const title = `${site.siteName} | 记录生活小事、方言与人生感悟`
-  const description = site.siteDescription || '一个记录日常、美食、方言文化和人生思考的个人博客，分享正在发生的小事与真实感悟。'
+  const title = resolveHomeTitle(site.siteName)
+  const description = resolveHomeDescription(pageDescription, site.siteDescription)
   const images = buildSeoImageCandidates(site.coverImage, site.authorImage, site.favicon)
   const keywords = keywordsSetting
     .split(',')
@@ -64,28 +67,74 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-export default async function HomePage() {
-  const [site, posts, aboutSubtitle, keywordsSetting] = await Promise.all([
-    getSiteSeoData(),
+const DEFAULT_CORNER_LINES = [
+  '适合慢慢读几篇文章，发一会儿呆。',
+  '右边的向日葵会记得每一次浇水、施肥和晒太阳。',
+  '如果想留下点什么，留言板一直开着。',
+]
+
+export default async function HomePage({ searchParams }: HomePageProps) {
+  const [
+    resolvedSearchParams,
+    posts,
+    site,
+    homeTitle,
+    pageDescription,
+    searchPlaceholder,
+    searchButtonLabel,
+    searchClearLabel,
+    emptyStateText,
+    emptySearchText,
+    showCornerCard,
+    cornerTitle,
+    cornerContent,
+    showQuickLinksCard,
+    quickLinksTitle,
+    quickLinkAboutLabel,
+    quickLinkAboutHref,
+    quickLinkGuestbookLabel,
+    quickLinkGuestbookHref,
+    archiveLabel,
+    rssLabel,
+    showArchive,
+    showRss,
+  ] = await Promise.all([
+    searchParams ?? Promise.resolve<{ q?: string }>({}),
     getAllPosts(),
-    getSetting('blog.aboutSubtitle'),
-    getSetting('site.keywords'),
+    getSiteSeoData(),
+    getSetting('blog.homeTitle'),
+    getSetting('blog.homeDescription'),
+    getSetting('blog.searchPlaceholder'),
+    getSetting('blog.searchButtonLabel'),
+    getSetting('blog.searchClearLabel'),
+    getSetting('blog.emptyStateText'),
+    getSetting('blog.emptySearchText'),
+    getSetting('blog.showCornerCard'),
+    getSetting('blog.cornerTitle'),
+    getSetting('blog.cornerContent'),
+    getSetting('blog.showQuickLinksCard'),
+    getSetting('blog.quickLinksTitle'),
+    getSetting('blog.quickLinkAboutLabel'),
+    getSetting('blog.quickLinkAboutHref'),
+    getSetting('blog.quickLinkGuestbookLabel'),
+    getSetting('blog.quickLinkGuestbookHref'),
+    getSetting('nav.archiveLabel'),
+    getSetting('nav.rssLabel'),
+    getSetting('nav.showArchive'),
+    getSetting('nav.showRss'),
   ])
 
-  const latestPosts = posts.slice(0, 6)
-  const latestUpdate = posts[0] ? formatDate(posts[0].updatedAt || posts[0].publishedAt) : '最近更新'
-  const archiveYears = Array.from(
-    posts.reduce((map, post) => {
-      const year = new Date(post.updatedAt || post.publishedAt).getFullYear().toString()
-      map.set(year, (map.get(year) || 0) + 1)
-      return map
-    }, new Map<string, number>()),
-  ).slice(0, 4)
-  const topicKeywords = parseKeywords(
-    keywordsSetting,
-    posts.flatMap(post => post.tags).filter(Boolean),
-  )
-  const listedPosts = latestPosts.map(post => ({
+  const searchQuery = resolvedSearchParams.q?.trim() || ''
+  const parsedCornerLines = (cornerContent || '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+  const filteredPosts = filterPostsByQuery(posts, searchQuery)
+  const title = homeTitle.trim() || site.siteName
+  const description = searchQuery
+    ? `这里整理了和“${searchQuery}”相关的公开文章、摘要与延伸阅读入口。`
+    : resolveHomeDescription(pageDescription, site.siteDescription)
+  const listedPosts = filteredPosts.slice(0, 12).map(post => ({
     title: post.title,
     url: absoluteUrl(post.href || `/article/${post.slug}`),
     description: post.description,
@@ -96,124 +145,40 @@ export default async function HomePage() {
   return (
     <BlogTheme>
       <StructuredData
-        data={buildCollectionPageSchema(site, {
-          path: '/',
-          title: site.siteName,
-          description: site.siteDescription,
-          items: listedPosts,
-        })}
+        data={[
+          buildBlogSchema(site, title, description, listedPosts, '/'),
+          buildCollectionPageSchema(site, {
+            path: '/',
+            title,
+            description,
+            items: listedPosts,
+          }),
+        ]}
       />
-
-      <div className="min-h-screen">
-        <Header />
-
-        <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
-          <section className="grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_320px]">
-            <div className="theme-panel-soft p-6 sm:p-8">
-              <p className="text-xs uppercase tracking-[0.28em] text-[var(--text-faint)]">Home</p>
-              <h1 className="mt-3 font-serif text-3xl font-medium leading-tight text-[var(--text-primary)] sm:text-5xl">
-                {site.siteName}
-              </h1>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--text-secondary)] sm:text-base">
-                {site.siteDescription}
-              </p>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--text-subtle)]">
-                {aboutSubtitle || '这里主要记录生活、情绪、思考和正在经历的事情，也给愿意慢慢阅读的人留一个安静入口。'}
-              </p>
-
-              <div className="mt-6 flex flex-wrap gap-3">
-                <Link href="/blog" className="rounded-full bg-[var(--text-primary)] px-5 py-2.5 text-sm text-white transition-opacity hover:opacity-90">
-                  进入文章
-                </Link>
-                <Link href="/archive" className="rounded-full border border-[var(--border-color)] px-5 py-2.5 text-sm text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]">
-                  时间归档
-                </Link>
-                <Link href="/about" className="rounded-full border border-[var(--border-color)] px-5 py-2.5 text-sm text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]">
-                  关于我
-                </Link>
-                <a href="/rss.xml" className="rounded-full border border-[var(--border-color)] px-5 py-2.5 text-sm text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]">
-                  RSS 订阅
-                </a>
-              </div>
-
-              <div className="mt-6 flex flex-wrap gap-2">
-                <span className="theme-chip !px-3 !py-1.5 !text-[11px] !shadow-none">公开文章 {posts.length} 篇</span>
-                <span className="theme-chip !px-3 !py-1.5 !text-[11px] !shadow-none">最近更新 {latestUpdate}</span>
-                <span className="theme-chip !px-3 !py-1.5 !text-[11px] !shadow-none">移动端友好</span>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <section className="theme-panel-soft p-5">
-                <p className="text-xs uppercase tracking-[0.26em] text-[var(--text-faint)]">Topics</p>
-                <h2 className="mt-3 font-serif text-2xl font-medium text-[var(--text-primary)]">主题关键词</h2>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {topicKeywords.map(keyword => (
-                    <Link
-                      key={keyword}
-                      href={`/blog?q=${encodeURIComponent(keyword)}`}
-                      className="rounded-full border border-[var(--border-soft)] bg-white/75 px-3 py-1.5 text-xs text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                    >
-                      #{keyword}
-                    </Link>
-                  ))}
-                </div>
-              </section>
-
-              <section className="theme-panel-soft p-5">
-                <p className="text-xs uppercase tracking-[0.26em] text-[var(--text-faint)]">Archive</p>
-                <h2 className="mt-3 font-serif text-2xl font-medium text-[var(--text-primary)]">时间归档</h2>
-                <div className="mt-4 space-y-2">
-                  {archiveYears.map(([year, count]) => (
-                    <Link
-                      key={year}
-                      href={`/archive#year-${year}`}
-                      className="flex items-center justify-between rounded-2xl border border-[var(--border-soft)] bg-white/55 px-4 py-3 text-sm text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                    >
-                      <span>{year}</span>
-                      <span>{count} 篇</span>
-                    </Link>
-                  ))}
-                </div>
-              </section>
-            </div>
-          </section>
-
-          <section className="mt-10">
-            <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-[0.26em] text-[var(--text-faint)]">Latest</p>
-                <h2 className="mt-2 font-serif text-3xl font-medium text-[var(--text-primary)]">最近更新</h2>
-                <p className="mt-2 text-sm text-[var(--text-subtle)]">首页只放最近几篇，完整列表和筛选都放在文章页里。</p>
-              </div>
-              <Link href="/blog" className="text-sm text-[var(--text-subtle)] transition-colors hover:text-[var(--accent)]">
-                查看全部文章 →
-              </Link>
-            </div>
-
-            <div className="space-y-4">
-              {latestPosts.map(post => (
-                <ArticleCard
-                  key={post.slug}
-                  href={post.href}
-                  slug={post.slug}
-                  title={post.title}
-                  excerpt={post.excerpt}
-                  mood={post.mood}
-                  coverImage={post.coverImage}
-                  pinned={post.pinned}
-                  accessType={(post.accessType || 'PUBLIC') as 'PUBLIC' | 'PASSWORD' | 'PAID'}
-                  price={post.price ?? null}
-                  createdAt={post.publishedAt}
-                />
-              ))}
-            </div>
-          </section>
-        </main>
-
-        <SiteFooter />
-        <PikachuWidget />
-      </div>
+      <BlogIndexPage
+        posts={filteredPosts}
+        title={title}
+        description={description}
+        searchQuery={searchQuery}
+        searchPlaceholder={searchPlaceholder.trim() || '搜标题、摘要、关键词…'}
+        searchButtonLabel={searchButtonLabel.trim() || '搜索'}
+        searchClearLabel={searchClearLabel.trim() || '清除'}
+        emptyStateText={emptyStateText.trim() || '还没有公开文章，过几天再来看看吧。'}
+        emptySearchText={emptySearchText.trim() || '暂时没有匹配这组关键词的文章。'}
+        cornerTitle={cornerTitle.trim() || '小站角落'}
+        cornerLines={parsedCornerLines.length > 0 ? parsedCornerLines : DEFAULT_CORNER_LINES}
+        showCornerCard={showCornerCard === 'true'}
+        quickLinksTitle={quickLinksTitle.trim() || '快速入口'}
+        showQuickLinksCard={showQuickLinksCard === 'true'}
+        aboutLabel={quickLinkAboutLabel.trim()}
+        aboutHref={quickLinkAboutHref.trim()}
+        guestbookLabel={quickLinkGuestbookLabel.trim()}
+        guestbookHref={quickLinkGuestbookHref.trim()}
+        archiveLabel={archiveLabel.trim() || '归档'}
+        showArchiveLink={showArchive === 'true'}
+        rssLabel={rssLabel.trim() || 'RSS'}
+        showRssLink={showRss === 'true'}
+      />
     </BlogTheme>
   )
 }

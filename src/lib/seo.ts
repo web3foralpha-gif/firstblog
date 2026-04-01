@@ -206,13 +206,19 @@ export function buildCollectionPageSchema(
   }
 }
 
-export function buildBlogSchema(site: SiteSeoData, title: string, description: string, items: ListedItem[]) {
+export function buildBlogSchema(
+  site: SiteSeoData,
+  title: string,
+  description: string,
+  items: ListedItem[],
+  path = '/',
+) {
   return {
     '@context': 'https://schema.org',
     '@type': 'Blog',
     name: title,
     description,
-    url: absoluteUrl('/blog'),
+    url: absoluteUrl(path),
     inLanguage: 'zh-CN',
     publisher: {
       '@type': 'Organization',

@@ -18,12 +18,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 1,
     },
     {
-      url: absoluteUrl('/blog'),
-      lastModified: latestPostDate,
-      changeFrequency: 'daily',
-      priority: 1,
-    },
-    {
       url: absoluteUrl('/archive'),
       lastModified: latestPostDate,
       changeFrequency: 'daily',

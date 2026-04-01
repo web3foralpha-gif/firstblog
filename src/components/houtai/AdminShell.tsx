@@ -26,7 +26,7 @@ const NAV_GROUPS = [
   {
     label: '系统设置',
     items: [
-      { href: '/houtai/settings',  icon: '⚙️', label: '设置总表' },
+      { href: '/houtai/settings',  icon: '⚙️', label: '配置中心' },
       { href: '/houtai/backup',   icon: '💾', label: '备份导出' },
     ],
   },
@@ -62,7 +62,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         {!collapsed && (
           <Link href="/houtai" className="flex items-center gap-2 min-w-0">
             <span className="text-lg">✦</span>
-            <span className="font-semibold text-slate-800 text-sm truncate">后台控制中心</span>
+            <span className="font-semibold text-slate-800 text-sm truncate">后台工作台</span>
           </Link>
         )}
         {collapsed && <span className="text-lg">✦</span>}
@@ -167,7 +167,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
               <path d="M2 4.5h14M2 9h14M2 13.5h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
             </svg>
           </button>
-          <span className="font-semibold text-slate-800 text-sm">后台控制中心</span>
+          <span className="font-semibold text-slate-800 text-sm">后台工作台</span>
         </header>
 
         <main className="flex-1 p-4 lg:p-8 min-w-0 overflow-auto">

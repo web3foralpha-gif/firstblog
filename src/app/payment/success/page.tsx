@@ -53,7 +53,7 @@ export default async function PaymentSuccessPage({
           </p>
         )}
         <div className="mt-8">
-          <Link href="/blog" className="text-sm text-[#a89880] hover:text-[#d4711a]">← 返回文章列表</Link>
+          <Link href="/" className="text-sm text-[#a89880] hover:text-[#d4711a]">← 返回首页</Link>
         </div>
       </main>
     </div>
