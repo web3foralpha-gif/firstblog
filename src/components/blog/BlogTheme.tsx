@@ -1,8 +1,7 @@
-import { getSetting } from '@/lib/settings'
-import { normalizeBlogTheme } from '@/lib/blog-ui'
+import { getBlogThemeVariant } from '@/lib/services/site-service'
 
 export default async function BlogTheme({ children }: { children: React.ReactNode }) {
-  const theme = normalizeBlogTheme(await getSetting('blog.themeVariant'))
+  const theme = await getBlogThemeVariant()
 
   return (
     <div className="blog-theme" data-theme={theme}>

@@ -6,7 +6,8 @@ import StructuredData from '@/components/StructuredData'
 import { filterPostsByQuery, getAllPosts } from '@/lib/posts'
 import { absoluteUrl } from '@/lib/site'
 import { buildBlogSchema, buildCollectionPageSchema, buildSeoImageCandidates, getSiteSeoData } from '@/lib/seo'
-import { getSetting } from '@/lib/settings'
+import { getSettings } from '@/lib/settings'
+import { getHomePageData } from '@/lib/services/site-service'
 
 export const revalidate = 3600
 
@@ -27,15 +28,14 @@ function resolveHomeDescription(rawDescription: string, fallback: string) {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const [site, pageDescription, keywordsSetting] = await Promise.all([
+  const [site, metadataSettings] = await Promise.all([
     getSiteSeoData(),
-    getSetting('blog.homeDescription'),
-    getSetting('site.keywords'),
+    getSettings(['blog.homeDescription', 'site.keywords'] as const),
   ])
   const title = resolveHomeTitle(site.siteName)
-  const description = resolveHomeDescription(pageDescription, site.siteDescription)
+  const description = resolveHomeDescription(metadataSettings['blog.homeDescription'], site.siteDescription)
   const images = buildSeoImageCandidates(site.coverImage, site.authorImage, site.favicon)
-  const keywords = keywordsSetting
+  const keywords = metadataSettings['site.keywords']
     .split(',')
     .map(keyword => keyword.trim())
     .filter(Boolean)
@@ -74,70 +74,19 @@ const DEFAULT_CORNER_LINES = [
 ]
 
 export default async function HomePage({ searchParams }: HomePageProps) {
-  const [
-    resolvedSearchParams,
-    posts,
-    site,
-    homeTitle,
-    pageDescription,
-    searchPlaceholder,
-    searchButtonLabel,
-    searchClearLabel,
-    resultsSummaryTemplate,
-    filteredResultsSummaryTemplate,
-    emptyStateText,
-    emptySearchText,
-    showCornerCard,
-    cornerTitle,
-    cornerContent,
-    showQuickLinksCard,
-    quickLinksTitle,
-    quickLinkAboutLabel,
-    quickLinkAboutHref,
-    quickLinkGuestbookLabel,
-    quickLinkGuestbookHref,
-    archiveLabel,
-    rssLabel,
-    showArchive,
-    showRss,
-  ] = await Promise.all([
+  const [resolvedSearchParams, posts, site, homePageData] = await Promise.all([
     searchParams ?? Promise.resolve<{ q?: string }>({}),
     getAllPosts(),
     getSiteSeoData(),
-    getSetting('blog.homeTitle'),
-    getSetting('blog.homeDescription'),
-    getSetting('blog.searchPlaceholder'),
-    getSetting('blog.searchButtonLabel'),
-    getSetting('blog.searchClearLabel'),
-    getSetting('blog.resultsSummaryTemplate'),
-    getSetting('blog.filteredResultsSummaryTemplate'),
-    getSetting('blog.emptyStateText'),
-    getSetting('blog.emptySearchText'),
-    getSetting('blog.showCornerCard'),
-    getSetting('blog.cornerTitle'),
-    getSetting('blog.cornerContent'),
-    getSetting('blog.showQuickLinksCard'),
-    getSetting('blog.quickLinksTitle'),
-    getSetting('blog.quickLinkAboutLabel'),
-    getSetting('blog.quickLinkAboutHref'),
-    getSetting('blog.quickLinkGuestbookLabel'),
-    getSetting('blog.quickLinkGuestbookHref'),
-    getSetting('nav.archiveLabel'),
-    getSetting('nav.rssLabel'),
-    getSetting('nav.showArchive'),
-    getSetting('nav.showRss'),
+    getHomePageData(),
   ])
 
   const searchQuery = resolvedSearchParams.q?.trim() || ''
-  const parsedCornerLines = (cornerContent || '')
-    .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean)
   const filteredPosts = filterPostsByQuery(posts, searchQuery)
-  const title = homeTitle.trim() || site.siteName
+  const title = homePageData.homeTitle || site.siteName
   const description = searchQuery
     ? `这里整理了和“${searchQuery}”相关的公开文章、摘要与延伸阅读入口。`
-    : resolveHomeDescription(pageDescription, site.siteDescription)
+    : resolveHomeDescription(homePageData.homeDescription, site.siteDescription)
   const listedPosts = filteredPosts.slice(0, 12).map(post => ({
     title: post.title,
     url: absoluteUrl(post.href || `/article/${post.slug}`),
@@ -164,26 +113,26 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         title={title}
         description={description}
         searchQuery={searchQuery}
-        searchPlaceholder={searchPlaceholder.trim() || '搜标题、摘要、关键词…'}
-        searchButtonLabel={searchButtonLabel.trim() || '搜索'}
-        searchClearLabel={searchClearLabel.trim() || '清除'}
-        resultsSummaryTemplate={resultsSummaryTemplate.trim() || '共 {count} 篇'}
-        filteredResultsSummaryTemplate={filteredResultsSummaryTemplate.trim() || '当前筛选：{query} · 共 {count} 篇'}
-        emptyStateText={emptyStateText.trim() || '还没有公开文章，过几天再来看看吧。'}
-        emptySearchText={emptySearchText.trim() || '暂时没有匹配这组关键词的文章。'}
-        cornerTitle={cornerTitle.trim() || '小站角落'}
-        cornerLines={parsedCornerLines.length > 0 ? parsedCornerLines : DEFAULT_CORNER_LINES}
-        showCornerCard={showCornerCard === 'true'}
-        quickLinksTitle={quickLinksTitle.trim() || '快速入口'}
-        showQuickLinksCard={showQuickLinksCard === 'true'}
-        aboutLabel={quickLinkAboutLabel.trim()}
-        aboutHref={quickLinkAboutHref.trim()}
-        guestbookLabel={quickLinkGuestbookLabel.trim()}
-        guestbookHref={quickLinkGuestbookHref.trim()}
-        archiveLabel={archiveLabel.trim() || '归档'}
-        showArchiveLink={showArchive === 'true'}
-        rssLabel={rssLabel.trim() || 'RSS'}
-        showRssLink={showRss === 'true'}
+        searchPlaceholder={homePageData.searchPlaceholder}
+        searchButtonLabel={homePageData.searchButtonLabel}
+        searchClearLabel={homePageData.searchClearLabel}
+        resultsSummaryTemplate={homePageData.resultsSummaryTemplate}
+        filteredResultsSummaryTemplate={homePageData.filteredResultsSummaryTemplate}
+        emptyStateText={homePageData.emptyStateText}
+        emptySearchText={homePageData.emptySearchText}
+        cornerTitle={homePageData.cornerTitle}
+        cornerLines={homePageData.cornerLines.length > 0 ? homePageData.cornerLines : DEFAULT_CORNER_LINES}
+        showCornerCard={homePageData.showCornerCard}
+        quickLinksTitle={homePageData.quickLinksTitle}
+        showQuickLinksCard={homePageData.showQuickLinksCard}
+        aboutLabel={homePageData.aboutLabel}
+        aboutHref={homePageData.aboutHref}
+        guestbookLabel={homePageData.guestbookLabel}
+        guestbookHref={homePageData.guestbookHref}
+        archiveLabel={homePageData.archiveLabel}
+        showArchiveLink={homePageData.showArchiveLink}
+        rssLabel={homePageData.rssLabel}
+        showRssLink={homePageData.showRssLink}
       />
     </BlogTheme>
   )

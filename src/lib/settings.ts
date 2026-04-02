@@ -237,10 +237,13 @@ export const SETTING_DEFS: Record<string, {
   'system.notFoundBackHomeLabel': { type: 'string', default: '← 回到首页', public: true, label: '404 返回首页按钮文字' },
 }
 
-function buildDefaultSettings(): Record<string, string> {
-  const map: Record<string, string> = {}
+export type SettingKey = keyof typeof SETTING_DEFS
+export type SettingMap = Record<SettingKey, string>
 
-  for (const [key, def] of Object.entries(SETTING_DEFS)) {
+function buildDefaultSettings(): SettingMap {
+  const map = {} as SettingMap
+
+  for (const [key, def] of Object.entries(SETTING_DEFS) as [SettingKey, (typeof SETTING_DEFS)[SettingKey]][]) {
     map[key] = def.default
   }
 
@@ -248,7 +251,7 @@ function buildDefaultSettings(): Record<string, string> {
 }
 
 // ── 获取所有设置（解密，后台用）────────────────────────────────────
-export async function getAllSettings(): Promise<Record<string, string>> {
+export async function getAllSettings(): Promise<SettingMap> {
   const map = buildDefaultSettings()
   const hasDatabaseUrl = hasValidDatabaseUrl(process.env.DATABASE_URL)
 
@@ -287,6 +290,20 @@ export async function getAllSettings(): Promise<Record<string, string>> {
   return map
 }
 
+export async function getSettings<const Keys extends readonly SettingKey[]>(
+  keys: Keys,
+): Promise<{ [Key in Keys[number]]: string }> {
+  const allSettings = await getAllSettings()
+  const picked = {} as { [Key in Keys[number]]: string }
+  const typedKeys = keys as readonly Keys[number][]
+
+  for (const key of typedKeys) {
+    picked[key] = allSettings[key] ?? SETTING_DEFS[key].default
+  }
+
+  return picked
+}
+
 // ── 获取公开设置（前台用，不含敏感字段）────────────────────────────
 export async function getPublicSettings(): Promise<Record<string, string>> {
   const all = await getAllSettings()
@@ -319,7 +336,7 @@ export async function updateSettings(updates: Record<string, string>): Promise<v
 }
 
 // ── 获取单个设置 ─────────────────────────────────────────────────────
-export async function getSetting(key: string): Promise<string> {
+export async function getSetting<Key extends SettingKey>(key: Key): Promise<string> {
   const all = await getAllSettings()
   return all[key] ?? SETTING_DEFS[key]?.default ?? ''
 }
