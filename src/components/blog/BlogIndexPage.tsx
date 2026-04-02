@@ -4,6 +4,7 @@ import PikachuWidget from '@/components/blog/PikachuWidget'
 import SunflowerWidget from '@/components/blog/SunflowerWidget'
 import SiteFooter from '@/components/blog/SiteFooter'
 import type { BlogPostSummary } from '@/lib/posts'
+import { fillTextTemplate } from '@/lib/text-template'
 
 type BlogIndexPageProps = {
   posts: BlogPostSummary[]
@@ -13,6 +14,8 @@ type BlogIndexPageProps = {
   searchPlaceholder?: string
   searchButtonLabel?: string
   searchClearLabel?: string
+  resultsSummaryTemplate?: string
+  filteredResultsSummaryTemplate?: string
   emptyStateText?: string
   emptySearchText?: string
   cornerTitle?: string
@@ -38,6 +41,8 @@ export default function BlogIndexPage({
   searchPlaceholder = '搜标题、摘要、关键词…',
   searchButtonLabel = '搜索',
   searchClearLabel = '清除',
+  resultsSummaryTemplate = '共 {count} 篇',
+  filteredResultsSummaryTemplate = '当前筛选：{query} · 共 {count} 篇',
   emptyStateText = '还没有公开文章，过几天再来看看吧。',
   emptySearchText = '暂时没有匹配这组关键词的文章。',
   cornerTitle = '小站角落',
@@ -61,6 +66,9 @@ export default function BlogIndexPage({
   const showAboutQuickLink = Boolean(aboutLabel.trim()) && Boolean(aboutHref.trim())
   const showGuestbookQuickLink = Boolean(guestbookLabel.trim()) && Boolean(guestbookHref.trim())
   const hasQuickLinks = showAboutQuickLink || showGuestbookQuickLink || showArchiveLink || showRssLink
+  const resultSummary = searchQuery
+    ? fillTextTemplate(filteredResultsSummaryTemplate, { query: searchQuery, count: posts.length })
+    : fillTextTemplate(resultsSummaryTemplate, { count: posts.length })
 
   return (
     <div className="min-h-screen">
@@ -73,9 +81,7 @@ export default function BlogIndexPage({
               <h1 className="mb-1 font-serif text-2xl font-medium text-[var(--text-primary)] sm:text-3xl">{title}</h1>
               <p className="text-sm text-[var(--text-subtle)]">{description}</p>
               <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-[var(--text-subtle)]">
-                  {searchQuery ? `当前筛选：${searchQuery} · ` : ''}共 {posts.length} 篇
-                </p>
+                <p className="text-sm text-[var(--text-subtle)]">{resultSummary}</p>
                 <form action="/" method="get" className="flex flex-col gap-2 sm:flex-row">
                   <input
                     type="search"

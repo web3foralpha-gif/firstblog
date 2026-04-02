@@ -83,6 +83,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     searchPlaceholder,
     searchButtonLabel,
     searchClearLabel,
+    resultsSummaryTemplate,
+    filteredResultsSummaryTemplate,
     emptyStateText,
     emptySearchText,
     showCornerCard,
@@ -107,6 +109,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     getSetting('blog.searchPlaceholder'),
     getSetting('blog.searchButtonLabel'),
     getSetting('blog.searchClearLabel'),
+    getSetting('blog.resultsSummaryTemplate'),
+    getSetting('blog.filteredResultsSummaryTemplate'),
     getSetting('blog.emptyStateText'),
     getSetting('blog.emptySearchText'),
     getSetting('blog.showCornerCard'),
@@ -163,6 +167,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         searchPlaceholder={searchPlaceholder.trim() || '搜标题、摘要、关键词…'}
         searchButtonLabel={searchButtonLabel.trim() || '搜索'}
         searchClearLabel={searchClearLabel.trim() || '清除'}
+        resultsSummaryTemplate={resultsSummaryTemplate.trim() || '共 {count} 篇'}
+        filteredResultsSummaryTemplate={filteredResultsSummaryTemplate.trim() || '当前筛选：{query} · 共 {count} 篇'}
         emptyStateText={emptyStateText.trim() || '还没有公开文章，过几天再来看看吧。'}
         emptySearchText={emptySearchText.trim() || '暂时没有匹配这组关键词的文章。'}
         cornerTitle={cornerTitle.trim() || '小站角落'}

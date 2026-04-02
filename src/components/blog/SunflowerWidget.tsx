@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { collectClientDeviceInfo, getClientDeviceInfoSync } from '@/lib/client-device'
+import { fillTextTemplate } from '@/lib/text-template'
 import SunflowerIllustration from './SunflowerIllustration'
 
 type SunflowerState = {
@@ -25,7 +26,7 @@ const DEFAULT_ACTIONS = [
   { key: 'sun',       label: '晒太阳', icon: '☀️', color: 'hover:bg-yellow-50 hover:border-yellow-300 active:bg-yellow-100', feedback: '沐浴阳光！🌤' },
 ]
 
-const STAGE_DESCRIPTIONS = [
+const DEFAULT_STAGE_DESCRIPTIONS = [
   '一颗小种子静静等待…',
   '嫩芽破土而出，生命开始了！',
   '茎干挺立，努力向上生长中',
@@ -52,6 +53,36 @@ function buildFallbackState(message = '向日葵今天在休息，晚一点再�
   }
 }
 
+type SunflowerCopyState = {
+  loadingText: string
+  doneText: string
+  doneHintText: string
+  restMessage: string
+  unavailableTitle: string
+  unavailableDescription: string
+  networkErrorText: string
+  levelUpText: string
+  timelineTitle: string
+  careCountText: string
+  nextNeededText: string
+  stageDescriptions: string[]
+}
+
+const DEFAULT_COPY: SunflowerCopyState = {
+  loadingText: '加载中…',
+  doneText: '你已经照顾过向日葵啦 🌸',
+  doneHintText: '感谢你的爱护！',
+  restMessage: '向日葵今天在休息，晚一点再来看看它吧。',
+  unavailableTitle: '向日葵今天在安静晒太阳',
+  unavailableDescription: '互动功能正在整理中，晚一点再来看看它吧。',
+  networkErrorText: '网络错误，请重试',
+  levelUpText: '🎉 向日葵成长到新阶段啦！',
+  timelineTitle: '成长历程',
+  careCountText: '已有 {count} 人照顾',
+  nextNeededText: '还差 {count} 人',
+  stageDescriptions: DEFAULT_STAGE_DESCRIPTIONS,
+}
+
 export default function SunflowerWidget() {
   const deviceInfoRef = useRef(getClientDeviceInfoSync())
   const [state, setState] = useState<SunflowerState | null>(null)
@@ -62,7 +93,7 @@ export default function SunflowerWidget() {
   const [justLeveledUp, setJustLeveledUp] = useState(false)
   const [shake, setShake] = useState(false)
   const [actions, setActions] = useState(DEFAULT_ACTIONS)
-  const [doneText, setDoneText] = useState('你已经照顾过向日葵啦 🌸')
+  const [copy, setCopy] = useState<SunflowerCopyState>(DEFAULT_COPY)
   const [serviceMessage, setServiceMessage] = useState<string | null>(null)
 
   // 从公开 API 拉取文案
@@ -72,9 +103,28 @@ export default function SunflowerWidget() {
       .then(data => {
         setActions(prev => prev.map((a, i) => ({
           ...a,
+          label: [data['ui.sfWaterLabel'], data['ui.sfFertilizeLabel'], data['ui.sfSunLabel']][i] || a.label,
           feedback: [data['ui.sfWaterText'], data['ui.sfFertilizeText'], data['ui.sfSunText']][i] || a.feedback,
         })))
-        if (data['ui.sfDoneText']) setDoneText(data['ui.sfDoneText'])
+        const parsedStageDescriptions = String(data['ui.sfStageDescriptions'] || '')
+          .split('\n')
+          .map((line: string) => line.trim())
+          .filter(Boolean)
+
+        setCopy({
+          loadingText: data['ui.sfLoadingText'] || DEFAULT_COPY.loadingText,
+          doneText: data['ui.sfDoneText'] || DEFAULT_COPY.doneText,
+          doneHintText: data['ui.sfDoneHintText'] || DEFAULT_COPY.doneHintText,
+          restMessage: data['ui.sfRestMessage'] || DEFAULT_COPY.restMessage,
+          unavailableTitle: data['ui.sfUnavailableTitle'] || DEFAULT_COPY.unavailableTitle,
+          unavailableDescription: data['ui.sfUnavailableDescription'] || DEFAULT_COPY.unavailableDescription,
+          networkErrorText: data['ui.sfNetworkErrorText'] || DEFAULT_COPY.networkErrorText,
+          levelUpText: data['ui.sfLevelUpText'] || DEFAULT_COPY.levelUpText,
+          timelineTitle: data['ui.sfTimelineTitle'] || DEFAULT_COPY.timelineTitle,
+          careCountText: data['ui.sfCareCountText'] || DEFAULT_COPY.careCountText,
+          nextNeededText: data['ui.sfNextNeededText'] || DEFAULT_COPY.nextNeededText,
+          stageDescriptions: parsedStageDescriptions.length >= DEFAULT_STAGE_DESCRIPTIONS.length ? parsedStageDescriptions : DEFAULT_COPY.stageDescriptions,
+        })
       })
       .catch(() => {})
   }, [])
@@ -86,19 +136,19 @@ export default function SunflowerWidget() {
 
       if (data) {
         setState(data)
-        setServiceMessage(data.unavailable ? (data.message || '向日葵今天在休息，晚一点再来看看它吧。') : null)
+        setServiceMessage(data.unavailable ? (data.message || copy.restMessage) : null)
       } else {
-        const fallback = buildFallbackState()
+        const fallback = buildFallbackState(copy.restMessage)
         setState(fallback)
         setServiceMessage(fallback.message || null)
       }
     } catch {
-      const fallback = buildFallbackState()
+      const fallback = buildFallbackState(copy.restMessage)
       setState(fallback)
       setServiceMessage(fallback.message || null)
     }
     finally { setLoading(false) }
-  }, [])
+  }, [copy.restMessage])
 
   useEffect(() => {
     fetchState()
@@ -139,11 +189,11 @@ export default function SunflowerWidget() {
 
       if (data.unavailable) {
         setState(data)
-        setServiceMessage(data.message || '向日葵今天先休息一下，稍后再来看看它吧。')
-        setFeedback(data.message || '向日葵今天先休息一下，稍后再来看看它吧。')
+        setServiceMessage(data.message || copy.restMessage)
+        setFeedback(data.message || copy.restMessage)
       } else if (data.alreadyDone) {
         setAlreadyDone(true)
-        setFeedback(doneText)
+        setFeedback(copy.doneText)
       } else {
         const prevStage = state?.stage ?? 0
         setState(data)
@@ -155,7 +205,7 @@ export default function SunflowerWidget() {
         }
       }
     } catch {
-      setFeedback('网络错误，请重试')
+      setFeedback(copy.networkErrorText)
     } finally {
       setActing(false)
       setTimeout(() => setFeedback(null), 2500)
@@ -166,7 +216,7 @@ export default function SunflowerWidget() {
     return (
       <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-bg)] p-6 text-center shadow-[0_10px_30px_var(--card-shadow)]">
         <div className="text-3xl mb-2 animate-pulse">🌱</div>
-        <p className="text-xs text-[var(--text-subtle)]">加载中…</p>
+        <p className="text-xs text-[var(--text-subtle)]">{copy.loadingText}</p>
       </div>
     )
   }
@@ -179,7 +229,7 @@ export default function SunflowerWidget() {
       {justLeveledUp && (
         <div className="bg-gradient-to-r from-yellow-300 via-orange-300 to-yellow-300 text-center py-2 animate-bounce">
           <span className="text-sm font-medium text-orange-800">
-            🎉 向日葵成长到新阶段啦！
+            {copy.levelUpText}
           </span>
         </div>
       )}
@@ -207,7 +257,7 @@ export default function SunflowerWidget() {
             <span className="text-xl">{currentState.emoji}</span>
             <span className="font-serif text-base font-medium text-[var(--text-primary)]">{currentState.name}阶段</span>
           </div>
-          <p className="text-xs text-[var(--text-subtle)]">{STAGE_DESCRIPTIONS[currentState.stage]}</p>
+          <p className="text-xs text-[var(--text-subtle)]">{copy.stageDescriptions[currentState.stage] || DEFAULT_STAGE_DESCRIPTIONS[currentState.stage]}</p>
           {serviceMessage && !currentState.unavailable && (
             <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-[11px] text-[#9a6a13]">
               {serviceMessage}
@@ -219,11 +269,11 @@ export default function SunflowerWidget() {
         <div className="mb-4">
           <div className="flex justify-between items-baseline mb-1.5">
             <span className="text-xs text-[var(--text-muted)]">
-              已有 <span className="font-medium text-[var(--accent)]">{currentState.totalCount}</span> 人照顾
+              {fillTextTemplate(copy.careCountText, { count: currentState.totalCount })}
             </span>
             {!currentState.isMax && (
               <span className="text-xs text-[var(--text-faint)]">
-                还差 {currentState.nextNeeded} 人
+                {fillTextTemplate(copy.nextNeededText, { count: currentState.nextNeeded })}
               </span>
             )}
           </div>
@@ -250,13 +300,13 @@ export default function SunflowerWidget() {
         {/* 互动按钮 */}
         {currentState.unavailable ? (
           <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-muted-bg)] px-4 py-3 text-center">
-            <p className="text-sm text-[var(--text-muted)]">向日葵今天在安静晒太阳</p>
-            <p className="mt-0.5 text-xs text-[var(--text-faint)]">互动功能正在整理中，晚一点再来看看它吧。</p>
+            <p className="text-sm text-[var(--text-muted)]">{copy.unavailableTitle}</p>
+            <p className="mt-0.5 text-xs text-[var(--text-faint)]">{serviceMessage || copy.unavailableDescription}</p>
           </div>
         ) : alreadyDone ? (
           <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-muted-bg)] px-4 py-3 text-center">
-            <p className="text-sm text-[var(--text-subtle)]">{doneText}</p>
-            <p className="mt-0.5 text-xs text-[var(--text-faint)]">感谢你的爱护！</p>
+            <p className="text-sm text-[var(--text-subtle)]">{copy.doneText}</p>
+            <p className="mt-0.5 text-xs text-[var(--text-faint)]">{copy.doneHintText}</p>
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-2">
@@ -276,7 +326,7 @@ export default function SunflowerWidget() {
 
         {/* 阶段里程碑展示 */}
         <div className="mt-4 border-t border-[var(--border-soft)] pt-4">
-          <p className="mb-2 text-center text-[10px] text-[var(--text-faint)]">成长历程</p>
+          <p className="mb-2 text-center text-[10px] text-[var(--text-faint)]">{copy.timelineTitle}</p>
           <div className="flex justify-between items-center">
             {['🌰', '🌱', '🌿', '🍃', '🌼', '🌻'].map((emoji, i) => (
               <div key={i} className="flex flex-col items-center gap-0.5">
