@@ -13,7 +13,33 @@ type Comment = {
   createdAt: string
 }
 
-export default function CommentSection({ articleId, comments }: { articleId: string; comments: Comment[] }) {
+type CommentSectionCopy = {
+  sectionTitle: string
+  emptyText: string
+  formTitle: string
+  nicknameLabel: string
+  nicknamePlaceholder: string
+  emailLabel: string
+  emailOptionalLabel: string
+  emailPlaceholder: string
+  contentLabel: string
+  contentPlaceholder: string
+  submitLabel: string
+  submittingLabel: string
+  requiredError: string
+  successMessage: string
+  errorMessage: string
+}
+
+export default function CommentSection({
+  articleId,
+  comments,
+  copy,
+}: {
+  articleId: string
+  comments: Comment[]
+  copy: CommentSectionCopy
+}) {
   const pathname = usePathname()
   const [form, setForm] = useState({ nickname: '', email: '', content: '' })
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
@@ -23,7 +49,7 @@ export default function CommentSection({ articleId, comments }: { articleId: str
     e.preventDefault()
     if (status === 'loading') return
     if (!form.nickname.trim() || !form.content.trim()) {
-      setMsg('请填写昵称和评论内容')
+      setMsg(copy.requiredError)
       setStatus('error')
       return
     }
@@ -46,15 +72,15 @@ export default function CommentSection({ articleId, comments }: { articleId: str
       const data = await res.json().catch(() => null)
       if (!res.ok) {
         setStatus('error')
-        setMsg(String(data?.error || '提交失败，请稍后重试'))
+        setMsg(String(data?.error || copy.errorMessage))
         return
       }
       setStatus('success')
-      setMsg('评论已提交，审核通过后即可显示 🎉')
+      setMsg(copy.successMessage)
       setForm({ nickname: '', email: '', content: '' })
     } catch {
       setStatus('error')
-      setMsg('提交失败，请稍后重试')
+      setMsg(copy.errorMessage)
     }
   }
 
@@ -62,11 +88,11 @@ export default function CommentSection({ articleId, comments }: { articleId: str
     <section id="comments" className="mt-12">
       <hr className="divider" />
       <h3 className="mb-6 font-serif text-xl font-medium text-[var(--text-primary)]">
-        评论 <span className="text-base font-normal text-[var(--text-subtle)]">({comments.length})</span>
+        {copy.sectionTitle} <span className="text-base font-normal text-[var(--text-subtle)]">({comments.length})</span>
       </h3>
 
       {comments.length === 0 ? (
-        <p className="mb-8 text-sm text-[var(--text-subtle)]">还没有评论，来说第一句话吧 ✍️</p>
+        <p className="mb-8 text-sm text-[var(--text-subtle)]">{copy.emptyText}</p>
       ) : (
         <div className="space-y-6 mb-10">
           {comments.map(c => (
@@ -95,40 +121,40 @@ export default function CommentSection({ articleId, comments }: { articleId: str
       )}
 
       <div className="rounded-lg border border-[var(--border-color)] bg-[var(--surface-muted-bg)] p-6">
-        <h4 className="mb-4 text-[15px] font-medium text-[var(--text-secondary)]">留下你的足迹</h4>
+        <h4 className="mb-4 text-[15px] font-medium text-[var(--text-secondary)]">{copy.formTitle}</h4>
         <form onSubmit={submit} className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs text-[var(--text-muted)]">昵称 *</label>
+              <label className="mb-1 block text-xs text-[var(--text-muted)]">{copy.nicknameLabel}</label>
               <input
                 className="input"
                 value={form.nickname}
                 onChange={e => setForm(f => ({ ...f, nickname: e.target.value }))}
-                placeholder="你的名字"
+                placeholder={copy.nicknamePlaceholder}
                 maxLength={30}
               />
             </div>
             <div>
               <label className="mb-1 block text-xs text-[var(--text-muted)]">
-                邮箱 <span className="text-[var(--text-faint)]">（可选）</span>
+                {copy.emailLabel} <span className="text-[var(--text-faint)]">{copy.emailOptionalLabel}</span>
               </label>
               <input
                 className="input"
                 type="email"
                 value={form.email}
                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                placeholder="your@email.com"
+                placeholder={copy.emailPlaceholder}
               />
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-xs text-[var(--text-muted)]">评论 *</label>
+            <label className="mb-1 block text-xs text-[var(--text-muted)]">{copy.contentLabel}</label>
             <textarea
               className="input resize-none"
               rows={4}
               value={form.content}
               onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
-              placeholder="说点什么吧…"
+              placeholder={copy.contentPlaceholder}
               maxLength={1000}
             />
           </div>
@@ -136,7 +162,7 @@ export default function CommentSection({ articleId, comments }: { articleId: str
             <p className={`text-sm ${status === 'error' ? 'text-red-500' : 'text-green-600'}`}>{msg}</p>
           )}
           <button type="submit" className="btn-primary" disabled={status === 'loading'}>
-            {status === 'loading' ? '提交中…' : '发表评论'}
+            {status === 'loading' ? copy.submittingLabel : copy.submitLabel}
           </button>
         </form>
       </div>

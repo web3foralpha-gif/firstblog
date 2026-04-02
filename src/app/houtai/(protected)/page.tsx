@@ -175,7 +175,7 @@ export default async function AdminDashboard() {
     {
       title: '页面与传播',
       description: '关于页、归档页、页脚和分享海报分别单独编辑，不再互相挤在一起。',
-      items: ['archive', 'about', 'footer', 'poster'].map(sectionId => ({
+      items: ['archive', 'about', 'guestbook', 'footer', 'poster', 'article', 'system'].map(sectionId => ({
         label: ADMIN_SETTING_SECTION_MAP[sectionId].title,
         description: ADMIN_SETTING_SECTION_MAP[sectionId].description,
         href: `/houtai/settings?section=${sectionId}`,

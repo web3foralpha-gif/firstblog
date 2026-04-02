@@ -12,9 +12,19 @@ type Props = {
   title: string
   tokenValid: boolean
   passwordHint?: string | null
+  paywallCopy?: {
+    title: string
+    description: string
+    hint: string
+    emailPlaceholder: string
+    errorMessage: string
+    submittingLabel: string
+    submitLabel: string
+    providerHint: string
+  }
 }
 
-export default function ArticleContent({ slug, content, accessType, price, title, tokenValid, passwordHint }: Props) {
+export default function ArticleContent({ slug, content, accessType, price, title, tokenValid, passwordHint, paywallCopy }: Props) {
   const [unlockedContent, setUnlockedContent] = useState<string | null>(null)
 
   if (accessType === 'PUBLIC') return <MarkdownBody content={content} />
@@ -23,7 +33,7 @@ export default function ArticleContent({ slug, content, accessType, price, title
     if (unlockedContent) return <MarkdownBody content={unlockedContent} />
     return <div className="article-paywall"><PasswordGate slug={slug} hint={passwordHint} onUnlock={setUnlockedContent} /></div>
   }
-  if (accessType === 'PAID') return <div className="article-paywall"><PayGate slug={slug} price={price!} title={title} /></div>
+  if (accessType === 'PAID' && paywallCopy) return <div className="article-paywall"><PayGate slug={slug} price={price!} copy={paywallCopy} /></div>
   return null
 }
 

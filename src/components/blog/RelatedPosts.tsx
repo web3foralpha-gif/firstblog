@@ -6,32 +6,43 @@ import { formatDate } from '@/lib/utils'
 type RelatedPostsProps = {
   posts: BlogPostSummary[]
   title?: string
+  eyebrow?: string
+  archiveLabel?: string
+  passwordBadgeLabel?: string
+  paidBadgeLabel?: string
 }
 
-function renderAccessBadge(post: BlogPostSummary) {
+function renderAccessBadge(post: BlogPostSummary, passwordBadgeLabel: string, paidBadgeLabel: string) {
   if (post.accessType === 'PASSWORD') {
-    return <span className="badge badge-password">🔒 加密</span>
+    return <span className="badge badge-password">{passwordBadgeLabel}</span>
   }
 
   if (post.accessType === 'PAID') {
-    return <span className="badge badge-paid">💰 打赏</span>
+    return <span className="badge badge-paid">{paidBadgeLabel}</span>
   }
 
   return null
 }
 
-export default function RelatedPosts({ posts, title = '继续阅读' }: RelatedPostsProps) {
+export default function RelatedPosts({
+  posts,
+  title = '继续阅读',
+  eyebrow = 'More',
+  archiveLabel = '时间归档 →',
+  passwordBadgeLabel = '🔒 加密',
+  paidBadgeLabel = '💰 打赏',
+}: RelatedPostsProps) {
   if (posts.length === 0) return null
 
   return (
     <section className="mt-12 border-t border-[var(--border-color)] pt-6">
       <div className="mb-4 flex items-end justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.26em] text-[var(--text-faint)]">More</p>
+          <p className="text-xs uppercase tracking-[0.26em] text-[var(--text-faint)]">{eyebrow}</p>
           <h2 className="mt-2 font-serif text-2xl font-medium text-[var(--text-primary)]">{title}</h2>
         </div>
         <Link href="/archive" className="text-sm text-[var(--text-subtle)] transition-colors hover:text-[var(--accent)]">
-          时间归档 →
+          {archiveLabel}
         </Link>
       </div>
 
@@ -56,7 +67,7 @@ export default function RelatedPosts({ posts, title = '继续阅读' }: RelatedP
             ) : null}
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
-              {renderAccessBadge(post)}
+              {renderAccessBadge(post, passwordBadgeLabel, paidBadgeLabel)}
               {post.tags.slice(0, 2).map(tag => (
                 <span key={`${post.slug}-${tag}`} className="rounded-full bg-white/70 px-2.5 py-1 text-[11px] text-[var(--text-subtle)]">
                   #{tag}

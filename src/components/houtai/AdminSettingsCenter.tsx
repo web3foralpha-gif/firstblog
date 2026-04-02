@@ -75,6 +75,16 @@ function getSectionMeta(sectionId: string): SettingsSectionMeta {
     }
   }
 
+  if (sectionId === 'guestbook') {
+    return {
+      label: '交流页面',
+      tone: 'border-teal-200 bg-teal-50 text-teal-700',
+      note: '会影响留言板页头、空状态和留言表单的全部前台文案。',
+      icon: '📮',
+      scope: ['留言板', '留言表单'],
+    }
+  }
+
   if (sectionId === 'footer') {
     return {
       label: '页脚信息',
@@ -115,6 +125,16 @@ function getSectionMeta(sectionId: string): SettingsSectionMeta {
     }
   }
 
+  if (sectionId === 'article') {
+    return {
+      label: '文章体验',
+      tone: 'border-indigo-200 bg-indigo-50 text-indigo-700',
+      note: '会同时影响文章页的评论区、互动栏、相关推荐和返回入口。',
+      icon: '📝',
+      scope: ['评论区', '互动栏', '相关推荐'],
+    }
+  }
+
   if (sectionId === 'analytics') {
     return {
       label: '统计治理',
@@ -142,6 +162,16 @@ function getSectionMeta(sectionId: string): SettingsSectionMeta {
       note: '涉及后台登录与权限安全，改动后建议立即验证登录流程。',
       icon: '🔐',
       scope: ['管理员账号', '登录安全'],
+    }
+  }
+
+  if (sectionId === 'system') {
+    return {
+      label: '状态页面',
+      tone: 'border-zinc-200 bg-zinc-50 text-zinc-700',
+      note: '用于维护 404 等系统状态页，让异常页也保持统一语气。',
+      icon: '🧱',
+      scope: ['404 页面'],
     }
   }
 

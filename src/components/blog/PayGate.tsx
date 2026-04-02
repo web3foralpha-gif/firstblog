@@ -1,14 +1,24 @@
 'use client'
 import { useState } from 'react'
+import { fillTextTemplate } from '@/lib/text-template'
 
 export default function PayGate({
   slug,
   price,
-  title,
+  copy,
 }: {
   slug: string
   price: number
-  title: string
+  copy: {
+    title: string
+    description: string
+    hint: string
+    emailPlaceholder: string
+    errorMessage: string
+    submittingLabel: string
+    submitLabel: string
+    providerHint: string
+  }
 }) {
   const [email, setEmail] = useState('')
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
@@ -26,7 +36,7 @@ export default function PayGate({
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       window.location.href = data.url
-    } catch (err: any) {
+    } catch {
       setStatus('error')
     }
   }
@@ -34,28 +44,28 @@ export default function PayGate({
   return (
     <div className="max-w-sm mx-auto text-center py-16">
       <div className="text-5xl mb-4">☕</div>
-      <h3 className="mb-2 font-serif text-xl font-medium text-[var(--text-primary)]">打赏解锁</h3>
+      <h3 className="mb-2 font-serif text-xl font-medium text-[var(--text-primary)]">{copy.title}</h3>
       <p className="mb-1 text-sm text-[var(--text-muted)]">
-        本文需要打赏 <span className="font-medium text-[var(--accent)]">¥{price}</span> 解锁
+        {fillTextTemplate(copy.description, { price: `¥${price}` })}
       </p>
-      <p className="mb-8 text-xs text-[var(--text-subtle)]">支付成功后将向你的邮箱发送永久访问链接</p>
+      <p className="mb-8 text-xs text-[var(--text-subtle)]">{copy.hint}</p>
 
       <form onSubmit={pay} className="space-y-3">
         <input
           type="email"
           className="input text-center"
-          placeholder="你的邮箱（用于接收链接）"
+          placeholder={copy.emailPlaceholder}
           value={email}
           onChange={e => setEmail(e.target.value)}
           required
         />
-        {status === 'error' && <p className="text-sm text-red-500">跳转失败，请稍后重试</p>}
+        {status === 'error' && <p className="text-sm text-red-500">{copy.errorMessage}</p>}
         <button type="submit" className="btn-primary w-full justify-center" disabled={status === 'loading'}>
-          {status === 'loading' ? '跳转支付中…' : `打赏 ¥${price} 解锁 →`}
+          {status === 'loading' ? copy.submittingLabel : fillTextTemplate(copy.submitLabel, { price: `¥${price}` })}
         </button>
       </form>
 
-      <p className="mt-6 text-xs text-[var(--text-faint)]">由 Stripe 提供安全支付</p>
+      <p className="mt-6 text-xs text-[var(--text-faint)]">{copy.providerHint}</p>
     </div>
   )
 }
