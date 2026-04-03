@@ -240,3 +240,33 @@ model MascotChatLog {
   @@index([success, createdAt])
   @@index([errorType, createdAt])
 }
+
+// Visitor achievement system
+model VisitorAchievement {
+  id            String   @id @default(cuid())
+  visitorId     String
+  achievementId String
+  unlockedAt    DateTime @default(now())
+  
+  @@unique([visitorId, achievementId])
+  @@index([visitorId])
+  @@index([achievementId])
+}
+
+model VisitorStats {
+  visitorId         String   @id
+  totalWatering     Int      @default(0)
+  totalFertilizing  Int      @default(0)
+  totalSunbathing   Int      @default(0)
+  totalPetClicks    Int      @default(0)
+  totalComments     Int      @default(0)
+  totalGuestbook    Int      @default(0)
+  totalArticleReads Int      @default(0)
+  totalLikes        Int      @default(0)
+  consecutiveDays   Int      @default(0)
+  lastVisitDate     DateTime?
+  firstVisitAt      DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([consecutiveDays])
+}

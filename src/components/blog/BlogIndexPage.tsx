@@ -3,6 +3,7 @@ import ArticleCard from '@/components/blog/ArticleCard'
 import PikachuWidget from '@/components/blog/PikachuWidget'
 import SunflowerWidget from '@/components/blog/SunflowerWidget'
 import SiteFooter from '@/components/blog/SiteFooter'
+import AchievementPanel from '@/components/blog/AchievementPanel'
 import type { BlogPostSummary } from '@/lib/posts'
 import { fillTextTemplate } from '@/lib/text-template'
 
@@ -74,12 +75,12 @@ export default function BlogIndexPage({
     <div className="min-h-screen">
       <Header />
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
-        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+        <div className="flex flex-col lg:flex-row gap-8 lg:gap-10 items-start">
           <div className="flex-1 min-w-0 w-full">
-            <div className="mb-6 sm:mb-8">
-              <h1 className="mb-1 font-serif text-2xl font-medium text-[var(--text-primary)] sm:text-3xl">{title}</h1>
-              <p className="text-sm text-[var(--text-subtle)]">{description}</p>
+            <div className="mb-8 sm:mb-10">
+              <h1 className="mb-2 font-serif text-2xl font-medium text-[var(--text-primary)] sm:text-3xl tracking-tight">{title}</h1>
+              <p className="text-sm text-[var(--text-subtle)] leading-relaxed max-w-xl">{description}</p>
               <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-[var(--text-subtle)]">{resultSummary}</p>
                 <form action="/" method="get" className="flex flex-col gap-2 sm:flex-row">
@@ -111,12 +112,12 @@ export default function BlogIndexPage({
             </div>
 
             {posts.length === 0 ? (
-              <div className="py-20 text-center text-[var(--text-subtle)]">
-                <p className="text-4xl mb-4">📝</p>
-                <p>{searchQuery ? emptySearchText : emptyStateText}</p>
+              <div className="py-24 text-center text-[var(--text-subtle)]">
+                <p className="text-5xl mb-5">📝</p>
+                <p className="text-base">{searchQuery ? emptySearchText : emptyStateText}</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 {posts.map(post => (
                   <ArticleCard
                     key={post.slug}
@@ -182,6 +183,7 @@ export default function BlogIndexPage({
       <SiteFooter />
 
       <PikachuWidget />
+      <AchievementPanel />
     </div>
   )
 }

@@ -36,9 +36,9 @@ export type AdminSettingSection = {
 }
 
 const THEME_OPTIONS: AdminFieldOption[] = [
-  { label: '暖色日常', value: 'warm' },
-  { label: '过年喜庆', value: 'festival' },
-  { label: '悼念黑白', value: 'memorial' },
+  { label: '暖色日常（默认）', value: 'warm' },
+  { label: '喜庆红金（节庆用）', value: 'festival' },
+  { label: '肃穆黑白（缅怀用）', value: 'memorial' },
   { label: '极光梦境', value: 'aurora' },
   { label: '海盐蓝调', value: 'ocean' },
   { label: '玫瑰晚霞', value: 'rose' },
@@ -266,7 +266,7 @@ export const ADMIN_SETTING_SECTIONS: AdminSettingSection[] = [
     description: '把法币、数字货币和提示文案一起收口。',
     accent: 'from-lime-500/18 via-yellow-500/10 to-white',
     fields: [
-      { key: 'pay.enabled', label: '开启打赏功能', kind: 'toggle' },
+      { key: 'pay.enabled', label: '开启打赏功��', kind: 'toggle' },
       { key: 'pay.currency', label: '法币代码', kind: 'select', options: CURRENCY_OPTIONS },
       { key: 'pay.stripePublicKey', label: 'Stripe 公钥', placeholder: 'pk_live_...' },
       { key: 'pay.stripeSecretKey', label: 'Stripe 私钥', kind: 'password', hint: '留空代表保持现有值。' },
