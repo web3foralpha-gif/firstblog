@@ -2,337 +2,81 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
-import FileUploader from '@/components/houtai/FileUploader'
+import AdminSettingsFieldRenderer from '@/components/houtai/AdminSettingsFieldRenderer'
 import MascotWorkbench from '@/components/houtai/MascotWorkbench'
 import OwnerDeviceAllowlistButton from '@/components/houtai/OwnerDeviceAllowlistButton'
-import { ADMIN_SETTING_SECTIONS, type AdminSettingField, type AdminSettingSection } from '@/components/houtai/admin-settings-config'
+import { ADMIN_SETTING_SECTIONS, type AdminSettingSection } from '@/components/houtai/admin-settings-config'
+import {
+  buildSectionHref,
+  formatSavedTime,
+  getSectionMeta,
+  isLongField,
+  type AdminSettingsCenterProps,
+} from '@/components/houtai/admin-settings-center-helpers'
+import { useAdminSettingsCenter } from '@/components/houtai/useAdminSettingsCenter'
 import { Card, PageHeader, SearchInput, useConfirm, useToast } from '@/components/houtai/ui'
-import { resolveSharedFontStack } from '@/lib/shared-fonts'
 
-type SettingDef = {
-  type: string
-  label: string
-  default?: string
+type SettingsSectionCardProps = {
+  section: AdminSettingSection
+  sourceSection: AdminSettingSection
+  dirtyCount: number
+  savedAt?: number
+  href?: string
+  onClick?: () => void
 }
 
-type AdminSettingsCenterProps = {
-  title?: string
-  subtitle?: string
-  mode?: 'full' | 'compact'
-  fullPageHref?: string
-}
+function SettingsSectionCard({ section, sourceSection, dirtyCount, savedAt, href, onClick }: SettingsSectionCardProps) {
+  const sectionMeta = getSectionMeta(sourceSection.id)
+  const content = (
+    <>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-50 text-lg">{sectionMeta.icon}</span>
+          <span className="text-base font-semibold text-slate-800">{section.title}</span>
+        </div>
+        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500">
+          {section.fields.length} 字段
+        </span>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-medium ${sectionMeta.tone}`}>
+          {sectionMeta.label}
+        </span>
+        <span className="text-[11px] text-slate-400">上次保存 {formatSavedTime(savedAt)}</span>
+        {dirtyCount > 0 ? (
+          <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700">
+            {dirtyCount} 项待保存
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {sectionMeta.scope.map(item => (
+          <span key={`${section.id}-${item}`} className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-500">
+            {item}
+          </span>
+        ))}
+      </div>
+      <p className="mt-3 text-sm leading-6 text-slate-500">{section.description}</p>
+    </>
+  )
 
-const SETTINGS_CENTER_UI_KEY = 'blog-fix:settings-center-ui'
+  const className = 'rounded-[24px] border border-slate-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm'
 
-type SettingsSectionMeta = {
-  label: string
-  tone: string
-  note: string
-  icon: string
-  scope: string[]
-}
-
-function getSectionMeta(sectionId: string): SettingsSectionMeta {
-  if (sectionId === 'site') {
-    return {
-      label: '品牌 / SEO',
-      tone: 'border-sky-200 bg-sky-50 text-sky-700',
-      note: '搜索引擎、站点识别与标签页表现会直接受影响。',
-      icon: '🪪',
-      scope: ['搜索结果', '浏览器标签页', '全站主题'],
-    }
+  if (href) {
+    return (
+      <Link href={href} className={className}>
+        {content}
+      </Link>
+    )
   }
 
-  if (sectionId === 'navigation') {
-    return {
-      label: '全站导航',
-      tone: 'border-violet-200 bg-violet-50 text-violet-700',
-      note: '控制顶部导航、页脚入口和 RSS 对访客的可见性。',
-      icon: '🧭',
-      scope: ['顶部导航', '页脚导航', 'RSS'],
-    }
-  }
-
-  if (sectionId === 'home') {
-    return {
-      label: '首页编排',
-      tone: 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700',
-      note: '首页标题、搜索栏、角落卡片和快捷入口会即时同步到前台。',
-      icon: '🏠',
-      scope: ['首页标题', '搜索栏', '侧边卡片'],
-    }
-  }
-
-  if (sectionId === 'archive') {
-    return {
-      label: '归档页面',
-      tone: 'border-cyan-200 bg-cyan-50 text-cyan-700',
-      note: '适合单独调整归档页的标题、说明和按钮，不再和首页内容混在一起。',
-      icon: '🗂',
-      scope: ['归档页头', 'CTA 按钮'],
-    }
-  }
-
-  if (sectionId === 'guestbook') {
-    return {
-      label: '交流页面',
-      tone: 'border-teal-200 bg-teal-50 text-teal-700',
-      note: '会影响留言板页头、空状态和留言表单的全部前台文案。',
-      icon: '📮',
-      scope: ['留言板', '留言表单'],
-    }
-  }
-
-  if (sectionId === 'footer') {
-    return {
-      label: '页脚信息',
-      tone: 'border-stone-200 bg-stone-50 text-stone-700',
-      note: '会影响全站底部说明、友链展示和站点氛围。',
-      icon: '🦶',
-      scope: ['页脚短句', '友情链接'],
-    }
-  }
-
-  if (sectionId === 'about') {
-    return {
-      label: '个人介绍',
-      tone: 'border-amber-200 bg-amber-50 text-amber-700',
-      note: '头像、头图、联系信息和正文都会直接反映在关于页。',
-      icon: '👤',
-      scope: ['关于页', '联系方式'],
-    }
-  }
-
-  if (sectionId === 'poster') {
-    return {
-      label: '分享素材',
-      tone: 'border-rose-200 bg-rose-50 text-rose-700',
-      note: '文章海报的字体、顶部标签和扫码说明统一在这里维护。',
-      icon: '🖼',
-      scope: ['分享海报', '二维码说明'],
-    }
-  }
-
-  if (sectionId === 'payments' || sectionId === 'ai') {
-    return {
-      label: '服务接入',
-      tone: 'border-violet-200 bg-violet-50 text-violet-700',
-      note: '这里包含外部平台接入信息，保存前建议再次核对。',
-      icon: sectionId === 'payments' ? '💳' : '🤖',
-      scope: sectionId === 'payments' ? ['打赏配置', '支付提示'] : ['AI 分身', '模型接入'],
-    }
-  }
-
-  if (sectionId === 'article') {
-    return {
-      label: '文章体验',
-      tone: 'border-indigo-200 bg-indigo-50 text-indigo-700',
-      note: '会同时影响文章页的评论区、互动栏、相关推荐和返回入口。',
-      icon: '📝',
-      scope: ['评论区', '互动栏', '相关推荐'],
-    }
-  }
-
-  if (sectionId === 'analytics') {
-    return {
-      label: '统计治理',
-      tone: 'border-amber-200 bg-amber-50 text-amber-700',
-      note: '用于剔除站长自测流量，让访问与互动统计更接近真实访客。',
-      icon: '📊',
-      scope: ['IP 白名单', '设备白名单'],
-    }
-  }
-
-  if (sectionId === 'interaction') {
-    return {
-      label: '互动体验',
-      tone: 'border-indigo-200 bg-indigo-50 text-indigo-700',
-      note: '会影响宠物和向日葵在前台给访客的互动反馈。',
-      icon: '✨',
-      scope: ['宠物文案', '向日葵反馈'],
-    }
-  }
-
-  if (sectionId === 'security') {
-    return {
-      label: '敏感配置',
-      tone: 'border-rose-200 bg-rose-50 text-rose-700',
-      note: '涉及后台登录与权限安全，改动后建议立即验证登录流程。',
-      icon: '🔐',
-      scope: ['管理员账号', '登录安全'],
-    }
-  }
-
-  if (sectionId === 'system') {
-    return {
-      label: '状态页面',
-      tone: 'border-zinc-200 bg-zinc-50 text-zinc-700',
-      note: '用于维护 404 等系统状态页，让异常页也保持统一语气。',
-      icon: '🧱',
-      scope: ['404 页面'],
-    }
-  }
-
-  return {
-    label: '前台展示',
-    tone: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    note: '会直接影响访客前台看到的内容、文案与视觉表现。',
-    icon: '🪄',
-    scope: ['前台展示'],
-  }
-}
-
-function formatSavedTime(value: number | null | undefined) {
-  if (!value) return '未记录'
-
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
-}
-
-function buildSectionHref(basePath: string, currentSearch: string, sectionId?: string | null) {
-  const params = new URLSearchParams(currentSearch)
-
-  if (sectionId) {
-    params.set('section', sectionId)
-  } else {
-    params.delete('section')
-  }
-
-  const query = params.toString()
-  return query ? `${basePath}?${query}` : basePath
-}
-
-function ToggleSwitch({ value, onChange }: { value: boolean; onChange: (value: boolean) => void }) {
   return (
-    <button
-      type="button"
-      onClick={() => onChange(!value)}
-      className="relative mt-1 inline-flex h-7 w-12 rounded-full transition-colors"
-      style={{ background: value ? '#1d4ed8' : '#cbd5e1' }}
-    >
-      <span
-        className="absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-all"
-        style={{ left: value ? 23 : 4 }}
-      />
+    <button type="button" onClick={onClick} className={className}>
+      {content}
     </button>
   )
-}
-
-function FormRow({
-  label,
-  hint,
-  status,
-  actions,
-  children,
-}: {
-  label: string
-  hint?: string
-  status?: React.ReactNode
-  actions?: React.ReactNode
-  children: React.ReactNode
-}) {
-  return (
-    <div className="grid gap-2 border-b border-slate-100 pb-5 last:border-b-0 last:pb-0 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-5">
-      <div className="pt-0.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm font-medium text-slate-700">{label}</p>
-          {status}
-        </div>
-        {hint ? <p className="mt-1 text-xs leading-5 text-slate-400">{hint}</p> : null}
-      </div>
-      <div className="space-y-3">
-        {children}
-        {actions ? <div className="flex flex-wrap justify-end gap-2">{actions}</div> : null}
-      </div>
-    </div>
-  )
-}
-
-function ImageSettingField({
-  label,
-  hint,
-  status,
-  actions,
-  value,
-  onChange,
-}: {
-  label: string
-  hint?: string
-  status?: React.ReactNode
-  actions?: React.ReactNode
-  value: string
-  onChange: (value: string) => void
-}) {
-  const [showUploader, setShowUploader] = useState(false)
-
-  return (
-    <FormRow label={label} hint={hint} status={status} actions={actions}>
-      <div className="space-y-3">
-        {value ? (
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            <img src={value} alt={label} className="max-h-64 w-full object-cover" />
-          </div>
-        ) : null}
-
-        <input
-          className="field font-mono text-xs"
-          value={value}
-          onChange={event => onChange(event.target.value)}
-          placeholder="https://..."
-          maxLength={1000}
-        />
-
-        {showUploader ? (
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-            <FileUploader
-              accept="image"
-              label={`上传${label}`}
-              onSuccess={({ url }) => {
-                onChange(url)
-                setShowUploader(false)
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => setShowUploader(false)}
-              className="mt-2 text-xs text-slate-500 hover:text-slate-700"
-            >
-              取消上传
-            </button>
-          </div>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setShowUploader(true)}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50"
-            >
-              上传图片
-            </button>
-            {value ? (
-              <button
-                type="button"
-                onClick={() => onChange('')}
-                className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600 transition-colors hover:border-rose-300"
-              >
-                清空
-              </button>
-            ) : null}
-          </div>
-        )}
-      </div>
-    </FormRow>
-  )
-}
-
-function isLongField(field: AdminSettingField) {
-  return field.kind === 'textarea' || field.kind === 'image'
 }
 
 export default function AdminSettingsCenter({
@@ -347,427 +91,68 @@ export default function AdminSettingsCenter({
   const toast = useToast()
   const { confirm, dialog } = useConfirm()
   const isCompactMode = mode === 'compact'
-  const uiStorageKey = `${SETTINGS_CENTER_UI_KEY}:${mode}`
   const currentSearch = searchParams.toString()
-
   const sections = useMemo(() => ADMIN_SETTING_SECTIONS, [])
-  const [settings, setSettings] = useState<Record<string, string>>({})
-  const [defs, setDefs] = useState<Record<string, SettingDef>>({})
-  const [dirty, setDirty] = useState<Record<string, string>>({})
-  const [loading, setLoading] = useState(true)
-  const [savingTarget, setSavingTarget] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
-  const [showDirtyOnly, setShowDirtyOnly] = useState(false)
-  const [savedSectionTimestamps, setSavedSectionTimestamps] = useState<Record<string, number>>({})
-  const [oldPassword, setOldPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [passwordSaving, setPasswordSaving] = useState(false)
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      const res = await fetch('/api/houtai/settings', { cache: 'no-store' })
-      if (!res.ok) throw new Error('load failed')
-      const data = await res.json()
-      setSettings(data.settings ?? {})
-      setDefs(data.defs ?? {})
-    } catch {
-      toast('设置读取失败', 'error')
-    } finally {
-      setLoading(false)
-    }
-  }, [toast])
-
-  useEffect(() => {
-    void load()
-  }, [load])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-
-    try {
-      const raw = window.localStorage.getItem(uiStorageKey)
-      if (!raw) return
-
-      const parsed = JSON.parse(raw) as {
-        showDirtyOnly?: boolean
-        savedSectionTimestamps?: Record<string, number>
-      }
-      if (typeof parsed.showDirtyOnly === 'boolean') {
-        setShowDirtyOnly(parsed.showDirtyOnly)
-      }
-      if (parsed.savedSectionTimestamps && typeof parsed.savedSectionTimestamps === 'object') {
-        setSavedSectionTimestamps(parsed.savedSectionTimestamps)
-      }
-    } catch {
-      window.localStorage.removeItem(uiStorageKey)
-    }
-  }, [uiStorageKey])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-
-    window.localStorage.setItem(
-      uiStorageKey,
-      JSON.stringify({
-        showDirtyOnly,
-        savedSectionTimestamps,
-      }),
-    )
-  }, [savedSectionTimestamps, showDirtyOnly, uiStorageKey])
-
-  const dirtyKeys = useMemo(() => new Set(Object.keys(dirty)), [dirty])
-  const dirtyCount = dirtyKeys.size
-  const searchQuery = search.trim().toLowerCase()
-  const effectiveSettings = useMemo(() => {
-    const merged: Record<string, string> = {}
-    const keys = new Set([...Object.keys(defs), ...Object.keys(settings), ...Object.keys(dirty)])
-
-    keys.forEach(key => {
-      merged[key] = dirty[key] !== undefined ? dirty[key] : (settings[key] ?? defs[key]?.default ?? '')
-    })
-
-    return merged
-  }, [defs, dirty, settings])
-
-  function getSettingValue(key: string) {
-    return dirty[key] !== undefined ? dirty[key] : (settings[key] ?? defs[key]?.default ?? '')
-  }
-
-  function setSettingValue(key: string, value: string) {
-    setDirty(current => ({ ...current, [key]: value }))
-  }
-
-  function getDirtyKeysForSection(section: AdminSettingSection) {
-    return section.fields.map(field => field.key).filter(key => dirtyKeys.has(key))
-  }
-
-  function getSavedValue(key: string) {
-    return settings[key] ?? defs[key]?.default ?? ''
-  }
-
-  function fieldMatchesSearch(section: AdminSettingSection, field: AdminSettingField) {
-    if (!searchQuery) return true
-
-    const haystack = [
-      section.title,
-      section.description,
-      field.label,
-      field.hint,
-      field.placeholder,
-      field.key,
-      defs[field.key]?.label,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-
-    return haystack.includes(searchQuery)
-  }
-
-  function getVisibleFields(section: AdminSettingSection) {
-    return section.fields.filter(field => {
-      if (showDirtyOnly && !dirtyKeys.has(field.key)) return false
-      return fieldMatchesSearch(section, field)
-    })
-  }
-
-  const filteredSections = useMemo(
-    () =>
-      sections
-        .map(section => ({ ...section, fields: getVisibleFields(section) }))
-        .filter(section => section.fields.length > 0),
-    [defs, dirtyKeys, searchQuery, sections, showDirtyOnly],
-  )
-
-  const dirtySectionCount = useMemo(
-    () => sections.filter(section => getDirtyKeysForSection(section).length > 0).length,
-    [dirtyKeys, sections],
-  )
-  const firstDirtySectionId = useMemo(
-    () => sections.find(section => getDirtyKeysForSection(section).length > 0)?.id ?? null,
-    [dirtyKeys, sections],
-  )
-  const lastSavedAt = useMemo(() => {
-    const values = Object.values(savedSectionTimestamps)
-    if (values.length === 0) return null
-    return Math.max(...values)
-  }, [savedSectionTimestamps])
   const selectedSectionId = isCompactMode ? null : searchParams.get('section')
-  const selectedSection = useMemo(
-    () => (selectedSectionId ? sections.find(section => section.id === selectedSectionId) ?? null : null),
-    [sections, selectedSectionId],
-  )
-  const selectedSectionFields = useMemo(() => {
-    if (!selectedSection) return []
 
-    return selectedSection.fields.filter(field => {
-      if (showDirtyOnly && !dirtyKeys.has(field.key)) return false
-      return fieldMatchesSearch(selectedSection, field)
-    })
-  }, [dirtyKeys, searchQuery, selectedSection, showDirtyOnly])
-  const selectedSectionIndex = useMemo(
-    () => (selectedSection ? sections.findIndex(section => section.id === selectedSection.id) : -1),
-    [sections, selectedSection],
-  )
-  const previousSection = selectedSectionIndex > 0 ? sections[selectedSectionIndex - 1] : null
-  const nextSection = selectedSectionIndex >= 0 && selectedSectionIndex < sections.length - 1 ? sections[selectedSectionIndex + 1] : null
+  const {
+    changePassword,
+    clearFilters,
+    clearSectionChanges,
+    confirmPassword,
+    defs,
+    dirty,
+    dirtyCount,
+    dirtyKeys,
+    dirtySectionCount,
+    effectiveSettings,
+    firstDirtySectionId,
+    getDirtyKeysForSection,
+    getSavedValue,
+    getSettingValue,
+    lastSavedAt,
+    loading,
+    newPassword,
+    nextSection,
+    oldPassword,
+    passwordSaving,
+    previousSection,
+    resetFieldToDefault,
+    resetFieldToSaved,
+    saveKeys,
+    savedSectionTimestamps,
+    savingTarget,
+    search,
+    searchQuery,
+    selectedSection,
+    selectedSectionFields,
+    setConfirmPassword,
+    setNewPassword,
+    setOldPassword,
+    setSearch,
+    setSettingValue,
+    showDirtyOnly,
+    toggleShowDirtyOnly,
+    filteredSections,
+  } = useAdminSettingsCenter({
+    sections,
+    selectedSectionId,
+    mode,
+    toast,
+    confirm,
+  })
 
-  function resetFieldToSaved(key: string) {
-    setDirty(current => {
-      if (current[key] === undefined) return current
-      const next = { ...current }
-      delete next[key]
-      return next
-    })
-  }
-
-  function resetFieldToDefault(key: string) {
-    setDirty(current => ({ ...current, [key]: defs[key]?.default ?? '' }))
-  }
-
-  function clearSectionChanges(section: AdminSettingSection) {
-    setDirty(current => {
-      const next = { ...current }
-      section.fields.forEach(field => {
-        delete next[field.key]
-      })
-      return next
-    })
-  }
+  const selectedSectionMeta = selectedSection ? getSectionMeta(selectedSection.id) : null
+  const selectedSectionHasLongField = selectedSectionFields.some(isLongField)
 
   function openSection(sectionId: string) {
     if (isCompactMode) return
-
     router.replace(buildSectionHref(pathname, currentSearch, sectionId), { scroll: false })
   }
 
   function closeSection() {
     if (isCompactMode) return
-
     router.replace(buildSectionHref(pathname, currentSearch, null), { scroll: false })
-  }
-
-  async function saveKeys(keys: string[], target: string) {
-    const payload = Object.fromEntries(keys.filter(key => dirty[key] !== undefined).map(key => [key, dirty[key]]))
-    if (Object.keys(payload).length === 0) {
-      toast('这一组没有改动', 'info')
-      return
-    }
-
-    setSavingTarget(target)
-    try {
-      const res = await fetch('/api/houtai/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) throw new Error('save failed')
-
-      const savedAt = Date.now()
-      const touchedSectionIds = sections
-        .filter(section => section.fields.some(field => payload[field.key] !== undefined))
-        .map(section => section.id)
-
-      setSettings(current => ({ ...current, ...payload }))
-      setDirty(current => {
-        const next = { ...current }
-        keys.forEach(key => {
-          delete next[key]
-        })
-        return next
-      })
-      setSavedSectionTimestamps(current => {
-        const next = { ...current }
-        touchedSectionIds.forEach(sectionId => {
-          next[sectionId] = savedAt
-        })
-        return next
-      })
-      toast(target === 'all' ? '全部设置已保存' : '本组设置已保存')
-    } catch {
-      toast('保存失败，请稍后重试', 'error')
-    } finally {
-      setSavingTarget(null)
-    }
-  }
-
-  async function changePassword() {
-    if (!oldPassword || !newPassword || !confirmPassword) {
-      toast('请填写完整密码信息', 'error')
-      return
-    }
-    if (newPassword !== confirmPassword) {
-      toast('两次新密码不一致', 'error')
-      return
-    }
-    if (newPassword.length < 8) {
-      toast('新密码至少 8 位', 'error')
-      return
-    }
-
-    const approved = await confirm('修改密码', '确认更新管理员登录密码？更新后会立即生效。', {
-      confirmLabel: '确认修改',
-    })
-    if (!approved) return
-
-    setPasswordSaving(true)
-    try {
-      const res = await fetch('/api/houtai/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ oldPassword, newPassword }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(String(data?.error || '密码修改失败'))
-      setOldPassword('')
-      setNewPassword('')
-      setConfirmPassword('')
-      toast(data.message || '管理员密码已更新')
-    } catch (error) {
-      toast(error instanceof Error ? error.message : '密码修改失败', 'error')
-    } finally {
-      setPasswordSaving(false)
-    }
-  }
-  function renderField(field: AdminSettingField) {
-    const resolvedHint = field.hint
-    const currentValue = getSettingValue(field.key)
-    const savedValue = getSavedValue(field.key)
-    const defaultValue = defs[field.key]?.default ?? ''
-    const fieldDirty = dirty[field.key] !== undefined && currentValue !== savedValue
-    const fieldSensitive = field.kind === 'password' || /(?:apiKey|secret|webhook|token)/i.test(field.key)
-    const canResetToSaved = dirty[field.key] !== undefined
-    const canResetToDefault = field.kind !== 'password' && currentValue !== defaultValue
-    const fieldStatus = (
-      <>
-        {fieldDirty ? (
-          <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
-            已修改
-          </span>
-        ) : (
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-500">
-            已保存
-          </span>
-        )}
-        {fieldSensitive ? (
-          <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-700">
-            敏感项
-          </span>
-        ) : null}
-      </>
-    )
-    const fieldActions = (
-      <>
-        <button
-          type="button"
-          onClick={() => resetFieldToSaved(field.key)}
-          disabled={!canResetToSaved}
-          className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          恢复已保存
-        </button>
-        <button
-          type="button"
-          onClick={() => resetFieldToDefault(field.key)}
-          disabled={!canResetToDefault}
-          className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-600 transition hover:border-slate-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          恢复默认
-        </button>
-      </>
-    )
-
-    if (field.kind === 'image') {
-      return (
-        <ImageSettingField
-          label={field.label}
-          hint={resolvedHint}
-          status={fieldStatus}
-          actions={fieldActions}
-          value={currentValue}
-          onChange={value => setSettingValue(field.key, value)}
-        />
-      )
-    }
-
-    if (field.kind === 'toggle') {
-      return (
-        <FormRow key={field.key} label={field.label} hint={resolvedHint} status={fieldStatus} actions={fieldActions}>
-          <ToggleSwitch
-            value={currentValue === 'true'}
-            onChange={value => setSettingValue(field.key, value ? 'true' : 'false')}
-          />
-        </FormRow>
-      )
-    }
-
-    if (field.kind === 'select') {
-      return (
-        <FormRow key={field.key} label={field.label} hint={resolvedHint} status={fieldStatus} actions={fieldActions}>
-          <div className="space-y-3">
-            <select
-              className="field"
-              value={currentValue}
-              onChange={event => setSettingValue(field.key, event.target.value)}
-            >
-              {(field.options ?? []).map(option => (
-                <option key={`${field.key}-${option.value || 'default'}`} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            {field.key === 'poster.fontFamily' ? (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Poster Preview</p>
-                <div className="mt-3 space-y-2" style={{ fontFamily: resolveSharedFontStack(currentValue) }}>
-                  <p className="text-2xl font-semibold text-slate-800">纸杯的自留地</p>
-                  <p className="text-sm leading-6 text-slate-500">二维码优先完整展示，扫一下就能继续阅读原文。</p>
-                  <p className="text-xs text-slate-400">zb2026.top</p>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </FormRow>
-      )
-    }
-
-    if (field.kind === 'textarea') {
-      return (
-        <FormRow key={field.key} label={field.label} hint={resolvedHint} status={fieldStatus} actions={fieldActions}>
-          <textarea
-            className="field resize-y"
-            rows={field.rows ?? 4}
-            value={currentValue}
-            onChange={event => setSettingValue(field.key, event.target.value)}
-            placeholder={field.placeholder}
-          />
-        </FormRow>
-      )
-    }
-
-    const inputType = field.kind === 'number' ? 'number' : field.kind === 'email' ? 'email' : field.kind === 'password' ? 'password' : 'text'
-    const inputValue = field.kind === 'password' ? dirty[field.key] ?? '' : getSettingValue(field.key)
-    const placeholder =
-      field.kind === 'password'
-        ? field.placeholder || '已加密保存，留空保持原值'
-        : field.placeholder
-
-    return (
-      <FormRow key={field.key} label={field.label} hint={resolvedHint} status={fieldStatus} actions={fieldActions}>
-        <input
-          type={inputType}
-          className={`field ${field.kind === 'number' ? 'max-w-[180px]' : ''} ${field.kind === 'password' ? 'font-mono text-xs' : ''}`}
-          value={inputValue}
-          min={field.min}
-          max={field.max}
-          onChange={event => setSettingValue(field.key, event.target.value)}
-          placeholder={placeholder}
-          autoComplete={field.kind === 'email' ? 'email' : field.kind === 'password' ? 'new-password' : undefined}
-        />
-      </FormRow>
-    )
   }
 
   if (loading) {
@@ -781,22 +166,16 @@ export default function AdminSettingsCenter({
       {!isCompactMode ? (
         <PageHeader
           title={selectedSection ? `${title} · ${selectedSection.title}` : title}
-          subtitle={
-            selectedSection
-              ? '当前只进入一个分组单独编辑，避免所有设置同时摊开。'
-              : subtitle
-          }
-          action={
-            selectedSection ? (
-              <button
-                type="button"
-                onClick={closeSection}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
-              >
-                返回全部板块
-              </button>
-            ) : null
-          }
+          subtitle={selectedSection ? '当前只进入一个分组单独编辑，避免所有设置同时摊开。' : subtitle}
+          action={selectedSection ? (
+            <button
+              type="button"
+              onClick={closeSection}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+            >
+              返回全部板块
+            </button>
+          ) : null}
         />
       ) : null}
 
@@ -825,15 +204,11 @@ export default function AdminSettingsCenter({
             </div>
 
             <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
-              <SearchInput
-                value={search}
-                onChange={setSearch}
-                placeholder="搜索要进入的设置板块"
-              />
+              <SearchInput value={search} onChange={setSearch} placeholder="搜索要进入的设置板块" />
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowDirtyOnly(current => !current)}
+                  onClick={toggleShowDirtyOnly}
                   className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
                     showDirtyOnly
                       ? 'border-slate-900 bg-slate-900 text-white'
@@ -845,10 +220,7 @@ export default function AdminSettingsCenter({
                 {(searchQuery || showDirtyOnly) ? (
                   <button
                     type="button"
-                    onClick={() => {
-                      setSearch('')
-                      setShowDirtyOnly(false)
-                    }}
+                    onClick={clearFilters}
                     className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300"
                   >
                     清空筛选
@@ -865,51 +237,22 @@ export default function AdminSettingsCenter({
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {filteredSections.map(section => {
                   const sourceSection = sections.find(item => item.id === section.id) ?? section
-                  const dirtyCountForSection = getDirtyKeysForSection(sourceSection).length
-                  const sectionMeta = getSectionMeta(sourceSection.id)
-
                   return (
-                    <Link
+                    <SettingsSectionCard
                       key={section.id}
+                      section={section}
+                      sourceSection={sourceSection}
+                      dirtyCount={getDirtyKeysForSection(sourceSection).length}
+                      savedAt={savedSectionTimestamps[section.id]}
                       href={`${fullPageHref}?section=${section.id}`}
-                      className="rounded-[24px] border border-slate-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-50 text-lg">{sectionMeta.icon}</span>
-                          <span className="text-base font-semibold text-slate-800">{section.title}</span>
-                        </div>
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500">
-                          {section.fields.length} 字段
-                        </span>
-                      </div>
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-medium ${sectionMeta.tone}`}>
-                          {sectionMeta.label}
-                        </span>
-                        <span className="text-[11px] text-slate-400">上次保存 {formatSavedTime(savedSectionTimestamps[section.id])}</span>
-                        {dirtyCountForSection > 0 ? (
-                          <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700">
-                            {dirtyCountForSection} 项待保存
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {sectionMeta.scope.map(item => (
-                          <span key={`${section.id}-${item}`} className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-500">
-                            {item}
-                          </span>
-                        ))}
-                      </div>
-                      <p className="mt-3 text-sm leading-6 text-slate-500">{section.description}</p>
-                    </Link>
+                    />
                   )
                 })}
               </div>
             )}
           </div>
         </Card>
-      ) : selectedSection ? (
+      ) : selectedSection && selectedSectionMeta ? (
         <>
           <Card className="overflow-hidden border-slate-200">
             <div className="space-y-5 p-5 sm:p-6">
@@ -923,8 +266,8 @@ export default function AdminSettingsCenter({
                     >
                       ← 返回板块列表
                     </button>
-                    <span className={`rounded-full border px-2.5 py-1 text-[11px] font-medium ${getSectionMeta(selectedSection.id).tone}`}>
-                      {getSectionMeta(selectedSection.id).label}
+                    <span className={`rounded-full border px-2.5 py-1 text-[11px] font-medium ${selectedSectionMeta.tone}`}>
+                      {selectedSectionMeta.label}
                     </span>
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500">
                       最近保存 {formatSavedTime(savedSectionTimestamps[selectedSection.id])}
@@ -932,19 +275,19 @@ export default function AdminSettingsCenter({
                   </div>
                   <div className="mt-3 flex items-center gap-3">
                     <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-xl">
-                      {getSectionMeta(selectedSection.id).icon}
+                      {selectedSectionMeta.icon}
                     </span>
                     <h2 className="text-xl font-semibold text-slate-900">{selectedSection.title}</h2>
                   </div>
                   <p className="mt-2 text-sm leading-6 text-slate-500">{selectedSection.description}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {getSectionMeta(selectedSection.id).scope.map(item => (
+                    {selectedSectionMeta.scope.map(item => (
                       <span key={`${selectedSection.id}-${item}`} className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-500">
                         {item}
                       </span>
                     ))}
                   </div>
-                  <p className="mt-2 text-xs leading-5 text-slate-400">{getSectionMeta(selectedSection.id).note}</p>
+                  <p className="mt-2 text-xs leading-5 text-slate-400">{selectedSectionMeta.note}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {previousSection ? (
@@ -985,15 +328,11 @@ export default function AdminSettingsCenter({
               </div>
 
               <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
-                <SearchInput
-                  value={search}
-                  onChange={setSearch}
-                  placeholder={`搜索 ${selectedSection.title} 内的字段`}
-                />
+                <SearchInput value={search} onChange={setSearch} placeholder={`搜索 ${selectedSection.title} 内的字段`} />
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={() => setShowDirtyOnly(current => !current)}
+                    onClick={toggleShowDirtyOnly}
                     className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
                       showDirtyOnly
                         ? 'border-slate-900 bg-slate-900 text-white'
@@ -1005,10 +344,7 @@ export default function AdminSettingsCenter({
                   {(searchQuery || showDirtyOnly) ? (
                     <button
                       type="button"
-                      onClick={() => {
-                        setSearch('')
-                        setShowDirtyOnly(false)
-                      }}
+                      onClick={clearFilters}
                       className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300"
                     >
                       清空筛选
@@ -1041,10 +377,19 @@ export default function AdminSettingsCenter({
                   当前筛选下没有字段可显示，试试清空搜索或关闭“只看改动项”。
                 </div>
               ) : (
-                <div className={selectedSectionFields.some(isLongField) ? 'space-y-5 p-5 sm:p-6' : 'grid gap-5 p-5 sm:p-6 xl:grid-cols-2'}>
+                <div className={selectedSectionHasLongField ? 'space-y-5 p-5 sm:p-6' : 'grid gap-5 p-5 sm:p-6 xl:grid-cols-2'}>
                   {selectedSectionFields.map(field => (
-                    <div key={field.key} className={selectedSectionFields.some(isLongField) || isLongField(field) ? '' : 'xl:col-span-1'}>
-                      {renderField(field)}
+                    <div key={field.key} className={selectedSectionHasLongField || isLongField(field) ? '' : 'xl:col-span-1'}>
+                      <AdminSettingsFieldRenderer
+                        field={field}
+                        draftValue={dirty[field.key]}
+                        value={getSettingValue(field.key)}
+                        savedValue={getSavedValue(field.key)}
+                        defaultValue={defs[field.key]?.default ?? ''}
+                        onChange={value => setSettingValue(field.key, value)}
+                        onResetToSaved={() => resetFieldToSaved(field.key)}
+                        onResetToDefault={() => resetFieldToDefault(field.key)}
+                      />
                     </div>
                   ))}
 
@@ -1111,9 +456,7 @@ export default function AdminSettingsCenter({
                     </div>
                   ) : null}
 
-                  {selectedSection.id === 'ai' ? (
-                    <MascotWorkbench draftSettings={effectiveSettings} />
-                  ) : null}
+                  {selectedSection.id === 'ai' ? <MascotWorkbench draftSettings={effectiveSettings} /> : null}
                 </div>
               )}
             </Card>
@@ -1146,11 +489,7 @@ export default function AdminSettingsCenter({
             </div>
 
             <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
-              <SearchInput
-                value={search}
-                onChange={setSearch}
-                placeholder="搜索要进入的设置板块"
-              />
+              <SearchInput value={search} onChange={setSearch} placeholder="搜索要进入的设置板块" />
               <div className="flex flex-wrap gap-2">
                 {firstDirtySectionId ? (
                   <button
@@ -1163,7 +502,7 @@ export default function AdminSettingsCenter({
                 ) : null}
                 <button
                   type="button"
-                  onClick={() => setShowDirtyOnly(current => !current)}
+                  onClick={toggleShowDirtyOnly}
                   className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
                     showDirtyOnly
                       ? 'border-slate-900 bg-slate-900 text-white'
@@ -1175,10 +514,7 @@ export default function AdminSettingsCenter({
                 {(searchQuery || showDirtyOnly) ? (
                   <button
                     type="button"
-                    onClick={() => {
-                      setSearch('')
-                      setShowDirtyOnly(false)
-                    }}
+                    onClick={clearFilters}
                     className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300"
                   >
                     清空筛选
@@ -1195,45 +531,15 @@ export default function AdminSettingsCenter({
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {filteredSections.map(section => {
                   const sourceSection = sections.find(item => item.id === section.id) ?? section
-                  const dirtyCountForSection = getDirtyKeysForSection(sourceSection).length
-                  const sectionMeta = getSectionMeta(sourceSection.id)
-
                   return (
-                    <button
+                    <SettingsSectionCard
                       key={section.id}
-                      type="button"
+                      section={section}
+                      sourceSection={sourceSection}
+                      dirtyCount={getDirtyKeysForSection(sourceSection).length}
+                      savedAt={savedSectionTimestamps[section.id]}
                       onClick={() => openSection(section.id)}
-                      className="rounded-[24px] border border-slate-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-50 text-lg">{sectionMeta.icon}</span>
-                          <span className="text-base font-semibold text-slate-800">{section.title}</span>
-                        </div>
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500">
-                          {section.fields.length} 字段
-                        </span>
-                      </div>
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-medium ${sectionMeta.tone}`}>
-                          {sectionMeta.label}
-                        </span>
-                        <span className="text-[11px] text-slate-400">上次保存 {formatSavedTime(savedSectionTimestamps[section.id])}</span>
-                        {dirtyCountForSection > 0 ? (
-                          <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700">
-                            {dirtyCountForSection} 项待保存
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {sectionMeta.scope.map(item => (
-                          <span key={`${section.id}-${item}`} className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-500">
-                            {item}
-                          </span>
-                        ))}
-                      </div>
-                      <p className="mt-3 text-sm leading-6 text-slate-500">{section.description}</p>
-                    </button>
+                    />
                   )
                 })}
               </div>
