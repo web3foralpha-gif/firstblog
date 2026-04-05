@@ -39,6 +39,7 @@ import {
   buildTimelinePoints,
   extractMetadataDeviceInfo,
   extractMetadataDevicePayload,
+  formatDecimal,
   formatDuration,
   formatIpAddress,
   formatLatency,
