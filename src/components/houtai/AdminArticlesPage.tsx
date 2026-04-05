@@ -3,11 +3,11 @@
 import Link from 'next/link'
 import { useMemo } from 'react'
 
+import AdminArticleWorkspaceFrame from '@/components/houtai/AdminArticleWorkspaceFrame'
 import {
   Badge,
   Card,
   DataTable,
-  PageHeader,
   Pagination,
   SearchInput,
   type ColDef,
@@ -26,6 +26,7 @@ export default function AdminArticlesPage() {
     handleSort,
     loading,
     page,
+    reload,
     rows,
     search,
     setFilter,
@@ -125,22 +126,73 @@ export default function AdminArticlesPage() {
     },
   ], [deleteArticle, togglePin])
 
-  return (
-    <div>
-      {dialog}
+  const pageStats = useMemo(() => {
+    const publishedCount = rows.filter(article => article.published).length
+    const pinnedCount = rows.filter(article => article.pinned).length
+    const lockedCount = rows.filter(article => article.accessType !== 'PUBLIC').length
+    const commentCount = rows.reduce((sum, article) => sum + article._count.comments, 0)
 
-      <PageHeader
-        title="文章管理"
-        subtitle={`共 ${total} 篇`}
-        action={(
+    return [
+      {
+        label: '当前列表',
+        value: `${rows.length} 篇`,
+        hint: `总库里一共 ${total} 篇文章，当前第 ${page} 页。`,
+      },
+      {
+        label: '已发布',
+        value: `${publishedCount} 篇`,
+        hint: `${Math.max(0, rows.length - publishedCount)} 篇仍是草稿。`,
+      },
+      {
+        label: '特殊权限',
+        value: `${lockedCount} 篇`,
+        hint: `${pinnedCount} 篇置顶，访问规则需要重点复查。`,
+      },
+      {
+        label: '页内评论',
+        value: `${commentCount} 条`,
+        hint: '适合顺手挑出需要继续维护的文章。',
+      },
+    ]
+  }, [page, rows, total])
+
+  const filterLabels: Record<string, string> = {
+    ALL: '全部文章',
+    PUBLIC: '公开文章',
+    PASSWORD: '加密文章',
+    PAID: '付费文章',
+  }
+
+  return (
+    <AdminArticleWorkspaceFrame
+      title="文章内容库"
+      subtitle="从这里统一处理文章列表、权限状态、置顶顺序和编辑入口。"
+      description="这一层现在更像真正的内容工作台：先看当前页状态，再筛选、搜索、进入编辑或预览。"
+      stats={pageStats}
+      links={[
+        { href: '/houtai/articles/new', label: '写新文章' },
+        { href: '/houtai/media', label: '打开媒体库' },
+        { href: '/houtai/comments', label: '查看评论' },
+      ]}
+      actions={(
+        <>
+          <button
+            type="button"
+            onClick={() => void reload()}
+            className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+          >
+            刷新列表
+          </button>
           <Link
             href="/houtai/articles/new"
-            className="inline-flex items-center gap-1.5 rounded-xl bg-slate-800 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-700"
+            className="inline-flex items-center gap-1.5 rounded-2xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800"
           >
             <span>＋</span> 写新文章
           </Link>
-        )}
-      />
+        </>
+      )}
+    >
+      {dialog}
 
       <Card>
         <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 p-4">
@@ -160,6 +212,9 @@ export default function AdminArticlesPage() {
               </button>
             ))}
           </div>
+          <span className="ml-auto rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500">
+            当前筛选：{filterLabels[filter] ?? '全部文章'}
+          </span>
         </div>
 
         <div className="p-4">
@@ -181,6 +236,6 @@ export default function AdminArticlesPage() {
           />
         </div>
       </Card>
-    </div>
+    </AdminArticleWorkspaceFrame>
   )
 }

@@ -112,6 +112,7 @@ export function useAdminArticlesPage() {
     handleSort,
     loading,
     page,
+    reload: load,
     rows,
     search,
     setFilter,
