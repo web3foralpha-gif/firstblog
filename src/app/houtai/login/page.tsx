@@ -31,66 +31,93 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#faf8f5] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-
-        {/* Logo */}
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-[#f0ebe3] mb-4">
-            <span className="text-2xl">✦</span>
-          </div>
-          <h1 className="font-serif text-2xl font-medium text-[#221e1a]">后台管理</h1>
-          <p className="text-sm text-[#a89880] mt-1">请登录以继续</p>
-        </div>
-
-        {/* 表单 */}
-        <form onSubmit={submit} className="bg-white rounded-2xl border border-[#ddd5c8] p-8 space-y-5 shadow-sm">
+    <div className="min-h-screen bg-[var(--bg-color)] px-4 py-10 sm:py-16">
+      <div className="mx-auto grid w-full max-w-4xl gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(340px,420px)] lg:items-center">
+        <section className="theme-panel-soft hidden min-h-[420px] flex-col justify-between p-8 lg:flex">
           <div>
-            <label className="text-xs text-[#8c7d68] mb-1.5 block font-medium">邮箱</label>
-            <input
-              type="email"
-              className="w-full px-4 py-2.5 rounded-xl border border-[#ddd5c8] bg-[#faf8f5] text-[#221e1a] text-sm outline-none focus:border-[#d4711a] focus:ring-2 focus:ring-[#d4711a]/20 transition-all"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="admin@example.com"
-              required
-              autoFocus
-              autoComplete="email"
-            />
+            <p className="text-xs font-semibold uppercase tracking-[0.26em] text-[var(--text-faint)]">Admin Access</p>
+            <h1 className="mt-4 font-serif text-3xl font-medium text-[var(--text-primary)]">后台控制台入口</h1>
+            <p className="mt-4 max-w-md text-sm leading-7 text-[var(--text-subtle)]">
+              这里专门处理文章、统计、互动和站点设置。登录后会直接进入已经收纳过的后台工作台。
+            </p>
           </div>
-
-          <div>
-            <label className="text-xs text-[#8c7d68] mb-1.5 block font-medium">密码</label>
-            <input
-              type="password"
-              className="w-full px-4 py-2.5 rounded-xl border border-[#ddd5c8] bg-[#faf8f5] text-[#221e1a] text-sm outline-none focus:border-[#d4711a] focus:ring-2 focus:ring-[#d4711a]/20 transition-all"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              autoComplete="current-password"
-            />
-          </div>
-
-          {error && (
-            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">
-              <span>✕</span>
-              <span>{error}</span>
+          <div className="space-y-3 text-sm text-[var(--text-subtle)]">
+            <div className="rounded-2xl border border-[var(--border-soft)] bg-white/70 px-4 py-3">
+              文章编辑、封面、权限、海报与互动，都已经集中在后台里。
             </div>
-          )}
+            <div className="rounded-2xl border border-[var(--border-soft)] bg-white/70 px-4 py-3">
+              如果只是想回前台看看，下面右侧保留了直接返回博客的入口。
+            </div>
+          </div>
+        </section>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 rounded-xl bg-[#221e1a] text-white text-sm font-medium hover:bg-[#3d3530] disabled:opacity-50 transition-colors"
-          >
-            {loading ? '登录中…' : '登录'}
-          </button>
-        </form>
+        <div className="w-full">
+          <div className="mb-8 text-center lg:hidden">
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--surface-soft)] text-2xl">
+              ✦
+            </div>
+            <h1 className="mt-4 font-serif text-2xl font-medium text-[var(--text-primary)]">后台管理</h1>
+            <p className="mt-1 text-sm text-[var(--text-subtle)]">请登录以继续</p>
+          </div>
 
-        <p className="text-center text-xs text-[#c4b8a7] mt-6">
-          <a href="/" className="hover:text-[#d4711a] transition-colors">← 返回博客</a>
-        </p>
+          <form onSubmit={submit} className="rounded-[28px] border border-[var(--border-color)] bg-white p-8 shadow-sm sm:p-9">
+            <div className="mb-6 hidden text-center lg:block">
+              <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--surface-soft)] text-2xl">
+                ✦
+              </div>
+              <h1 className="mt-4 font-serif text-2xl font-medium text-[var(--text-primary)]">后台管理</h1>
+              <p className="mt-1 text-sm text-[var(--text-subtle)]">请登录以继续</p>
+            </div>
+
+            <div className="space-y-5">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-[var(--text-subtle)]">邮箱</label>
+                <input
+                  type="email"
+                  className="w-full rounded-2xl border border-[var(--border-color)] bg-[var(--surface-soft)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition-all focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="admin@example.com"
+                  required
+                  autoFocus
+                  autoComplete="email"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-[var(--text-subtle)]">密码</label>
+                <input
+                  type="password"
+                  className="w-full rounded-2xl border border-[var(--border-color)] bg-[var(--surface-soft)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition-all focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  autoComplete="current-password"
+                />
+              </div>
+
+              {error && (
+                <div className="flex items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+                  <span>✕</span>
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full rounded-2xl bg-slate-900 py-3 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:opacity-50"
+              >
+                {loading ? '登录中…' : '登录'}
+              </button>
+            </div>
+          </form>
+
+          <p className="mt-6 text-center text-xs text-[var(--text-faint)]">
+            <a href="/" className="transition-colors hover:text-[var(--accent)]">← 返回博客</a>
+          </p>
+        </div>
       </div>
     </div>
   )

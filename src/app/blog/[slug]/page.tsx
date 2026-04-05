@@ -2,12 +2,9 @@ import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 
 import ArticleEngagementBar from '@/components/blog/ArticleEngagementBar'
-import BlogTheme from '@/components/blog/BlogTheme'
-import Header from '@/components/blog/Header'
+import BlogArticleFrame from '@/components/blog/BlogArticleFrame'
 import MarkdownContent from '@/components/blog/MarkdownContent'
-import PikachuWidget from '@/components/blog/PikachuWidget'
 import RelatedPosts from '@/components/blog/RelatedPosts'
-import SiteFooter from '@/components/blog/SiteFooter'
 import StructuredData from '@/components/StructuredData'
 import { getAllPostSlugs, syncMarkdownPostsToDatabase } from '@/lib/posts'
 import { getLegacyArticleTitleBySlug } from '@/lib/services/legacy-article-service'
@@ -51,7 +48,7 @@ export default async function BlogPostPage({ params }: Props) {
   const { site, post, engagement, relatedPosts, copy, description, breadcrumbs } = pageData
 
   return (
-    <BlogTheme>
+    <>
       <StructuredData
         data={[
           buildArticleSchema(site, {
@@ -69,83 +66,69 @@ export default async function BlogPostPage({ params }: Props) {
           breadcrumbs,
         ]}
       />
-      <div className="min-h-screen">
-        <Header />
-
-        <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
-          <header className="mb-10">
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <span className="text-2xl">{post.mood}</span>
-              <span className="badge badge-public">Markdown</span>
-              <span className="text-xs text-[var(--text-subtle)]">{post.readingTimeMinutes} {copy.markdown.readingTimeSuffix}</span>
-            </div>
-            <h1 className="mb-3 font-serif text-2xl font-medium leading-snug text-[var(--text-primary)] sm:text-4xl">
-              {post.title}
-            </h1>
-            <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--text-subtle)]">
-              <time>{formatDate(post.publishedAt)}</time>
-              {post.updatedAt && <span>{copy.markdown.updatedAtPrefix} {formatDate(post.updatedAt)}</span>}
-            </div>
-            {post.tags.length > 0 && (
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                {post.tags.map(tag => (
-                  <Link
-                    key={tag}
-                    href={`/blog?q=${encodeURIComponent(tag)}`}
-                    className="rounded-full bg-[var(--surface-soft)] px-3 py-1 text-xs text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)]"
-                  >
-                    #{tag}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </header>
-
-          {post.coverImage && (
-            <div className="mb-8 overflow-hidden rounded-3xl border border-[var(--border-color)] bg-[var(--surface-bg)]">
-              <img
-                src={post.coverImage}
-                alt={post.title}
-                className="block h-auto w-full"
-                loading="eager"
-              />
-            </div>
-          )}
-
-          <MarkdownContent content={post.content} className="article-body" />
-
-          {engagement ? (
-            <ArticleEngagementBar
-              articleId={engagement.articleId}
-              slug={slug}
-              title={post.title}
-              sharePath={`/blog/${slug}`}
-              commentsCount={engagement.summary.commentCount}
-              initialSummary={engagement.summary}
-              copy={copy.engagement}
-            />
-          ) : null}
-
-          <RelatedPosts
-            posts={relatedPosts}
-            eyebrow={copy.related.eyebrow}
-            title={copy.related.title}
-            archiveLabel={copy.related.archiveLabel}
-            passwordBadgeLabel={copy.related.passwordBadgeLabel}
-            paidBadgeLabel={copy.related.paidBadgeLabel}
-          />
-
-          <div className="mt-12 border-t border-[var(--border-color)] pt-6">
+      <BlogArticleFrame
+        title={post.title}
+        mood={post.mood}
+        badges={(
+          <>
+            <span className="badge badge-public">Markdown</span>
+            <span className="text-xs text-[var(--text-subtle)]">
+              {post.readingTimeMinutes} {copy.markdown.readingTimeSuffix}
+            </span>
+          </>
+        )}
+        meta={(
+          <div className="flex flex-wrap items-center gap-3">
+            <time>{formatDate(post.publishedAt)}</time>
+            {post.updatedAt ? <span>{copy.markdown.updatedAtPrefix} {formatDate(post.updatedAt)}</span> : null}
+          </div>
+        )}
+        afterHeader={post.tags.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {post.tags.map(tag => (
+              <Link
+                key={tag}
+                href={`/blog?q=${encodeURIComponent(tag)}`}
+                className="rounded-full bg-[var(--surface-soft)] px-3 py-1 text-xs text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)]"
+              >
+                #{tag}
+              </Link>
+            ))}
+          </div>
+        ) : null}
+        coverImage={post.coverImage}
+        titleClassName="mb-3 font-serif text-2xl font-medium leading-snug text-[var(--text-primary)] sm:text-4xl"
+        footer={(
+          <div className="border-t border-[var(--border-color)] pt-6">
             <a href="/" className="text-sm text-[var(--text-subtle)] transition-colors hover:text-[var(--accent)]">
               {copy.markdown.backLabel}
             </a>
           </div>
-        </main>
+        )}
+      >
+        <MarkdownContent content={post.content} className="article-body" />
 
-        <SiteFooter compact />
+        {engagement ? (
+          <ArticleEngagementBar
+            articleId={engagement.articleId}
+            slug={slug}
+            title={post.title}
+            sharePath={`/blog/${slug}`}
+            commentsCount={engagement.summary.commentCount}
+            initialSummary={engagement.summary}
+            copy={copy.engagement}
+          />
+        ) : null}
 
-        <PikachuWidget />
-      </div>
-    </BlogTheme>
+        <RelatedPosts
+          posts={relatedPosts}
+          eyebrow={copy.related.eyebrow}
+          title={copy.related.title}
+          archiveLabel={copy.related.archiveLabel}
+          passwordBadgeLabel={copy.related.passwordBadgeLabel}
+          paidBadgeLabel={copy.related.paidBadgeLabel}
+        />
+      </BlogArticleFrame>
+    </>
   )
 }

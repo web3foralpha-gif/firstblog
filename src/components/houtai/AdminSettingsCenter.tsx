@@ -12,6 +12,7 @@ import {
   buildSectionHref,
   formatSavedTime,
   getSectionMeta,
+  groupSectionsByWorkspace,
   isLongField,
   type AdminSettingsCenterProps,
 } from '@/components/houtai/admin-settings-center-helpers'
@@ -144,6 +145,7 @@ export default function AdminSettingsCenter({
 
   const selectedSectionMeta = selectedSection ? getSectionMeta(selectedSection.id) : null
   const selectedSectionHasLongField = selectedSectionFields.some(isLongField)
+  const groupedFilteredSections = useMemo(() => groupSectionsByWorkspace(filteredSections), [filteredSections])
 
   function openSection(sectionId: string) {
     if (isCompactMode) return
@@ -234,20 +236,35 @@ export default function AdminSettingsCenter({
                 当前筛选没有匹配结果
               </div>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {filteredSections.map(section => {
-                  const sourceSection = sections.find(item => item.id === section.id) ?? section
-                  return (
-                    <SettingsSectionCard
-                      key={section.id}
-                      section={section}
-                      sourceSection={sourceSection}
-                      dirtyCount={getDirtyKeysForSection(sourceSection).length}
-                      savedAt={savedSectionTimestamps[section.id]}
-                      href={`${fullPageHref}?section=${section.id}`}
-                    />
-                  )
-                })}
+              <div className="space-y-5">
+                {groupedFilteredSections.map(workspace => (
+                  <div key={workspace.id} className="rounded-[24px] border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+                    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="max-w-2xl">
+                        <p className="text-sm font-semibold text-slate-800">{workspace.title}</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">{workspace.description}</p>
+                      </div>
+                      <span className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
+                        {workspace.sections.length} 个板块
+                      </span>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {workspace.sections.map(section => {
+                        const sourceSection = sections.find(item => item.id === section.id) ?? section
+                        return (
+                          <SettingsSectionCard
+                            key={section.id}
+                            section={section}
+                            sourceSection={sourceSection}
+                            dirtyCount={getDirtyKeysForSection(sourceSection).length}
+                            savedAt={savedSectionTimestamps[section.id]}
+                            href={`${fullPageHref}?section=${section.id}`}
+                          />
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -528,20 +545,35 @@ export default function AdminSettingsCenter({
                 当前筛选没有匹配结果
               </div>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {filteredSections.map(section => {
-                  const sourceSection = sections.find(item => item.id === section.id) ?? section
-                  return (
-                    <SettingsSectionCard
-                      key={section.id}
-                      section={section}
-                      sourceSection={sourceSection}
-                      dirtyCount={getDirtyKeysForSection(sourceSection).length}
-                      savedAt={savedSectionTimestamps[section.id]}
-                      onClick={() => openSection(section.id)}
-                    />
-                  )
-                })}
+              <div className="space-y-5">
+                {groupedFilteredSections.map(workspace => (
+                  <div key={workspace.id} className="rounded-[24px] border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+                    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="max-w-2xl">
+                        <p className="text-sm font-semibold text-slate-800">{workspace.title}</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">{workspace.description}</p>
+                      </div>
+                      <span className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
+                        {workspace.sections.length} 个板块
+                      </span>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {workspace.sections.map(section => {
+                        const sourceSection = sections.find(item => item.id === section.id) ?? section
+                        return (
+                          <SettingsSectionCard
+                            key={section.id}
+                            section={section}
+                            sourceSection={sourceSection}
+                            dirtyCount={getDirtyKeysForSection(sourceSection).length}
+                            savedAt={savedSectionTimestamps[section.id]}
+                            onClick={() => openSection(section.id)}
+                          />
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

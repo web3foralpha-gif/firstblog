@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 
-import BlogTheme from '@/components/blog/BlogTheme'
 import BlogIndexPage from '@/components/blog/BlogIndexPage'
 import StructuredData from '@/components/StructuredData'
 import { filterPostsByQuery, getAllPosts } from '@/lib/posts'
@@ -96,7 +95,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   }))
 
   return (
-    <BlogTheme>
+    <>
       <StructuredData
         data={[
           buildBlogSchema(site, title, description, listedPosts, '/'),
@@ -134,6 +133,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         rssLabel={homePageData.rssLabel}
         showRssLink={homePageData.showRssLink}
       />
-    </BlogTheme>
+    </>
   )
 }

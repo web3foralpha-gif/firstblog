@@ -1,4 +1,4 @@
-import type { AdminSettingField } from '@/components/houtai/admin-settings-config'
+import type { AdminSettingField, AdminSettingSection } from '@/components/houtai/admin-settings-config'
 
 export type SettingDef = {
   type: string
@@ -13,7 +13,35 @@ export type AdminSettingsCenterProps = {
   fullPageHref?: string
 }
 
+export type SettingsWorkspace = {
+  id: string
+  title: string
+  description: string
+  sectionIds: string[]
+}
+
 export const SETTINGS_CENTER_UI_KEY = 'blog-fix:settings-center-ui'
+
+export const SETTINGS_WORKSPACES: SettingsWorkspace[] = [
+  {
+    id: 'site',
+    title: '站点与首页',
+    description: '品牌、导航、首页和页脚这类基础外观，统一收纳成一组。',
+    sectionIds: ['site', 'navigation', 'home', 'footer'],
+  },
+  {
+    id: 'content',
+    title: '页面与内容呈现',
+    description: '关于页、归档、留言板、文章页和分享海报放进内容体验层。',
+    sectionIds: ['about', 'archive', 'guestbook', 'article', 'poster', 'system'],
+  },
+  {
+    id: 'service',
+    title: '互动与服务接入',
+    description: '互动反馈、统计治理、支付、AI 和安全项集中到运营层。',
+    sectionIds: ['interaction', 'analytics', 'payments', 'ai', 'security'],
+  },
+]
 
 export type SettingsSectionMeta = {
   label: string
@@ -199,4 +227,29 @@ export function buildSectionHref(basePath: string, currentSearch: string, sectio
 
 export function isLongField(field: AdminSettingField) {
   return field.kind === 'textarea' || field.kind === 'image'
+}
+
+export function groupSectionsByWorkspace(sections: AdminSettingSection[]) {
+  const sectionMap = new Map(sections.map(section => [section.id, section]))
+  const grouped = SETTINGS_WORKSPACES.map(workspace => ({
+    ...workspace,
+    sections: workspace.sectionIds
+      .map(sectionId => sectionMap.get(sectionId))
+      .filter((section): section is AdminSettingSection => Boolean(section)),
+  })).filter(workspace => workspace.sections.length > 0)
+
+  const groupedIds = new Set(grouped.flatMap(workspace => workspace.sections.map(section => section.id)))
+  const remainingSections = sections.filter(section => !groupedIds.has(section.id))
+
+  if (remainingSections.length > 0) {
+    grouped.push({
+      id: 'other',
+      title: '其他设置',
+      description: '还没归入固定工作区的配置，先统一放在这里。',
+      sectionIds: remainingSections.map(section => section.id),
+      sections: remainingSections,
+    })
+  }
+
+  return grouped
 }

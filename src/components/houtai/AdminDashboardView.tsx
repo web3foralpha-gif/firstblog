@@ -1,6 +1,7 @@
 import Link from 'next/link'
 
 import { ADMIN_SETTING_SECTION_MAP } from '@/components/houtai/admin-settings-config'
+import { SETTINGS_WORKSPACES } from '@/components/houtai/admin-settings-center-helpers'
 import { Badge, Card } from '@/components/houtai/ui'
 import type { AdminDashboardData } from '@/lib/services/admin-dashboard-service'
 import { formatDate } from '@/lib/utils'
@@ -54,38 +55,19 @@ function formatCompactDate(date: Date) {
 }
 
 function getConfigLanes(): ConfigLane[] {
-  return [
-    {
-      title: '站点与首页',
-      description: '品牌、导航、首页呈现归到一组，改动路径更短。',
-      href: '/houtai/settings?section=site',
-      items: ['site', 'navigation', 'home'].map(sectionId => ({
-        label: ADMIN_SETTING_SECTION_MAP[sectionId].title,
-        description: ADMIN_SETTING_SECTION_MAP[sectionId].description,
-        href: `/houtai/settings?section=${sectionId}`,
+  return SETTINGS_WORKSPACES.map(workspace => ({
+    title: workspace.title,
+    description: workspace.description,
+    href: `/houtai/settings?section=${workspace.sectionIds[0]}`,
+    items: workspace.sectionIds
+      .map(sectionId => ADMIN_SETTING_SECTION_MAP[sectionId])
+      .filter(Boolean)
+      .map(section => ({
+        label: section.title,
+        description: section.description,
+        href: `/houtai/settings?section=${section.id}`,
       })),
-    },
-    {
-      title: '页面与内容呈现',
-      description: '关于页、归档、留言板、文章页和海报统一放在内容展示层。',
-      href: '/houtai/settings?section=about',
-      items: ['about', 'archive', 'guestbook', 'article', 'poster'].map(sectionId => ({
-        label: ADMIN_SETTING_SECTION_MAP[sectionId].title,
-        description: ADMIN_SETTING_SECTION_MAP[sectionId].description,
-        href: `/houtai/settings?section=${sectionId}`,
-      })),
-    },
-    {
-      title: '运营与服务',
-      description: '互动、统计、支付、AI 和安全配置收进一个运营层。',
-      href: '/houtai/settings?section=analytics',
-      items: ['interaction', 'analytics', 'payments', 'ai', 'security'].map(sectionId => ({
-        label: ADMIN_SETTING_SECTION_MAP[sectionId].title,
-        description: ADMIN_SETTING_SECTION_MAP[sectionId].description,
-        href: `/houtai/settings?section=${sectionId}`,
-      })),
-    },
-  ]
+  }))
 }
 
 function MetricCard({ accent, href, hint, label, value }: MetricCardProps) {
@@ -316,7 +298,7 @@ export default function AdminDashboardView({ data }: { data: AdminDashboardData 
                     </div>
                   </div>
                   <div className="mt-4 space-y-2">
-                    {lane.items.slice(0, 3).map(item => (
+                    {lane.items.map(item => (
                       <Link
                         key={item.href}
                         href={item.href}
