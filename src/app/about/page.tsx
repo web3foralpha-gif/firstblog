@@ -1,9 +1,7 @@
 import type { Metadata } from 'next'
 
-import BlogTheme from '@/components/blog/BlogTheme'
-import Header from '@/components/blog/Header'
+import BlogPageFrame from '@/components/blog/BlogPageFrame'
 import MarkdownContent from '@/components/blog/MarkdownContent'
-import SiteFooter from '@/components/blog/SiteFooter'
 import StructuredData from '@/components/StructuredData'
 import { parseBlogLinks } from '@/lib/blog-ui'
 import { absoluteUrl } from '@/lib/site'
@@ -55,7 +53,7 @@ export default async function AboutPage() {
   const pageDescription = summarizeText(aboutPageData.subtitle || aboutPageData.content, 160) || site.siteDescription
 
   return (
-    <BlogTheme>
+    <>
       <StructuredData
         data={[
           buildProfilePageSchema(site, pageDescription),
@@ -70,9 +68,7 @@ export default async function AboutPage() {
           }),
         ]}
       />
-      <div className="min-h-screen">
-        <Header />
-        <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6 sm:py-16">
+      <BlogPageFrame compactFooter mainClassName="mx-auto max-w-2xl px-4 py-10 sm:px-6 sm:py-16" showMascot={false}>
           {aboutPageData.coverImage ? (
             <div className="mb-8 overflow-hidden rounded-[28px] border border-[var(--border-color)] bg-[var(--surface-soft)] shadow-[0_18px_48px_rgba(61,53,48,0.08)]">
               <img src={aboutPageData.coverImage} alt={aboutPageData.title} className="h-52 w-full object-cover sm:h-64" />
@@ -115,9 +111,7 @@ export default async function AboutPage() {
               </div>
             </section>
           ) : null}
-        </main>
-        <SiteFooter compact />
-      </div>
-    </BlogTheme>
+      </BlogPageFrame>
+    </>
   )
 }

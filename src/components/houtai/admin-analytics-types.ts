@@ -1,7 +1,28 @@
 import type { Prisma } from '@prisma/client'
 
+import type { OwnerTrafficRules } from '@/lib/analytics-traffic'
+
 export type PageProps = {
   searchParams: Promise<{ range?: string | string[]; device?: string | string[]; ip?: string | string[]; self?: string | string[]; tab?: string | string[] }>
+}
+
+export type AdminAnalyticsQueryContext = {
+  now: Date
+  rangeState: {
+    key: string
+    from: Date | null
+  }
+  deviceState: string
+  selectedIp: string | null
+  selfState: string
+  selectedTab: string
+  currentVisitorIp: string | null
+  ownerTrafficRules: OwnerTrafficRules
+  shouldHideCurrentVisitor: boolean
+  pageViewBaseSql: Prisma.Sql
+  interactionBaseSql: Prisma.Sql
+  mascotBaseSql: Prisma.Sql
+  recentInteractionWhere: Prisma.ArticleInteractionWhereInput
 }
 
 export type SiteMetricsRow = {
@@ -197,5 +218,3 @@ export type SelectedIpSummaryRow = {
   ipRegion: string | null
   ipCity: string | null
 }
-
-

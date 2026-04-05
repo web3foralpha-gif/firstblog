@@ -1,8 +1,6 @@
-import Header from '@/components/blog/Header'
 import ArticleCard from '@/components/blog/ArticleCard'
-import PikachuWidget from '@/components/blog/PikachuWidget'
+import BlogPageFrame from '@/components/blog/BlogPageFrame'
 import SunflowerWidget from '@/components/blog/SunflowerWidget'
-import SiteFooter from '@/components/blog/SiteFooter'
 import type { BlogPostSummary } from '@/lib/posts'
 import { fillTextTemplate } from '@/lib/text-template'
 
@@ -71,10 +69,7 @@ export default function BlogIndexPage({
     : fillTextTemplate(resultsSummaryTemplate, { count: posts.length })
 
   return (
-    <div className="min-h-screen">
-      <Header />
-
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+    <BlogPageFrame mainClassName="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
         <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
           <div className="flex-1 min-w-0 w-full">
             <div className="mb-6 sm:mb-8">
@@ -177,11 +172,6 @@ export default function BlogIndexPage({
             ) : null}
           </aside>
         </div>
-      </main>
-
-      <SiteFooter />
-
-      <PikachuWidget />
-    </div>
+    </BlogPageFrame>
   )
 }

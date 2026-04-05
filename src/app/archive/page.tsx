@@ -1,10 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 
-import BlogTheme from '@/components/blog/BlogTheme'
-import Header from '@/components/blog/Header'
-import PikachuWidget from '@/components/blog/PikachuWidget'
-import SiteFooter from '@/components/blog/SiteFooter'
+import BlogPageFrame from '@/components/blog/BlogPageFrame'
 import StructuredData from '@/components/StructuredData'
 import { getAllPosts, type BlogPostSummary } from '@/lib/posts'
 import { absoluteUrl } from '@/lib/site'
@@ -70,7 +67,7 @@ export default async function ArchivePage() {
   }))
 
   return (
-    <BlogTheme>
+    <>
       <StructuredData
         data={buildCollectionPageSchema(site, {
           path: '/archive',
@@ -79,11 +76,7 @@ export default async function ArchivePage() {
           items: listedPosts,
         })}
       />
-
-      <div className="min-h-screen">
-        <Header />
-
-        <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
+      <BlogPageFrame mainClassName="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
           <section className="theme-panel-soft p-6 sm:p-8">
             <p className="text-xs uppercase tracking-[0.28em] text-[var(--text-faint)]">{archivePageData.eyebrow}</p>
             <h1 className="mt-3 font-serif text-3xl font-medium text-[var(--text-primary)] sm:text-4xl">{archivePageData.title}</h1>
@@ -139,11 +132,7 @@ export default async function ArchivePage() {
               </section>
             ))}
           </div>
-        </main>
-
-        <SiteFooter />
-        <PikachuWidget />
-      </div>
-    </BlogTheme>
+      </BlogPageFrame>
+    </>
   )
 }

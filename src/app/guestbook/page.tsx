@@ -1,8 +1,5 @@
-import BlogTheme from '@/components/blog/BlogTheme'
-import Header from '@/components/blog/Header'
-import PikachuWidget from '@/components/blog/PikachuWidget'
+import BlogPageFrame from '@/components/blog/BlogPageFrame'
 import InlineGuestbookForm from '@/components/blog/InlineGuestbookForm'
-import SiteFooter from '@/components/blog/SiteFooter'
 import StructuredData from '@/components/StructuredData'
 import { absoluteUrl } from '@/lib/site'
 import { buildCollectionPageSchema, buildSeoImageCandidates, getSiteSeoData } from '@/lib/seo'
@@ -56,7 +53,7 @@ export default async function GuestbookPage() {
   const guestbookDescription = `访客留言板，当前共有 ${messages.length} 条公开留言。`
 
   return (
-    <BlogTheme>
+    <>
       <StructuredData
         data={buildCollectionPageSchema(site, {
           path: '/guestbook',
@@ -70,10 +67,7 @@ export default async function GuestbookPage() {
           })),
         })}
       />
-      <div className="min-h-screen">
-        <Header />
-
-        <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-12">
+      <BlogPageFrame mainClassName="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-12">
           <div className="mb-10 text-center">
             <h1 className="mb-3 font-serif text-3xl font-medium text-[var(--text-primary)]">{resolvedTitle}</h1>
             <p className="text-sm text-[var(--text-muted)]">{guestbookPageData.pageSubtitle}</p>
@@ -130,12 +124,7 @@ export default async function GuestbookPage() {
           </div>
 
           <InlineGuestbookForm copy={guestbookPageData.formCopy} />
-        </main>
-
-        <SiteFooter />
-
-        <PikachuWidget />
-      </div>
-    </BlogTheme>
+      </BlogPageFrame>
+    </>
   )
 }

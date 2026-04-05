@@ -10,7 +10,7 @@ type HeaderReader = {
   get(name: string): string | null
 }
 
-type OwnerTrafficRules = {
+export type OwnerTrafficRules = {
   ips: string[]
   devices: string[]
 }
