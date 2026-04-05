@@ -1,4 +1,5 @@
 import { describeDevice, parseUserAgent, sanitizeDeviceInfo } from '@/lib/device-info'
+import { matchOwnerTraffic } from '@/lib/analytics-traffic'
 import { type RankItem, type SegmentItem } from '@/components/houtai/admin-analytics-ui'
 import {
   buildAnalyticsHref,
@@ -11,7 +12,6 @@ import {
   getMascotErrorLabel,
   groupRecentInteractions,
   groupRecentVisits,
-  matchOwnerTraffic,
   matchesDeviceFilter,
   matchesIpFilter,
   normalizeReferrer,

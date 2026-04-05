@@ -1,6 +1,12 @@
 import type { Prisma } from '@prisma/client'
 
 import type { OwnerTrafficRules } from '@/lib/analytics-traffic'
+import type {
+  AnalyticsTabKey,
+  DeviceFilterKey,
+  RangeKey,
+  SelfFilterKey,
+} from '@/components/houtai/admin-analytics-helpers'
 
 export type PageProps = {
   searchParams: Promise<{ range?: string | string[]; device?: string | string[]; ip?: string | string[]; self?: string | string[]; tab?: string | string[] }>
@@ -9,13 +15,13 @@ export type PageProps = {
 export type AdminAnalyticsQueryContext = {
   now: Date
   rangeState: {
-    key: string
+    key: RangeKey
     from: Date | null
   }
-  deviceState: string
+  deviceState: DeviceFilterKey
   selectedIp: string | null
-  selfState: string
-  selectedTab: string
+  selfState: SelfFilterKey
+  selectedTab: AnalyticsTabKey
   currentVisitorIp: string | null
   ownerTrafficRules: OwnerTrafficRules
   shouldHideCurrentVisitor: boolean

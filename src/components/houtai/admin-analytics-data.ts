@@ -6,6 +6,9 @@ import {
   getOwnerTrafficRules,
 } from '@/lib/analytics-traffic'
 import {
+  type AnalyticsTabKey,
+  type DeviceFilterKey,
+  type SelfFilterKey,
   buildDeviceFilterSql,
   buildIpFilterSql,
   resolveDeviceFilter,
@@ -29,13 +32,13 @@ function buildAdminAnalyticsQueryContext({
   selfState,
 }: {
   currentVisitorIp: string | null
-  deviceState: string
+  deviceState: DeviceFilterKey
   now: Date
   ownerTrafficRules: Awaited<ReturnType<typeof getOwnerTrafficRules>>
   rangeState: ReturnType<typeof resolveRange>
   selectedIp: string | null
-  selectedTab: string
-  selfState: string
+  selectedTab: AnalyticsTabKey
+  selfState: SelfFilterKey
 }): AdminAnalyticsQueryContext {
   const shouldHideCurrentVisitor =
     Boolean(currentVisitorIp) &&
