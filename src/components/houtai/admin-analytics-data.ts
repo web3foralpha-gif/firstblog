@@ -991,3 +991,5 @@ export async function getAdminAnalyticsPageData({
     topBrowserEntry,
   }
 }
+
+export type AdminAnalyticsPageData = Awaited<ReturnType<typeof getAdminAnalyticsPageData>>
