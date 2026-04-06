@@ -6,6 +6,7 @@ import RichTextEditor from './RichTextEditor'
 import CoverPicker from './CoverPicker'
 import RichMarkdown from '@/components/blog/RichMarkdown'
 import { hasMeaningfulArticleContent } from '@/lib/article-content'
+import { analyzeWritingIssues } from '@/lib/writing-check'
 
 type ArticleFormProps = {
   mode: 'new' | 'edit'
@@ -52,6 +53,10 @@ function buildDraftStorageKey(mode: ArticleFormProps['mode'], articleId?: string
   return `blog-fix:article-draft:${mode}:${articleId || 'new'}`
 }
 
+function buildDraftHistoryStorageKey(mode: ArticleFormProps['mode'], articleId?: string) {
+  return `blog-fix:article-draft-history:${mode}:${articleId || 'new'}`
+}
+
 function serializeDraftComparable(draft: Omit<ArticleDraftSnapshot, 'savedAt'> | ArticleDraftSnapshot) {
   return JSON.stringify({
     title: draft.title,
@@ -87,6 +92,14 @@ function normalizeDraft(raw: unknown): ArticleDraftSnapshot | null {
     savedAt: typeof source.savedAt === 'number' ? source.savedAt : Date.now(),
   }
 }
+
+function normalizeDraftHistory(raw: unknown) {
+  if (!Array.isArray(raw)) return []
+  return raw.map(normalizeDraft).filter(Boolean) as ArticleDraftSnapshot[]
+}
+
+const DRAFT_HISTORY_LIMIT = 6
+const DRAFT_HISTORY_MIN_INTERVAL = 45_000
 
 function analyzeArticleContentMetrics(value: string): ArticleContentMetrics {
   const source = value || ''
@@ -143,6 +156,7 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
   const [autosaveState, setAutosaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'restored'>('idle')
   const [autosavedAt, setAutosavedAt] = useState<number | null>(null)
   const [recoverableDraft, setRecoverableDraft] = useState<ArticleDraftSnapshot | null>(null)
+  const [draftHistory, setDraftHistory] = useState<ArticleDraftSnapshot[]>([])
   const contentRef = useRef(initialContent)
   const autosaveTimerRef = useRef<number | null>(null)
   const hasMountedRef = useRef(false)
@@ -161,6 +175,7 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
     }),
   )
   const draftStorageKey = useMemo(() => buildDraftStorageKey(mode, articleId), [articleId, mode])
+  const draftHistoryStorageKey = useMemo(() => buildDraftHistoryStorageKey(mode, articleId), [articleId, mode])
 
   const syncContentState = useCallback(() => {
     setContent(current => (current === contentRef.current ? current : contentRef.current))
@@ -194,10 +209,12 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
     if (typeof window === 'undefined') return
     clearAutosaveTimer()
     window.localStorage.removeItem(draftStorageKey)
+    window.localStorage.removeItem(draftHistoryStorageKey)
     setAutosaveState('idle')
     setAutosavedAt(null)
     setRecoverableDraft(null)
-  }, [clearAutosaveTimer, draftStorageKey])
+    setDraftHistory([])
+  }, [clearAutosaveTimer, draftHistoryStorageKey, draftStorageKey])
 
   const persistDraftToLocal = useCallback(() => {
     if (typeof window === 'undefined') return
@@ -212,9 +229,29 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
 
     setAutosaveState('saving')
     window.localStorage.setItem(draftStorageKey, JSON.stringify(nextDraft))
+    try {
+      const history = normalizeDraftHistory(JSON.parse(window.localStorage.getItem(draftHistoryStorageKey) || '[]'))
+      const latest = history[0]
+      const shouldCreateSnapshot =
+        !latest ||
+        (serializeDraftComparable(latest) !== comparable &&
+          (nextDraft.savedAt - latest.savedAt >= DRAFT_HISTORY_MIN_INTERVAL ||
+            Math.abs(nextDraft.content.length - latest.content.length) >= 180 ||
+            nextDraft.title !== latest.title))
+
+      const nextHistory = shouldCreateSnapshot
+        ? [nextDraft, ...history].slice(0, DRAFT_HISTORY_LIMIT)
+        : history
+
+      window.localStorage.setItem(draftHistoryStorageKey, JSON.stringify(nextHistory))
+      setDraftHistory(nextHistory)
+    } catch {
+      window.localStorage.removeItem(draftHistoryStorageKey)
+      setDraftHistory([])
+    }
     setAutosavedAt(nextDraft.savedAt)
     setAutosaveState('saved')
-  }, [buildCurrentDraft, clearDraftStorage, draftStorageKey])
+  }, [buildCurrentDraft, clearDraftStorage, draftHistoryStorageKey, draftStorageKey])
 
   const scheduleAutosave = useCallback(() => {
     if (typeof window === 'undefined' || !hasMountedRef.current) return
@@ -277,8 +314,13 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
           window.localStorage.removeItem(draftStorageKey)
         }
       }
+      const historyRaw = window.localStorage.getItem(draftHistoryStorageKey)
+      if (historyRaw) {
+        setDraftHistory(normalizeDraftHistory(JSON.parse(historyRaw)))
+      }
     } catch {
       window.localStorage.removeItem(draftStorageKey)
+      window.localStorage.removeItem(draftHistoryStorageKey)
     } finally {
       hasMountedRef.current = true
     }
@@ -286,7 +328,7 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
     return () => {
       clearAutosaveTimer()
     }
-  }, [clearAutosaveTimer, draftStorageKey])
+  }, [clearAutosaveTimer, draftHistoryStorageKey, draftStorageKey])
 
   useEffect(() => {
     if (!hasMountedRef.current) return
@@ -297,13 +339,36 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       if (!hasUnsavedChanges()) return
 
+      persistDraftToLocal()
       event.preventDefault()
       event.returnValue = ''
     }
 
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [hasUnsavedChanges])
+  }, [hasUnsavedChanges, persistDraftToLocal])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const flushWhenHidden = () => {
+      if (!hasMountedRef.current || !hasUnsavedChanges()) return
+      persistDraftToLocal()
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        flushWhenHidden()
+      }
+    }
+
+    window.addEventListener('pagehide', flushWhenHidden)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      window.removeEventListener('pagehide', flushWhenHidden)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [hasUnsavedChanges, persistDraftToLocal])
 
   useEffect(() => {
     const handleDocumentNavigation = (event: MouseEvent) => {
@@ -376,6 +441,11 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
   }, [autosaveState, autosavedAt, recoverableDraft, status])
   const currentContentValue = contentRef.current || content
   const contentMetrics = analyzeArticleContentMetrics(currentContentValue)
+  const writingIssues = useMemo(
+    () => analyzeWritingIssues({ title, content: currentContentValue }),
+    [currentContentValue, title],
+  )
+  const warningIssues = writingIssues.filter(issue => issue.level === 'warning')
   const unsavedChanges = hasUnsavedChanges()
   const accessSummary =
     accessType === 'PASSWORD'
@@ -385,7 +455,7 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
         : '公开可见'
   const estimatedReadMinutes = Math.max(1, Math.ceil(contentMetrics.textLength / 380))
   const hasHeadingStructure = /<h2\b|<h3\b/i.test(currentContentValue)
-  const hasStyledBlocks = /class="[^"]*rt-(eyebrow|lead|note|tip|warning|quote|closing)/i.test(currentContentValue)
+  const hasStyledBlocks = /class="[^"]*rt-(eyebrow|lead|summary|guide|caption|note|tip|warning|quote|closing)/i.test(currentContentValue)
   const hasMediaAssets = Boolean(coverImage) || contentMetrics.imageCount + contentMetrics.videoCount + contentMetrics.audioCount > 0
   const writingSignals = [
     {
@@ -609,12 +679,13 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0 flex-1">
                 <label className="mb-2 block text-xs text-[#8c7d68]">文章标题 *</label>
-                <input
-                  className="input text-lg font-serif"
-                  value={title}
-                  onChange={e => setTitle(e.target.value)}
-                  placeholder="写下今天的主题…"
-                />
+              <input
+                className="input text-lg font-serif"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                placeholder="写下今天的主题…"
+                spellCheck
+              />
               </div>
               <div className="rounded-2xl border border-[#f0e4d3] bg-[#faf7f1] px-4 py-3 text-xs leading-6 text-[#8c7d68] lg:max-w-[18rem]">
                 标题尽量让人一眼知道你要写什么。真一点，短一点，后面正文就更容易稳住。
@@ -867,7 +938,7 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-1">
               <span className="block">{autosaveLabel}</span>
-              <span className="block text-[#b1997f]">离开当前页、切换后台菜单或刷新浏览器前，都会优先提醒你确认未保存改动。</span>
+              <span className="block text-[#b1997f]">切到后台、刷新页面、关闭标签页前都会优先补存一份本地草稿，突发断网也能恢复。</span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {(recoverableDraft || autosavedAt) ? (
@@ -882,6 +953,70 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
               <span className="text-[#b1997f]">快捷键：Ctrl/Cmd + S 立即保存</span>
             </div>
           </div>
+        </div>
+
+        {draftHistory.length > 0 ? (
+          <div className="rounded-2xl border border-[#eadfce] bg-white px-4 py-4">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.18em] text-[#b1997f]">草稿历史</p>
+                <p className="mt-1 text-sm font-medium text-[#3d3530]">最近自动保存的版本</p>
+              </div>
+              <p className="text-xs text-[#8c7d68]">保留最近 {draftHistory.length} 份关键节点，写到一半出意外也能找回来。</p>
+            </div>
+
+            <div className="mt-3 space-y-2">
+              {draftHistory.slice(0, 4).map(snapshot => (
+                <button
+                  key={`${snapshot.savedAt}-${snapshot.title}`}
+                  type="button"
+                  onClick={() => applyDraft(snapshot)}
+                  className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#efe5d7] bg-[#fcfaf7] px-4 py-3 text-left transition hover:border-[#d4711a] hover:bg-[#fff8f1]"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-[#3d3530]">{snapshot.title || '未命名草稿'}</p>
+                    <p className="mt-1 text-xs text-[#8c7d68]">
+                      {formatDraftTime(snapshot.savedAt)} · 约 {Math.max(1, Math.ceil(snapshot.content.length / 220))} 分钟写作量
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-xs text-[#b1997f]">恢复这个版本</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <div className={`rounded-2xl border px-4 py-4 ${warningIssues.length > 0 ? 'border-[#f2d1a7] bg-[#fff8ef]' : 'border-[#d9ead7] bg-[#f6fbf5]'}`}>
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-[#b1997f]">校对提醒</p>
+              <p className="mt-1 text-sm font-medium text-[#3d3530]">
+                {writingIssues.length > 0 ? `检测到 ${writingIssues.length} 条基础写作提醒` : '暂时没扫到明显的格式问题'}
+              </p>
+            </div>
+            <p className="text-xs text-[#8c7d68]">这是基础校对，不一定都是真错字，但能帮你先把明显问题拎出来。</p>
+          </div>
+
+          {writingIssues.length > 0 ? (
+            <div className="mt-3 space-y-2">
+              {writingIssues.map(issue => (
+                <div
+                  key={issue.id}
+                  className={`rounded-2xl border px-4 py-3 ${issue.level === 'warning' ? 'border-[#f0d4ad] bg-white/90' : 'border-[#e7ded0] bg-white/80'}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] ${issue.level === 'warning' ? 'bg-[#fff1df] text-[#b26114]' : 'bg-[#f4f1eb] text-[#8c7d68]'}`}>
+                      {issue.level === 'warning' ? '优先看看' : '可顺手处理'}
+                    </span>
+                    <span className="text-sm font-medium text-[#3d3530]">{issue.title}</span>
+                  </div>
+                  <p className="mt-1 text-xs leading-6 text-[#7a6a56]">{issue.detail}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-sm leading-6 text-[#5d7a5a]">标题、标点和基础格式暂时都还顺。发出去之前再自己通读一遍，就更稳了。</p>
+          )}
         </div>
       </section>
 

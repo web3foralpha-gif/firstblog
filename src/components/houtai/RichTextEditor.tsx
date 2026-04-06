@@ -570,6 +570,11 @@ export default function RichTextEditor({ value, onChange, placeholder = DEFAULT_
       editorProps: {
         attributes: {
           class: 'rich-editor-prosemirror',
+          spellcheck: 'true',
+          autocorrect: 'on',
+          autocomplete: 'on',
+          autocapitalize: 'sentences',
+          lang: 'zh-CN',
         },
       },
       content: initialContent,
