@@ -1,8 +1,11 @@
+import Link from 'next/link'
+
 import ArticleCard from '@/components/blog/ArticleCard'
 import BlogPageFrame from '@/components/blog/BlogPageFrame'
 import SunflowerWidget from '@/components/blog/SunflowerWidget'
 import type { BlogPostSummary } from '@/lib/posts'
 import { fillTextTemplate } from '@/lib/text-template'
+import { formatDate } from '@/lib/utils'
 
 type BlogIndexPageProps = {
   posts: BlogPostSummary[]
@@ -68,51 +71,126 @@ export default function BlogIndexPage({
     ? fillTextTemplate(filteredResultsSummaryTemplate, { query: searchQuery, count: posts.length })
     : fillTextTemplate(resultsSummaryTemplate, { count: posts.length })
 
+  const pinnedPosts = posts.filter(post => Boolean(post.pinned))
+  const restrictedCount = posts.filter(post => post.accessType === 'PASSWORD' || post.accessType === 'PAID').length
+  const latestPost = posts[0] ?? null
+  const featuredPost = searchQuery ? null : pinnedPosts[0] ?? latestPost
+  const spotlightPosts = featuredPost
+    ? pinnedPosts.filter(post => post.slug !== featuredPost.slug).slice(0, 2)
+    : []
+  const spotlightSlugs = new Set(spotlightPosts.map(post => post.slug))
+  const feedPosts = featuredPost && !searchQuery
+    ? posts.filter(post => post.slug !== featuredPost.slug && !spotlightSlugs.has(post.slug))
+    : posts
+  const heroStats = [
+    { label: '公开文章', value: `${posts.length} 篇` },
+    { label: '置顶内容', value: `${pinnedPosts.length} 篇` },
+    { label: '需解锁', value: `${restrictedCount} 篇` },
+    { label: '最近更新', value: latestPost ? formatDate(latestPost.updatedAt || latestPost.publishedAt) : '暂无' },
+  ]
+
   return (
-    <BlogPageFrame mainClassName="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
-        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
-          <div className="flex-1 min-w-0 w-full">
-            <div className="mb-6 sm:mb-8">
-              <h1 className="mb-1 font-serif text-2xl font-medium text-[var(--text-primary)] sm:text-3xl">{title}</h1>
-              <p className="text-sm text-[var(--text-subtle)]">{description}</p>
-              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-[var(--text-subtle)]">{resultSummary}</p>
-                <form action="/" method="get" className="flex flex-col gap-2 sm:flex-row">
-                  <input
-                    type="search"
-                    name="q"
-                    defaultValue={searchQuery}
-                    placeholder={searchPlaceholder}
-                    className="min-w-0 rounded-full border border-[var(--border-color)] bg-white/80 px-4 py-2 text-sm text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-faint)] focus:border-[var(--accent)]"
-                  />
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="submit"
-                      className="rounded-full border border-[var(--border-color)] bg-[var(--nav-pill-bg)] px-4 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                    >
-                      {searchButtonLabel}
-                    </button>
-                    {searchQuery ? (
-                      <a
-                        href="/"
-                        className="rounded-full border border-[var(--border-color)] px-4 py-2 text-sm text-[var(--text-subtle)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                      >
-                        {searchClearLabel}
-                      </a>
-                    ) : null}
-                  </div>
-                </form>
-              </div>
+    <BlogPageFrame mainClassName="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
+      <section className="theme-panel p-5 sm:p-7">
+        <div className={`relative grid gap-6 ${featuredPost && !searchQuery ? 'xl:grid-cols-[minmax(0,1.2fr)_320px]' : ''}`}>
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-[0.3em] text-[var(--text-faint)]">{searchQuery ? 'Search Result' : 'Front Page'}</p>
+            <h1 className="mt-3 font-serif text-3xl font-medium leading-tight text-[var(--text-primary)] sm:text-4xl">
+              {searchQuery ? `搜索：${searchQuery}` : title}
+            </h1>
+            <p className="mt-4 max-w-3xl text-sm leading-7 text-[var(--text-secondary)] sm:text-base">
+              {description}
+            </p>
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              {heroStats.map(stat => (
+                <span key={stat.label} className="theme-chip">
+                  <span className="text-[var(--text-faint)]">{stat.label}</span>
+                  <span className="font-medium text-[var(--text-primary)]">{stat.value}</span>
+                </span>
+              ))}
             </div>
 
-            {posts.length === 0 ? (
-              <div className="py-20 text-center text-[var(--text-subtle)]">
-                <p className="text-4xl mb-4">📝</p>
-                <p>{searchQuery ? emptySearchText : emptyStateText}</p>
+            <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <form action="/" method="get" className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  type="search"
+                  name="q"
+                  defaultValue={searchQuery}
+                  placeholder={searchPlaceholder}
+                  className="min-w-0 rounded-full border border-[var(--border-color)] bg-white/85 px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-faint)] focus:border-[var(--accent)] sm:min-w-[280px]"
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="submit"
+                    className="rounded-full border border-[var(--border-color)] bg-[var(--nav-pill-bg)] px-4 py-2.5 text-sm text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                  >
+                    {searchButtonLabel}
+                  </button>
+                  {searchQuery ? (
+                    <Link
+                      href="/"
+                      className="rounded-full border border-[var(--border-color)] px-4 py-2.5 text-sm text-[var(--text-subtle)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                    >
+                      {searchClearLabel}
+                    </Link>
+                  ) : null}
+                </div>
+              </form>
+
+              <p className="text-sm text-[var(--text-subtle)]">{resultSummary}</p>
+            </div>
+          </div>
+
+          {featuredPost && !searchQuery ? (
+            <Link href={featuredPost.href || `/article/${featuredPost.slug}`} className="group block">
+              <div className="theme-panel-soft flex h-full flex-col justify-between p-5 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:border-[var(--accent)]">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.28em] text-[var(--text-faint)]">今日入口</p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-[var(--border-soft)] bg-[var(--accent-soft)] text-base shadow-inner shadow-white/70">
+                      {featuredPost.mood}
+                    </span>
+                    {featuredPost.pinned ? <span className="badge badge-pinned">📌 置顶</span> : null}
+                    {featuredPost.accessType === 'PASSWORD' ? <span className="badge badge-password">🔒 加密</span> : null}
+                    {featuredPost.accessType === 'PAID' ? <span className="badge badge-paid">💰 打赏</span> : null}
+                  </div>
+                  <h2 className="mt-4 font-serif text-2xl font-medium leading-9 text-[var(--text-primary)] transition-colors group-hover:text-[var(--accent)]">
+                    {featuredPost.title}
+                  </h2>
+                  <p className="mt-3 line-clamp-4 text-sm leading-7 text-[var(--text-secondary)]">
+                    {featuredPost.excerpt}
+                  </p>
+                </div>
+
+                <div className="mt-5 flex flex-wrap items-center gap-2">
+                  <span className="theme-chip !shadow-none">{formatDate(featuredPost.updatedAt || featuredPost.publishedAt)}</span>
+                  <span className="theme-chip !shadow-none">{featuredPost.readingTimeMinutes} 分钟阅读</span>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border-soft)] bg-white/60 px-3 py-1.5 text-xs text-[var(--text-secondary)] transition-colors group-hover:border-[var(--accent)] group-hover:text-[var(--accent)]">
+                    去读全文
+                    <span aria-hidden="true">→</span>
+                  </span>
+                </div>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {posts.map(post => (
+            </Link>
+          ) : null}
+        </div>
+      </section>
+
+      <div className="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-8">
+        <div className="min-w-0 space-y-6">
+          {!searchQuery && spotlightPosts.length > 0 ? (
+            <section className="theme-panel-soft p-4 sm:p-5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-[var(--text-faint)]">Spotlight</p>
+                  <h2 className="mt-2 font-serif text-2xl font-medium text-[var(--text-primary)]">继续看看这些</h2>
+                </div>
+                <p className="text-sm text-[var(--text-subtle)]">把值得优先读的内容放在前面，但不再堆得太满。</p>
+              </div>
+
+              <div className="mt-5 space-y-4">
+                {spotlightPosts.map(post => (
                   <ArticleCard
                     key={post.slug}
                     href={post.href}
@@ -122,56 +200,106 @@ export default function BlogIndexPage({
                     mood={post.mood}
                     coverImage={post.coverImage}
                     pinned={post.pinned}
-                    accessType={(post.accessType || "PUBLIC") as "PUBLIC" | "PASSWORD" | "PAID"}
+                    accessType={(post.accessType || 'PUBLIC') as 'PUBLIC' | 'PASSWORD' | 'PAID'}
                     price={post.price ?? null}
                     createdAt={post.publishedAt}
+                    readingTimeMinutes={post.readingTimeMinutes}
+                    tags={post.tags}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          <section className="theme-panel-soft p-4 sm:p-5">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.24em] text-[var(--text-faint)]">Reading List</p>
+                <h2 className="mt-2 font-serif text-2xl font-medium text-[var(--text-primary)]">
+                  {searchQuery ? '匹配到的文章' : '最近更新'}
+                </h2>
+              </div>
+              <p className="text-sm text-[var(--text-subtle)]">
+                {searchQuery ? '筛选结果已经按当前关键词整理好了。' : '先把内容按轻重分开，再慢慢往下读。'}
+              </p>
+            </div>
+
+            {feedPosts.length === 0 ? (
+              <div className="py-20 text-center text-[var(--text-subtle)]">
+                <p className="mb-4 text-4xl">{featuredPost && !searchQuery ? '🌤️' : '📝'}</p>
+                <p>{featuredPost && !searchQuery ? '上面那篇就是当前最值得先读的入口。' : searchQuery ? emptySearchText : emptyStateText}</p>
+              </div>
+            ) : (
+              <div className="mt-5 space-y-4">
+                {feedPosts.map(post => (
+                  <ArticleCard
+                    key={post.slug}
+                    href={post.href}
+                    slug={post.slug}
+                    title={post.title}
+                    excerpt={post.excerpt}
+                    mood={post.mood}
+                    coverImage={post.coverImage}
+                    pinned={post.pinned}
+                    accessType={(post.accessType || 'PUBLIC') as 'PUBLIC' | 'PASSWORD' | 'PAID'}
+                    price={post.price ?? null}
+                    createdAt={post.publishedAt}
+                    readingTimeMinutes={post.readingTimeMinutes}
+                    tags={post.tags}
                   />
                 ))}
               </div>
             )}
-          </div>
-
-          <aside className="w-full lg:w-64 lg:flex-shrink-0 lg:sticky lg:top-20 space-y-4">
-            <SunflowerWidget />
-            {showCornerCard ? (
-              <div className="theme-panel-soft p-4">
-                <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[var(--text-faint)]">{cornerTitle}</p>
-                <div className="space-y-2 text-sm text-[var(--text-secondary)]">
-                  {cornerLines.map((line, index) => (
-                    <p key={`${index}-${line}`}>{line}</p>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            {showQuickLinksCard && hasQuickLinks ? (
-              <div className="theme-panel-soft p-4">
-                <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[var(--text-faint)]">{quickLinksTitle}</p>
-                <div className="space-y-1">
-                  {showAboutQuickLink ? (
-                    <a href={aboutHref} className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--nav-pill-hover)] hover:text-[var(--accent)]">
-                      <span>👋</span> {aboutLabel}
-                    </a>
-                  ) : null}
-                  {showGuestbookQuickLink ? (
-                    <a href={guestbookHref} className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--nav-pill-hover)] hover:text-[var(--accent)]">
-                      <span>💬</span> {guestbookLabel}
-                    </a>
-                  ) : null}
-                  {showArchiveLink ? (
-                    <a href="/archive" className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--nav-pill-hover)] hover:text-[var(--accent)]">
-                      <span>🗂</span> {archiveLabel}
-                    </a>
-                  ) : null}
-                  {showRssLink ? (
-                    <a href="/rss.xml" className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--nav-pill-hover)] hover:text-[var(--accent)]">
-                      <span>📡</span> {rssLabel}
-                    </a>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-          </aside>
+          </section>
         </div>
+
+        <aside className="w-full space-y-4 lg:sticky lg:top-20">
+          <SunflowerWidget />
+
+          {showQuickLinksCard && hasQuickLinks ? (
+            <div className="theme-panel-soft p-4">
+              <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[var(--text-faint)]">{quickLinksTitle}</p>
+              <div className="space-y-1">
+                {showAboutQuickLink ? (
+                  <Link href={aboutHref} className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--nav-pill-hover)] hover:text-[var(--accent)]">
+                    <span>👋</span>
+                    <span>{aboutLabel}</span>
+                  </Link>
+                ) : null}
+                {showGuestbookQuickLink ? (
+                  <Link href={guestbookHref} className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--nav-pill-hover)] hover:text-[var(--accent)]">
+                    <span>💬</span>
+                    <span>{guestbookLabel}</span>
+                  </Link>
+                ) : null}
+                {showArchiveLink ? (
+                  <Link href="/archive" className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--nav-pill-hover)] hover:text-[var(--accent)]">
+                    <span>🗂</span>
+                    <span>{archiveLabel}</span>
+                  </Link>
+                ) : null}
+                {showRssLink ? (
+                  <a href="/rss.xml" className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--nav-pill-hover)] hover:text-[var(--accent)]">
+                    <span>📡</span>
+                    <span>{rssLabel}</span>
+                  </a>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {showCornerCard ? (
+            <div className="theme-panel-soft p-4">
+              <p className="mb-3 text-xs font-medium uppercase tracking-wide text-[var(--text-faint)]">{cornerTitle}</p>
+              <div className="space-y-2 text-sm leading-6 text-[var(--text-secondary)]">
+                {cornerLines.map((line, index) => (
+                  <p key={`${index}-${line}`}>{line}</p>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </aside>
+      </div>
     </BlogPageFrame>
   )
 }
