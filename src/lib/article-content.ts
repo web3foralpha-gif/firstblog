@@ -25,16 +25,10 @@ const LEGACY_COLOR_MAP = {
 } as const
 
 const ALLOWED_CLASS_PATTERNS = [
-  'ql-align-center',
-  'ql-align-right',
-  'ql-align-justify',
-  'ql-font-serif',
-  'ql-font-sans',
-  'ql-font-mono',
-  'ql-font-song',
-  'ql-font-hei',
-  'ql-uploaded-video',
-  'ql-uploaded-image',
+  /^ql-align-(center|right|justify)$/,
+  /^ql-font-(serif|sans|mono|song|hei)$/,
+  /^ql-uploaded-(video|image)$/,
+  /^rt-[a-z0-9-]+$/,
 ]
 
 const ALLOWED_TAGS = new Set([
@@ -133,7 +127,7 @@ function sanitizeClassValue(className: string) {
   return className
     .split(/\s+/)
     .map(value => value.trim())
-    .filter(value => value && ALLOWED_CLASS_PATTERNS.includes(value))
+    .filter(value => value && ALLOWED_CLASS_PATTERNS.some(pattern => pattern.test(value)))
     .join(' ')
 }
 

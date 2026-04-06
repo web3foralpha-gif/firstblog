@@ -5,12 +5,14 @@ const BLOCK_STYLE_TYPES = ['paragraph', 'heading', 'blockquote'] as const
 const INDENT_VALUES = new Set(['0px', '2em'])
 const LINE_HEIGHT_VALUES = new Set(['1.6', '1.8', '2', '2.2'])
 const SPACING_VALUES = new Set(['0px', '12px', '20px', '24px', '32px', '40px'])
+const BLOCK_THEME_VALUES = new Set(['eyebrow', 'lead', 'note', 'tip', 'warning', 'quote', 'closing'])
 
 export type BlockStyleAttributes = {
   textIndent?: string | null
   lineHeightBlock?: string | null
   marginTop?: string | null
   marginBottom?: string | null
+  blockTheme?: string | null
 }
 
 type BlockStyleKey = keyof BlockStyleAttributes
@@ -49,6 +51,17 @@ function sanitizeSpacing(value: string | null | undefined) {
   if (!value) return null
   const normalized = value.endsWith('px') ? value : `${value}px`
   return SPACING_VALUES.has(normalized) ? normalized : null
+}
+
+function sanitizeBlockTheme(value: string | null | undefined) {
+  if (!value) return null
+  const normalized = value.trim().toLowerCase().replace(/^rt-/, '')
+  return BLOCK_THEME_VALUES.has(normalized) ? normalized : null
+}
+
+function parseBlockTheme(element: HTMLElement) {
+  const themeClass = Array.from(element.classList).find(className => className.startsWith('rt-'))
+  return sanitizeBlockTheme(themeClass)
 }
 
 function collectBlockPositions({
@@ -121,6 +134,14 @@ export const BlockStyle = Extension.create({
               return marginBottom ? { style: `margin-bottom: ${marginBottom}` } : {}
             },
           },
+          blockTheme: {
+            default: null,
+            parseHTML: (element: HTMLElement) => parseBlockTheme(element),
+            renderHTML: (attributes: BlockStyleAttributes) => {
+              const blockTheme = sanitizeBlockTheme(attributes.blockTheme)
+              return blockTheme ? { class: `rt-${blockTheme}` } : {}
+            },
+          },
         },
       },
     ]
@@ -151,6 +172,9 @@ export const BlockStyle = Extension.create({
           }
           if (key === 'marginTop' || key === 'marginBottom') {
             nextAttributes[key] = sanitizeSpacing(value as string | null | undefined)
+          }
+          if (key === 'blockTheme') {
+            nextAttributes[key] = sanitizeBlockTheme(value as string | null | undefined)
           }
         })
 

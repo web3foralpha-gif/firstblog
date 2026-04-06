@@ -51,6 +51,7 @@ type BrushPayload = {
   textIndent?: string | null
   marginTop?: string | null
   marginBottom?: string | null
+  blockTheme?: string | null
 }
 
 type BrushState = {
@@ -67,6 +68,7 @@ type ToolbarSnapshot = {
   lineHeightBlock: string
   marginTop: string
   marginBottom: string
+  blockTheme: string
   textIndent: boolean
   textAlign: 'left' | 'center' | 'right' | 'justify'
   headingLevel: 0 | 2 | 3
@@ -100,6 +102,17 @@ const DEFAULT_MARGIN_BOTTOM = '24px'
 const DEFAULT_PLACEHOLDER = '写下今天的文章…'
 const INDENT_VALUE = '2em'
 const BLOCK_NODE_NAMES = ['paragraph', 'heading', 'blockquote'] as const
+const BLOCK_THEME_OPTIONS = [
+  { value: '', label: '默认正文', shortLabel: '正文', description: '回到普通正文段落。' },
+  { value: 'eyebrow', label: '眉题标签', shortLabel: '眉题', description: '适合章节、小栏目、分段提示。' },
+  { value: 'lead', label: '导语开场', shortLabel: '导语', description: '适合开头摘要、情绪铺垫、结论先行。' },
+  { value: 'note', label: '重点信息卡', shortLabel: '信息卡', description: '适合重点提醒、摘要、结论。' },
+  { value: 'tip', label: '方法步骤卡', shortLabel: '建议卡', description: '适合教程、经验、步骤。' },
+  { value: 'warning', label: '注意事项卡', shortLabel: '提醒卡', description: '适合风险、边界、特别说明。' },
+  { value: 'quote', label: '金句引用', shortLabel: '金句', description: '适合让一句话单独成立。' },
+  { value: 'closing', label: '收尾留白', shortLabel: '收尾', description: '适合结尾和回应感更强的段落。' },
+] as const
+const QUICK_THEME_OPTIONS = BLOCK_THEME_OPTIONS.filter(option => ['lead', 'note', 'quote', 'closing'].includes(option.value))
 
 function escapeHtml(value: string) {
   return value
@@ -290,6 +303,7 @@ function syncToolbarSnapshot(editor: TiptapEditor | null): ToolbarSnapshot {
       lineHeightBlock: DEFAULT_LINE_HEIGHT,
       marginTop: DEFAULT_MARGIN_TOP,
       marginBottom: DEFAULT_MARGIN_BOTTOM,
+      blockTheme: '',
       textIndent: false,
       textAlign: 'left',
       headingLevel: 0,
@@ -317,6 +331,7 @@ function syncToolbarSnapshot(editor: TiptapEditor | null): ToolbarSnapshot {
     lineHeightBlock: normalizeFormatValue(blockInfo.attrs.lineHeightBlock, DEFAULT_LINE_HEIGHT),
     marginTop: normalizeFormatValue(blockInfo.attrs.marginTop, DEFAULT_MARGIN_TOP),
     marginBottom: normalizeFormatValue(blockInfo.attrs.marginBottom, DEFAULT_MARGIN_BOTTOM),
+    blockTheme: normalizeFormatValue(blockInfo.attrs.blockTheme, ''),
     textIndent: normalizeFormatValue(blockInfo.attrs.textIndent, '') === INDENT_VALUE,
     textAlign: (normalizeFormatValue(blockInfo.attrs.textAlign, 'left') || 'left') as ToolbarSnapshot['textAlign'],
     headingLevel: blockInfo.type === 'heading' ? (blockInfo.level as 0 | 2 | 3) : 0,
@@ -353,6 +368,10 @@ function getFontLabel(fontFamily: string) {
   return SHARED_FONT_OPTIONS.find(option => option.value === fontFamily)?.label || '默认字体'
 }
 
+function getThemeLabel(blockTheme: string) {
+  return BLOCK_THEME_OPTIONS.find(option => option.value === blockTheme)?.label || '默认正文'
+}
+
 function buildBrushPayload(snapshot: ToolbarSnapshot): BrushPayload {
   return {
     bold: snapshot.bold,
@@ -368,6 +387,7 @@ function buildBrushPayload(snapshot: ToolbarSnapshot): BrushPayload {
     textIndent: snapshot.textIndent ? INDENT_VALUE : null,
     marginTop: snapshot.marginTop || DEFAULT_MARGIN_TOP,
     marginBottom: snapshot.marginBottom || DEFAULT_MARGIN_BOTTOM,
+    blockTheme: snapshot.blockTheme || null,
   }
 }
 
@@ -404,6 +424,7 @@ function applyBrush(editor: TiptapEditor, payload: BrushPayload) {
     marginTop: payload.marginTop ?? DEFAULT_MARGIN_TOP,
     marginBottom: payload.marginBottom ?? DEFAULT_MARGIN_BOTTOM,
     textIndent: payload.textIndent ?? null,
+    blockTheme: payload.blockTheme ?? null,
   })
   chain.run()
 }
@@ -417,6 +438,7 @@ function isSameToolbarSnapshot(a: ToolbarSnapshot, b: ToolbarSnapshot) {
     a.lineHeightBlock === b.lineHeightBlock &&
     a.marginTop === b.marginTop &&
     a.marginBottom === b.marginBottom &&
+    a.blockTheme === b.blockTheme &&
     a.textIndent === b.textIndent &&
     a.textAlign === b.textAlign &&
     a.headingLevel === b.headingLevel &&
@@ -664,6 +686,12 @@ export default function RichTextEditor({ value, onChange, placeholder = DEFAULT_
     })
   }
 
+  function applyBlockTheme(nextValue: string) {
+    withEditor(currentEditor => {
+      currentEditor.chain().focus().setBlockStyle({ blockTheme: nextValue || null }).run()
+    })
+  }
+
   function toggleFormatBrush() {
     if (!editor) return
 
@@ -699,7 +727,7 @@ export default function RichTextEditor({ value, onChange, placeholder = DEFAULT_
         .unsetFontFamily()
         .unsetFontSize()
         .setTextAlign('left')
-        .unsetBlockStyle(['textIndent', 'lineHeightBlock', 'marginTop', 'marginBottom'])
+        .unsetBlockStyle(['textIndent', 'lineHeightBlock', 'marginTop', 'marginBottom', 'blockTheme'])
         .clearNodes()
         .run()
     })
@@ -866,6 +894,7 @@ export default function RichTextEditor({ value, onChange, placeholder = DEFAULT_
     `当前：${getBlockLabel(snapshot)}`,
     `对齐：${getAlignLabel(snapshot)}`,
     `字体：${getFontLabel(snapshot.fontFamily)}`,
+    `风格：${getThemeLabel(snapshot.blockTheme)}`,
     snapshot.textIndent ? '首行缩进已开启' : '首行缩进未开启',
     brushState.active ? '格式刷待应用' : null,
   ].filter(Boolean) as string[]
@@ -1043,6 +1072,14 @@ export default function RichTextEditor({ value, onChange, placeholder = DEFAULT_
                     {LINE_HEIGHT_OPTIONS.map(option => (
                       <option key={option} value={option}>
                         行高 {option}
+                      </option>
+                    ))}
+                  </ToolbarSelect>
+
+                  <ToolbarSelect value={snapshot.blockTheme} onChange={applyBlockTheme}>
+                    {BLOCK_THEME_OPTIONS.map(option => (
+                      <option key={option.value || 'default'} value={option.value}>
+                        风格 · {option.label}
                       </option>
                     ))}
                   </ToolbarSelect>
@@ -1241,6 +1278,17 @@ export default function RichTextEditor({ value, onChange, placeholder = DEFAULT_
                     <ToolbarButton label="代码块" title="代码块" active={snapshot.codeBlock} onClick={toggleCodeBlock}>
                       <span className="text-[13px] font-semibold">{'</>'}</span>
                     </ToolbarButton>
+                    {QUICK_THEME_OPTIONS.map(option => (
+                      <ToolbarButton
+                        key={option.value}
+                        label={option.label}
+                        title={option.description}
+                        active={snapshot.blockTheme === option.value}
+                        onClick={() => applyBlockTheme(option.value)}
+                      >
+                        <span className="text-[12px] font-semibold">{option.shortLabel}</span>
+                      </ToolbarButton>
+                    ))}
                     <ToolbarButton label="左对齐" title="左对齐" active={snapshot.textAlign === 'left'} onClick={() => applyAlign('left')}>
                       <span className="text-[12px] font-semibold">左</span>
                     </ToolbarButton>
@@ -1290,6 +1338,26 @@ export default function RichTextEditor({ value, onChange, placeholder = DEFAULT_
                 <span className="mt-1 block text-xs leading-5 text-[#6b7280]">{template.description}</span>
               </button>
             ))}
+          </div>
+
+          <div className="mt-5 border-t border-[#e5e7eb] pt-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#9ca3af]">Styles</p>
+            <h4 className="mt-1 text-sm font-semibold text-[#111827]">段落气质块</h4>
+            <p className="mt-1 text-xs leading-5 text-[#6b7280]">不改正文结构，只给当前段落一个更清楚的表现方式。</p>
+
+            <div className="mt-3 space-y-2">
+              {BLOCK_THEME_OPTIONS.filter(option => option.value).map(option => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => applyBlockTheme(option.value)}
+                  className={`rich-editor-style-card ${snapshot.blockTheme === option.value ? 'rich-editor-style-card--active' : ''}`}
+                >
+                  <span className="block text-sm font-semibold text-[#111827]">{option.label}</span>
+                  <span className="mt-1 block text-xs leading-5 text-[#6b7280]">{option.description}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </aside>
       </div>
