@@ -1,111 +1,94 @@
 'use client'
-import { useState, useEffect } from 'react'
+
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 
-const NAV_GROUPS = [
-  {
-    label: '内容管理',
-    items: [
-      { href: '/houtai/articles',  icon: '📄', label: '文章管理' },
-      { href: '/houtai/articles/new', icon: '✏️', label: '写新文章' },
-      { href: '/houtai/comments',  icon: '💬', label: '评论管理' },
-      { href: '/houtai/guestbook', icon: '📮', label: '留言审核' },
-      { href: '/houtai/media',     icon: '🗂️', label: '媒体库' },
-    ],
-  },
-  {
-    label: '互动数据',
-    items: [
-      { href: '/houtai/analytics', icon: '📊', label: '访问统计' },
-      { href: '/houtai/sunflower', icon: '🌻', label: '向日葵' },
-      { href: '/houtai/payments',  icon: '💳', label: '打赏记录' },
-    ],
-  },
-  {
-    label: '系统设置',
-    items: [
-      { href: '/houtai/settings',  icon: '⚙️', label: '配置中心' },
-      { href: '/houtai/backup',   icon: '💾', label: '备份导出' },
-    ],
-  },
-]
+import { ADMIN_HOME_ITEM, ADMIN_NAV_GROUPS, getAdminNavContext, isAdminNavActive } from '@/components/houtai/admin-navigation'
 
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const navContext = getAdminNavContext(pathname)
+  const currentGroupLabel = navContext.group?.label ?? '后台总览'
+  const currentDescription = navContext.item.description
 
-  // 移动端切换路由后自动关闭菜单
-  useEffect(() => { setMobileOpen(false) }, [pathname])
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [pathname])
 
-  // 记住折叠状态
   useEffect(() => {
     const saved = localStorage.getItem('admin-sidebar-collapsed')
     if (saved) setCollapsed(saved === 'true')
   }, [])
+
   function toggleCollapse() {
-    setCollapsed(v => {
-      localStorage.setItem('admin-sidebar-collapsed', String(!v))
-      return !v
+    setCollapsed(value => {
+      localStorage.setItem('admin-sidebar-collapsed', String(!value))
+      return !value
     })
   }
 
-  const isActive = (href: string) =>
-    href === '/houtai' ? pathname === '/houtai' : pathname.startsWith(href)
-
   const sidebarContent = (
-    <div className="flex flex-col h-full">
-      {/* Logo 区域 */}
-      <div className={`flex items-center h-14 px-4 border-b border-slate-200 flex-shrink-0 ${collapsed ? 'justify-center' : 'justify-between'}`}>
-        {!collapsed && (
-          <Link href="/houtai" className="flex items-center gap-2 min-w-0">
+    <div className="flex h-full flex-col">
+      <div className={`border-b border-slate-200 ${collapsed ? 'px-2 py-3' : 'px-4 py-3'}`}>
+        <div className={`flex ${collapsed ? 'justify-center' : 'items-start justify-between gap-3'}`}>
+          {collapsed ? (
             <span className="text-lg">✦</span>
-            <span className="font-semibold text-slate-800 text-sm truncate">后台工作台</span>
-          </Link>
-        )}
-        {collapsed && <span className="text-lg">✦</span>}
+          ) : (
+            <Link href="/houtai" className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">✦</span>
+                <span className="truncate text-sm font-semibold text-slate-800">后台工作台</span>
+              </div>
+              <p className="mt-2 text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">{currentGroupLabel}</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">{navContext.item.label} · {currentDescription}</p>
+            </Link>
+          )}
+        </div>
+
         <button
           onClick={toggleCollapse}
-          className="hidden lg:flex items-center justify-center w-7 h-7 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors flex-shrink-0"
+          className={`hidden h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 lg:flex ${collapsed ? 'mx-auto mt-2' : 'ml-auto mt-3'}`}
           title={collapsed ? '展开侧栏' : '收起侧栏'}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            {collapsed
-              ? <path d="M5 2l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              : <path d="M9 2L4 7l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            }
+            {collapsed ? (
+              <path d="M5 2l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            ) : (
+              <path d="M9 2L4 7l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            )}
           </svg>
         </button>
       </div>
 
-      {/* 导航区域 */}
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
-        {/* 控制中心 */}
-        <Link href="/houtai"
-          className={`nav-item ${isActive('/houtai') && pathname === '/houtai' ? 'nav-item-active' : ''} ${collapsed ? 'justify-center px-2' : ''}`}
-          title={collapsed ? '控制中心' : undefined}
+      <nav className="flex-1 space-y-4 overflow-y-auto px-2 py-3">
+        <Link
+          href={ADMIN_HOME_ITEM.href}
+          className={`nav-item ${isAdminNavActive(pathname, ADMIN_HOME_ITEM.href) ? 'nav-item-active' : ''} ${collapsed ? 'justify-center px-2' : ''}`}
+          title={collapsed ? ADMIN_HOME_ITEM.label : ADMIN_HOME_ITEM.description}
         >
-          <span className="text-base w-5 text-center flex-shrink-0">🏠</span>
-          {!collapsed && <span className="truncate">控制中心</span>}
+          <span className="w-5 flex-shrink-0 text-center text-base">{ADMIN_HOME_ITEM.icon}</span>
+          {!collapsed && <span className="truncate">{ADMIN_HOME_ITEM.label}</span>}
         </Link>
 
-        {NAV_GROUPS.map(group => (
+        {ADMIN_NAV_GROUPS.map(group => (
           <div key={group.label}>
             {!collapsed && (
-              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-3 mb-1.5">
-                {group.label}
-              </p>
+              <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400">{group.label}</p>
             )}
-            {collapsed && <div className="border-t border-slate-100 my-2" />}
+            {collapsed && <div className="my-2 border-t border-slate-100" />}
             <div className="space-y-0.5">
               {group.items.map(item => (
-                <Link key={item.href} href={item.href}
-                  className={`nav-item ${isActive(item.href) ? 'nav-item-active' : ''} ${collapsed ? 'justify-center px-2' : ''}`}
-                  title={collapsed ? item.label : undefined}
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`nav-item ${isAdminNavActive(pathname, item.href) ? 'nav-item-active' : ''} ${collapsed ? 'justify-center px-2' : ''}`}
+                  title={collapsed ? item.label : item.description}
                 >
-                  <span className="text-base w-5 text-center flex-shrink-0">{item.icon}</span>
+                  <span className="w-5 flex-shrink-0 text-center text-base">{item.icon}</span>
                   {!collapsed && <span className="truncate">{item.label}</span>}
                 </Link>
               ))}
@@ -114,13 +97,9 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         ))}
       </nav>
 
-      {/* 底部操作 */}
-      <div className={`p-2 border-t border-slate-200 space-y-0.5 flex-shrink-0`}>
-        <Link href="/" target="_blank"
-          className={`nav-item ${collapsed ? 'justify-center px-2' : ''}`}
-          title={collapsed ? '查看博客' : undefined}
-        >
-          <span className="text-base w-5 text-center flex-shrink-0">↗</span>
+      <div className="space-y-0.5 border-t border-slate-200 p-2">
+        <Link href="/" target="_blank" className={`nav-item ${collapsed ? 'justify-center px-2' : ''}`} title={collapsed ? '查看博客' : undefined}>
+          <span className="w-5 flex-shrink-0 text-center text-base">↗</span>
           {!collapsed && <span className="text-sm">查看博客</span>}
         </Link>
         <button
@@ -128,7 +107,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           className={`nav-item w-full text-left text-red-500 hover:bg-red-50 hover:text-red-600 ${collapsed ? 'justify-center px-2' : ''}`}
           title={collapsed ? '退出登录' : undefined}
         >
-          <span className="text-base w-5 text-center flex-shrink-0">⏻</span>
+          <span className="w-5 flex-shrink-0 text-center text-base">⏻</span>
           {!collapsed && <span className="text-sm">退出登录</span>}
         </button>
       </div>
@@ -136,43 +115,34 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   )
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      {/* 桌面侧边栏 */}
-      <aside className={`hidden lg:flex flex-col bg-white border-r border-slate-200 flex-shrink-0 transition-all duration-200 ${collapsed ? 'w-14' : 'w-52'}`}>
+    <div className="flex min-h-screen bg-slate-50">
+      <aside className={`hidden flex-shrink-0 flex-col border-r border-slate-200 bg-white transition-all duration-200 lg:flex ${collapsed ? 'w-14' : 'w-52'}`}>
         {sidebarContent}
       </aside>
 
-      {/* 移动端抽屉遮罩 */}
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 bg-black/40 z-40 lg:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
+      {mobileOpen ? <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={() => setMobileOpen(false)} /> : null}
 
-      {/* 移动端侧边栏 */}
-      <aside className={`fixed top-0 left-0 h-full w-60 bg-white border-r border-slate-200 z-50 flex flex-col lg:hidden transition-transform duration-200 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed left-0 top-0 z-50 flex h-full w-60 flex-col border-r border-slate-200 bg-white transition-transform duration-200 lg:hidden ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         {sidebarContent}
       </aside>
 
-      {/* 主内容区 */}
-      <div className="flex-1 min-w-0 flex flex-col">
-        {/* 移动端顶栏 */}
-        <header className="lg:hidden flex items-center h-14 px-4 bg-white border-b border-slate-200 gap-3 flex-shrink-0">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-14 flex-shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 lg:hidden">
           <button
             onClick={() => setMobileOpen(true)}
-            className="w-8 h-8 flex items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"
           >
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <path d="M2 4.5h14M2 9h14M2 13.5h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              <path d="M2 4.5h14M2 9h14M2 13.5h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
           </button>
-          <span className="font-semibold text-slate-800 text-sm">后台工作台</span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-slate-800">{navContext.item.label}</p>
+            <p className="truncate text-[11px] text-slate-400">{currentGroupLabel}</p>
+          </div>
         </header>
 
-        <main className="flex-1 p-4 lg:p-8 min-w-0 overflow-auto">
-          {children}
-        </main>
+        <main className="min-w-0 flex-1 overflow-auto p-4 lg:p-8">{children}</main>
       </div>
 
       <style>{`
@@ -189,7 +159,6 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           cursor: pointer;
           border: none;
           background: none;
-          width: 100%;
         }
         .nav-item:hover { background: #f1f5f9; color: #1e293b; }
         .nav-item-active { background: #f1f5f9; color: #1e293b; font-weight: 500; }
