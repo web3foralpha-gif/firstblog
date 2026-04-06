@@ -106,13 +106,18 @@ const BLOCK_THEME_OPTIONS = [
   { value: '', label: '默认正文', shortLabel: '正文', description: '回到普通正文段落。' },
   { value: 'eyebrow', label: '眉题标签', shortLabel: '眉题', description: '适合章节、小栏目、分段提示。' },
   { value: 'lead', label: '导语开场', shortLabel: '导语', description: '适合开头摘要、情绪铺垫、结论先行。' },
+  { value: 'summary', label: '摘要引导块', shortLabel: '摘要', description: '适合文章开头先交代看点和阅读路径。' },
+  { value: 'guide', label: '阅读引导块', shortLabel: '引导', description: '适合把本文包含哪些部分先说清楚。' },
+  { value: 'caption', label: '图片说明', shortLabel: '图注', description: '适合图片后补一句轻一点的说明文字。' },
   { value: 'note', label: '重点信息卡', shortLabel: '信息卡', description: '适合重点提醒、摘要、结论。' },
   { value: 'tip', label: '方法步骤卡', shortLabel: '建议卡', description: '适合教程、经验、步骤。' },
   { value: 'warning', label: '注意事项卡', shortLabel: '提醒卡', description: '适合风险、边界、特别说明。' },
   { value: 'quote', label: '金句引用', shortLabel: '金句', description: '适合让一句话单独成立。' },
   { value: 'closing', label: '收尾留白', shortLabel: '收尾', description: '适合结尾和回应感更强的段落。' },
 ] as const
-const QUICK_THEME_OPTIONS = BLOCK_THEME_OPTIONS.filter(option => ['lead', 'note', 'quote', 'closing'].includes(option.value))
+const QUICK_THEME_OPTIONS = BLOCK_THEME_OPTIONS.filter(option =>
+  ['lead', 'summary', 'note', 'quote', 'closing', 'caption'].includes(option.value),
+)
 
 function escapeHtml(value: string) {
   return value

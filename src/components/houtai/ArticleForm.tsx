@@ -807,7 +807,7 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
         )}
 
         <div className="flex items-center justify-between mt-1">
-          <p className="text-xs text-[#c4b8a7]">支持导语、信息卡、金句、收尾段、标题、颜色高亮、首行缩进、段前段后、格式刷与多媒体插入</p>
+          <p className="text-xs text-[#c4b8a7]">支持导语、摘要引导、信息卡、金句、图注、收尾段、标题、颜色高亮、首行缩进、段前段后、格式刷与多媒体插入</p>
           <button
             type="button"
             onClick={() => {

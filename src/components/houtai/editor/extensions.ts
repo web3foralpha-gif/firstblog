@@ -5,7 +5,7 @@ const BLOCK_STYLE_TYPES = ['paragraph', 'heading', 'blockquote'] as const
 const INDENT_VALUES = new Set(['0px', '2em'])
 const LINE_HEIGHT_VALUES = new Set(['1.6', '1.8', '2', '2.2'])
 const SPACING_VALUES = new Set(['0px', '12px', '20px', '24px', '32px', '40px'])
-const BLOCK_THEME_VALUES = new Set(['eyebrow', 'lead', 'note', 'tip', 'warning', 'quote', 'closing'])
+const BLOCK_THEME_VALUES = new Set(['eyebrow', 'lead', 'summary', 'guide', 'caption', 'note', 'tip', 'warning', 'quote', 'closing'])
 
 export type BlockStyleAttributes = {
   textIndent?: string | null
