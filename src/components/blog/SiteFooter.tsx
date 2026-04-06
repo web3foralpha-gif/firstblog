@@ -10,7 +10,7 @@ export default async function SiteFooter({ compact = false }: SiteFooterProps) {
 
   return (
     <footer className={`border-t border-[var(--border-color)] ${compact ? 'mt-10 sm:mt-14' : 'mt-12 sm:mt-16'} py-6 sm:py-8`}>
-      <div className="mx-auto max-w-5xl px-4 sm:px-6">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="theme-panel-soft flex flex-col gap-4 px-5 py-5 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
           <div>
             <p className="text-xs uppercase tracking-[0.26em] text-[var(--text-faint)]">{footerEyebrow}</p>

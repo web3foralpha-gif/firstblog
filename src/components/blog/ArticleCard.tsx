@@ -47,7 +47,7 @@ export default function ArticleCard({
 
   return (
     <Link href={targetHref} className="group block">
-      <article className="card min-h-[176px] overflow-hidden px-4 py-4 transition-transform active:scale-[0.99] sm:px-5 sm:py-5">
+      <article className="card min-h-[164px] overflow-hidden px-4 py-4 transition-transform active:scale-[0.99] sm:px-5 sm:py-5">
         <div
           className={
             hasCover
@@ -58,7 +58,7 @@ export default function ArticleCard({
           <div className="flex h-full min-w-0 flex-col justify-between">
             <div>
               <div className="mb-3 flex flex-wrap items-center gap-2">
-                <span className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border border-[var(--border-soft)] bg-[var(--accent-soft)] text-lg leading-none shadow-inner shadow-white/70">
+                <span className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl border border-[var(--border-soft)] bg-[var(--accent-soft)] text-base leading-none shadow-inner shadow-white/70">
                   {mood}
                 </span>
                 {pinned ? <span className="badge badge-pinned">📌 置顶</span> : null}
@@ -66,7 +66,7 @@ export default function ArticleCard({
                 {accessType === 'PAID' && price ? <span className="badge badge-paid">¥{price}</span> : null}
               </div>
 
-              <h2 className="font-serif text-[18px] font-medium leading-8 text-[var(--text-primary)] transition-colors group-hover:text-[var(--accent)] sm:text-[20px]">
+              <h2 className="font-serif text-[18px] font-medium leading-8 text-[var(--text-primary)] transition-colors group-hover:text-[var(--accent)] sm:text-[19px]">
                 {title}
               </h2>
 
@@ -85,10 +85,10 @@ export default function ArticleCard({
               ) : null}
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center gap-2.5 text-[11px] text-[var(--text-subtle)] sm:text-xs">
+            <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px] text-[var(--text-subtle)] sm:text-xs">
               <span className="theme-chip !px-3 !py-1.5 !shadow-none">{formatDate(createdAt)}</span>
               {readingTimeMinutes > 0 ? <span className="theme-chip !px-3 !py-1.5 !shadow-none">{readingTimeMinutes} 分钟阅读</span> : null}
-              <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border-soft)] bg-white/55 px-3 py-1.5 text-[var(--text-subtle)] transition-colors group-hover:border-[var(--accent)] group-hover:text-[var(--accent)]">
+              <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border-soft)] bg-white/72 px-3 py-1.5 text-[var(--text-subtle)] transition-colors group-hover:border-[var(--accent)] group-hover:text-[var(--accent)]">
                 读全文
                 <span aria-hidden="true">→</span>
               </span>
