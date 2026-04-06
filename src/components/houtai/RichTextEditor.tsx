@@ -118,6 +118,10 @@ const BLOCK_THEME_OPTIONS = [
 const QUICK_THEME_OPTIONS = BLOCK_THEME_OPTIONS.filter(option =>
   ['lead', 'summary', 'note', 'quote', 'closing', 'caption'].includes(option.value),
 )
+const QUICK_INSERT_TEMPLATE_IDS = ['summary', 'photo-story', 'section', 'closing', 'signature'] as const
+const QUICK_INSERT_TEMPLATES = QUICK_INSERT_TEMPLATE_IDS
+  .map(id => EDITOR_TEMPLATES.find(template => template.id === id))
+  .filter(Boolean) as typeof EDITOR_TEMPLATES
 
 function escapeHtml(value: string) {
   return value
@@ -919,6 +923,19 @@ export default function RichTextEditor({ value, onChange, placeholder = DEFAULT_
                     <span key={chip} className="rich-editor-context-chip">
                       {chip}
                     </span>
+                  ))}
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#b1997f]">快速插入</span>
+                  {QUICK_INSERT_TEMPLATES.map(template => (
+                    <button
+                      key={template.id}
+                      type="button"
+                      onClick={() => insertTemplate(template.content)}
+                      className="rounded-full border border-[#e6ddcf] bg-[#fffaf3] px-3 py-1.5 text-[11px] text-[#8c6d4d] transition hover:border-[#d4711a] hover:text-[#d4711a]"
+                    >
+                      {template.title}
+                    </button>
                   ))}
                 </div>
               </div>

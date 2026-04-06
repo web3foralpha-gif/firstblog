@@ -63,6 +63,20 @@ export const EDITOR_TEMPLATES: EditorTemplate[] = [
       '<p class="rt-caption">这张图不必解释得太满，留一句时间、地点、情绪，或者拍下它时你心里的那点意思，就够了。</p>',
   },
   {
+    id: 'photo-story',
+    title: '图文段落',
+    description: '适合一张图带一段话，读起来更像博客成稿。',
+    content:
+      '<p class="rt-eyebrow">图像片段</p><p class="rt-guide"><strong>使用方式：</strong>把图片插在这段上方，再保留下方图注和正文，图文之间会更自然。</p><p class="rt-caption">这里放一句图注，轻一点，不要把画面解释得太满。</p><p>接着写一段正文，说这张图为什么会出现在这里，它和文章整体的情绪、时间、人物或事件有什么关系。</p>',
+  },
+  {
+    id: 'qa',
+    title: '问答片段',
+    description: '适合把问题和回应拆开写，层次会更清楚。',
+    content:
+      '<p class="rt-summary"><strong>问题</strong><br />先把你真正想回答的问题写在这里，尽量直接一点。</p><p class="rt-guide"><strong>回应</strong><br />接着说你的理解、判断和态度，不必太满，但要尽量真。</p>',
+  },
+  {
     id: 'closing',
     title: '收尾留白',
     description: '适合文章结尾，不用说太满，也能留下余味。',
