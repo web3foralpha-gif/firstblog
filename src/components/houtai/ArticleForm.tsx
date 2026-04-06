@@ -1011,6 +1011,16 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
                     <span className="text-sm font-medium text-[#3d3530]">{issue.title}</span>
                   </div>
                   <p className="mt-1 text-xs leading-6 text-[#7a6a56]">{issue.detail}</p>
+                  {issue.excerpts && issue.excerpts.length > 0 ? (
+                    <div className="mt-2 space-y-1.5">
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-[#b1997f]">疑似位置</p>
+                      {issue.excerpts.map((excerpt, index) => (
+                        <div key={`${issue.id}-${index}`} className="rounded-xl border border-[#efe5d7] bg-[#fcfaf7] px-3 py-2 text-xs leading-6 text-[#5f5245]">
+                          {excerpt}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
