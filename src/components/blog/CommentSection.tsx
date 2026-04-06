@@ -1,6 +1,8 @@
 'use client'
+
 import { useState } from 'react'
 import { usePathname } from 'next/navigation'
+
 import { getClientDeviceInfoSync } from '@/lib/client-device'
 import { formatDate } from '@/lib/utils'
 import { getSafeReferrer, getSessionId, getVisitorId } from '@/lib/visitor'
@@ -85,82 +87,104 @@ export default function CommentSection({
   }
 
   return (
-    <section id="comments" className="mt-12">
-      <hr className="divider" />
-      <h3 className="mb-6 font-serif text-xl font-medium text-[var(--text-primary)]">
-        {copy.sectionTitle} <span className="text-base font-normal text-[var(--text-subtle)]">({comments.length})</span>
-      </h3>
-
-      {comments.length === 0 ? (
-        <p className="mb-8 text-sm text-[var(--text-subtle)]">{copy.emptyText}</p>
-      ) : (
-        <div className="space-y-6 mb-10">
-          {comments.map(c => (
-            <div key={c.id} className="flex gap-4">
-              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-sm font-medium text-[var(--accent)]">
-                {c.nickname[0].toUpperCase()}
-              </div>
-              <div className="flex-1">
-                <div className="flex items-baseline gap-2 mb-1">
-                  <span className="text-sm font-medium text-[var(--text-secondary)]">{c.nickname}</span>
-                  <time className="text-xs text-[var(--text-subtle)]">{formatDate(c.createdAt)}</time>
-                </div>
-                {c.email && (
-                  <a
-                    href={`mailto:${c.email}`}
-                    className="mb-1 block break-all text-xs text-[var(--text-subtle)] transition-colors hover:text-[var(--accent)]"
-                  >
-                    {c.email}
-                  </a>
-                )}
-                <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-[var(--text-secondary)]">{c.content}</p>
-              </div>
-            </div>
-          ))}
+    <section id="comments" className="mt-12 space-y-5">
+      <div className="theme-panel-soft p-5 sm:p-6">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.24em] text-[var(--text-faint)]">Comments</p>
+            <h3 className="mt-2 font-serif text-2xl font-medium text-[var(--text-primary)]">
+              {copy.sectionTitle}
+            </h3>
+          </div>
+          <span className="theme-chip !shadow-none">{comments.length} 条</span>
         </div>
-      )}
 
-      <div className="rounded-lg border border-[var(--border-color)] bg-[var(--surface-muted-bg)] p-6">
-        <h4 className="mb-4 text-[15px] font-medium text-[var(--text-secondary)]">{copy.formTitle}</h4>
-        <form onSubmit={submit} className="space-y-4">
+        {comments.length === 0 ? (
+          <div className="py-12 text-center text-[var(--text-subtle)]">
+            <p className="mb-4 text-4xl">💬</p>
+            <p className="text-sm">{copy.emptyText}</p>
+          </div>
+        ) : (
+          <div className="mt-5 space-y-4">
+            {comments.map(comment => (
+              <article key={comment.id} className="rounded-[24px] border border-[var(--border-soft)] bg-white/70 p-4 sm:p-5">
+                <div className="flex gap-3">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border border-[var(--border-soft)] bg-[var(--accent-soft)] text-sm font-medium text-[var(--accent)] shadow-inner shadow-white/70">
+                    {comment.nickname[0]?.toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium text-[var(--text-primary)]">{comment.nickname}</span>
+                      <time className="text-xs text-[var(--text-faint)]">{formatDate(comment.createdAt)}</time>
+                    </div>
+                    {comment.email ? (
+                      <a
+                        href={`mailto:${comment.email}`}
+                        className="mt-1 block break-all text-xs text-[var(--text-subtle)] transition-colors hover:text-[var(--accent)]"
+                      >
+                        {comment.email}
+                      </a>
+                    ) : null}
+                    <p className="mt-3 whitespace-pre-wrap text-[14px] leading-7 text-[var(--text-secondary)]">{comment.content}</p>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="theme-panel-soft p-5 sm:p-6">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.24em] text-[var(--text-faint)]">Reply</p>
+            <h4 className="mt-2 font-serif text-2xl font-medium text-[var(--text-primary)]">{copy.formTitle}</h4>
+          </div>
+          <p className="text-sm text-[var(--text-subtle)]">昵称和内容必填，邮箱仍然保持可选。</p>
+        </div>
+
+        <form onSubmit={submit} className="mt-5 space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs text-[var(--text-muted)]">{copy.nicknameLabel}</label>
+              <label className="mb-1.5 block text-xs text-[var(--text-muted)]">{copy.nicknameLabel}</label>
               <input
                 className="input"
                 value={form.nickname}
-                onChange={e => setForm(f => ({ ...f, nickname: e.target.value }))}
+                onChange={e => setForm(current => ({ ...current, nickname: e.target.value }))}
                 placeholder={copy.nicknamePlaceholder}
                 maxLength={30}
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-[var(--text-muted)]">
+              <label className="mb-1.5 block text-xs text-[var(--text-muted)]">
                 {copy.emailLabel} <span className="text-[var(--text-faint)]">{copy.emailOptionalLabel}</span>
               </label>
               <input
                 className="input"
                 type="email"
                 value={form.email}
-                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                onChange={e => setForm(current => ({ ...current, email: e.target.value }))}
                 placeholder={copy.emailPlaceholder}
               />
             </div>
           </div>
+
           <div>
-            <label className="mb-1 block text-xs text-[var(--text-muted)]">{copy.contentLabel}</label>
+            <label className="mb-1.5 block text-xs text-[var(--text-muted)]">{copy.contentLabel}</label>
             <textarea
               className="input resize-none"
-              rows={4}
+              rows={5}
               value={form.content}
-              onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
+              onChange={e => setForm(current => ({ ...current, content: e.target.value }))}
               placeholder={copy.contentPlaceholder}
               maxLength={1000}
             />
           </div>
-          {msg && (
+
+          {msg ? (
             <p className={`text-sm ${status === 'error' ? 'text-red-500' : 'text-green-600'}`}>{msg}</p>
-          )}
+          ) : null}
+
           <button type="submit" className="btn-primary" disabled={status === 'loading'}>
             {status === 'loading' ? copy.submittingLabel : copy.submitLabel}
           </button>
