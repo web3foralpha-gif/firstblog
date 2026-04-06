@@ -214,7 +214,7 @@ export default function SunflowerWidget() {
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-bg)] p-6 text-center shadow-[0_10px_30px_var(--card-shadow)]">
+      <div className="rounded-[24px] border border-[var(--border-soft)] bg-[var(--panel-soft-gradient)] p-5 text-center shadow-[var(--panel-shadow-soft)]">
         <div className="text-3xl mb-2 animate-pulse">🌱</div>
         <p className="text-xs text-[var(--text-subtle)]">{copy.loadingText}</p>
       </div>
@@ -224,7 +224,7 @@ export default function SunflowerWidget() {
   const currentState = state ?? buildFallbackState()
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-bg)] shadow-[0_10px_30px_var(--card-shadow)]">
+    <div className="overflow-hidden rounded-[24px] border border-[var(--border-soft)] bg-[var(--panel-soft-gradient)] shadow-[var(--panel-shadow-soft)]">
       {/* 升级庆祝横幅 */}
       {justLeveledUp && (
         <div className="bg-gradient-to-r from-yellow-300 via-orange-300 to-yellow-300 text-center py-2 animate-bounce">
@@ -235,8 +235,13 @@ export default function SunflowerWidget() {
       )}
 
       <div className="p-5">
+        <div className="mb-3 text-center">
+          <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--text-faint)]">Garden</p>
+          <h3 className="mt-1 font-serif text-lg font-medium text-[var(--text-primary)]">向日葵互动</h3>
+        </div>
+
         {/* 向日葵插图 */}
-        <div className={`relative mb-2 ${shake ? 'animate-bounce' : ''}`}>
+        <div className={`relative mb-3 ${shake ? 'animate-bounce' : ''}`}>
           <SunflowerIllustration stage={currentState.stage} />
 
           {/* 浮动反馈文字 */}
@@ -252,7 +257,7 @@ export default function SunflowerWidget() {
         </div>
 
         {/* 阶段信息 */}
-        <div className="text-center mb-4">
+        <div className="mb-4 text-center">
           <div className="flex items-center justify-center gap-1.5 mb-1">
             <span className="text-xl">{currentState.emoji}</span>
             <span className="font-serif text-base font-medium text-[var(--text-primary)]">{currentState.name}阶段</span>

@@ -4,8 +4,8 @@ export default function SunflowerIllustration({ stage, animated = true }: Props)
   const anim = animated ? 'transition-all duration-700' : ''
 
   return (
-    <div className={`flex items-end justify-center select-none ${anim}`} style={{ height: 160 }}>
-      <svg viewBox="0 0 120 160" width="120" height="160" xmlns="http://www.w3.org/2000/svg">
+    <div className={`flex items-end justify-center select-none ${anim}`} style={{ height: 142 }}>
+      <svg viewBox="0 0 120 160" width="108" height="142" xmlns="http://www.w3.org/2000/svg">
         {/* 土壤 */}
         <ellipse cx="60" cy="152" rx="38" ry="7" fill="#c4a97d" opacity="0.4" />
         <ellipse cx="60" cy="150" rx="30" ry="5" fill="#a0784a" opacity="0.5" />
