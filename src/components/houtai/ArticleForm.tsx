@@ -383,6 +383,32 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
       : accessType === 'PAID'
         ? `付费阅读 · ¥${price || '5'}`
         : '公开可见'
+  const estimatedReadMinutes = Math.max(1, Math.ceil(contentMetrics.textLength / 380))
+  const hasHeadingStructure = /<h2\b|<h3\b/i.test(currentContentValue)
+  const hasStyledBlocks = /class="[^"]*rt-(eyebrow|lead|note|tip|warning|quote|closing)/i.test(currentContentValue)
+  const hasMediaAssets = Boolean(coverImage) || contentMetrics.imageCount + contentMetrics.videoCount + contentMetrics.audioCount > 0
+  const writingSignals = [
+    {
+      label: '标题',
+      ready: Boolean(title.trim()),
+      hint: title.trim() ? '主题已明确' : '还需要一个清楚的标题',
+    },
+    {
+      label: '结构',
+      ready: hasHeadingStructure,
+      hint: hasHeadingStructure ? '已经有章节层次' : '建议插入 H2 / H3',
+    },
+    {
+      label: '排版',
+      ready: hasStyledBlocks,
+      hint: hasStyledBlocks ? '已有导语或卡片样式' : '可以加导语、信息卡、金句',
+    },
+    {
+      label: '媒体',
+      ready: hasMediaAssets,
+      hint: hasMediaAssets ? '封面或正文媒体已就位' : '可补一张封面或配图',
+    },
+  ]
 
   function handleCancel() {
     if (hasUnsavedChanges() && !window.confirm('当前改动还没有正式保存到后台，确定现在离开吗？')) {
@@ -499,111 +525,267 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
         </div>
       ) : null}
 
-      <div>
-        <label className="text-xs text-[#8c7d68] mb-1 block">文章标题 *</label>
-        <input
-          className="input text-lg font-serif"
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          placeholder="写下今天的主题…"
-        />
-      </div>
+      <section className="rounded-[32px] border border-[#eadfce] bg-[linear-gradient(180deg,#fffdf9,#faf6ef)] px-5 py-5 shadow-[0_18px_40px_rgba(61,53,48,0.05)] sm:px-6">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div className="max-w-3xl">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#b1997f]">Editor Desk</p>
+            <h2 className="mt-2 font-serif text-2xl text-[#2f2924]">{mode === 'new' ? '新建文章工作台' : '文章编辑工作台'}</h2>
+            <p className="mt-2 text-sm leading-7 text-[#7a6a56]">
+              这里把标题、封面、访问方式、正文排版和发布状态收进同一处，方便你一边写，一边把文章磨成成稿。
+            </p>
+          </div>
 
-      <CoverPicker value={coverImage} onChange={setCoverImage} />
-
-      <div>
-        <label className="text-xs text-[#8c7d68] mb-2 block">今天的心情</label>
-        <div className="flex flex-wrap gap-2">
-          {MOODS.map(option => (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-[#eadfce] bg-white px-3 py-1.5 text-xs text-[#8c7d68]">{accessSummary}</span>
+            <span className="rounded-full border border-[#eadfce] bg-white px-3 py-1.5 text-xs text-[#8c7d68]">
+              {published ? '准备发布' : '后台草稿'}
+            </span>
+            <span className="rounded-full border border-[#eadfce] bg-white px-3 py-1.5 text-xs text-[#8c7d68]">
+              预计阅读 {estimatedReadMinutes} 分钟
+            </span>
             <button
-              key={option.value}
               type="button"
-              onClick={() => setMood(option.value)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm transition-all ${
-                mood === option.value
-                  ? 'border-[#d4711a] bg-[#fdf6ee] text-[#d4711a]'
-                  : 'border-[#ddd5c8] text-[#5a4f42] hover:border-[#d4711a]'
-              }`}
+              onClick={() => {
+                if (!preview) {
+                  syncContentState()
+                }
+                setPreview(current => !current)
+              }}
+              className="rounded-full border border-[#decfb8] bg-white px-3 py-1.5 text-xs text-[#8c7d68] transition hover:border-[#d4711a] hover:text-[#d4711a]"
             >
-              <span>{option.value}</span>
-              <span>{option.label}</span>
+              {preview ? '切回编辑' : '预览成稿'}
             </button>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <label className="text-xs text-[#8c7d68] mb-2 block">访问类型</label>
-        <div className="flex gap-3">
-          {[
-            { value: 'PUBLIC', label: '🌐 公开', desc: '所有人可见' },
-            { value: 'PASSWORD', label: '🔒 加密', desc: '需要密码' },
-            { value: 'PAID', label: '💰 打赏', desc: '需要打赏' },
-          ].map(option => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setAccessType(option.value as 'PUBLIC' | 'PASSWORD' | 'PAID')}
-              className={`flex-1 p-3 rounded-lg border text-left transition-all ${
-                accessType === option.value
-                  ? 'border-[#d4711a] bg-[#fdf6ee]'
-                  : 'border-[#ddd5c8] hover:border-[#d4711a]'
-              }`}
-            >
-              <div className="text-sm font-medium text-[#3d3530]">{option.label}</div>
-              <div className="text-xs text-[#a89880] mt-0.5">{option.desc}</div>
-            </button>
-          ))}
+          </div>
         </div>
 
-        {accessType === 'PASSWORD' && (
-          <div className="mt-3 space-y-3">
-            <div>
-              <label className="text-xs text-[#8c7d68] mb-1 block">访问密码 *</label>
-              <input
-                type="password"
-                className="input max-w-xs"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="设置一个密码"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-[#8c7d68] mb-1 block">
-                密码提示 <span className="text-[#c4b8a7]">（可选，明文展示给访客，勿填密码本身）</span>
-              </label>
-              <input
-                type="text"
-                className="input max-w-xs"
-                value={passwordHint}
-                onChange={e => setPasswordHint(e.target.value)}
-                placeholder="例如：我们初次见面的城市"
-                maxLength={60}
-              />
-            </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl border border-[#eadfce] bg-white/90 px-4 py-4">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-[#b1997f]">文字长度</p>
+            <p className="mt-2 text-2xl font-semibold text-[#3d3530]">{contentMetrics.textLength}</p>
+            <p className="mt-1 text-xs text-[#8c7d68]">建议长文保持稳定节奏，别一下写太满</p>
           </div>
-        )}
+          <div className="rounded-2xl border border-[#eadfce] bg-white/90 px-4 py-4">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-[#b1997f]">段落结构</p>
+            <p className="mt-2 text-2xl font-semibold text-[#3d3530]">{contentMetrics.blockCount}</p>
+            <p className="mt-1 text-xs text-[#8c7d68]">{hasHeadingStructure ? '已有标题层次' : '可以补 1-2 个小标题'}</p>
+          </div>
+          <div className="rounded-2xl border border-[#eadfce] bg-white/90 px-4 py-4">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-[#b1997f]">媒体素材</p>
+            <p className="mt-2 text-2xl font-semibold text-[#3d3530]">
+              {contentMetrics.imageCount + contentMetrics.videoCount + contentMetrics.audioCount}
+            </p>
+            <p className="mt-1 text-xs text-[#8c7d68]">
+              图 {contentMetrics.imageCount} / 视 {contentMetrics.videoCount} / 音 {contentMetrics.audioCount}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-[#eadfce] bg-white/90 px-4 py-4">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-[#b1997f]">本地暂存</p>
+            <p className="mt-2 text-lg font-semibold text-[#3d3530]">{recoverableDraft ? '待恢复草稿' : formatDraftTime(autosavedAt)}</p>
+            <p className="mt-1 text-xs text-[#8c7d68]">{unsavedChanges ? '还有未保存改动' : '当前内容已对齐'}</p>
+          </div>
+        </div>
 
-        {accessType === 'PAID' && (
-          <div className="mt-3">
-            <label className="text-xs text-[#8c7d68] mb-1 block">打赏金额（元）*</label>
-            <div className="flex items-center gap-2 max-w-xs">
-              <span className="text-[#8c7d68] text-sm">¥</span>
-              <input
-                type="number"
-                className="input"
-                min="1"
-                step="0.5"
-                value={price}
-                onChange={e => setPrice(e.target.value)}
-                placeholder="5"
-              />
+        <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+          {writingSignals.map(item => (
+            <div
+              key={item.label}
+              className={`rounded-2xl border px-4 py-3 text-sm ${
+                item.ready ? 'border-[#cfe7d5] bg-[#f4fbf6] text-[#2f6b3d]' : 'border-[#eadfce] bg-white text-[#7a6a56]'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-medium">{item.label}</span>
+                <span className="text-xs">{item.ready ? '已就绪' : '待补充'}</span>
+              </div>
+              <p className="mt-1 text-xs leading-5 opacity-80">{item.hint}</p>
             </div>
-          </div>
-        )}
+          ))}
+        </div>
+      </section>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_340px]">
+        <div className="space-y-6">
+          <section className="rounded-[28px] border border-[#eadfce] bg-white px-5 py-5 shadow-[0_14px_32px_rgba(61,53,48,0.04)] sm:px-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div className="min-w-0 flex-1">
+                <label className="mb-2 block text-xs text-[#8c7d68]">文章标题 *</label>
+                <input
+                  className="input text-lg font-serif"
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  placeholder="写下今天的主题…"
+                />
+              </div>
+              <div className="rounded-2xl border border-[#f0e4d3] bg-[#faf7f1] px-4 py-3 text-xs leading-6 text-[#8c7d68] lg:max-w-[18rem]">
+                标题尽量让人一眼知道你要写什么。真一点，短一点，后面正文就更容易稳住。
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[28px] border border-[#eadfce] bg-white px-5 py-5 shadow-[0_14px_32px_rgba(61,53,48,0.04)] sm:px-6">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#b1997f]">Cover</p>
+                <h3 className="mt-1 text-lg font-semibold text-[#3d3530]">封面与视觉入口</h3>
+              </div>
+              <span className="rounded-full bg-[#faf7f1] px-3 py-1 text-xs text-[#8c7d68]">{coverImage ? '已设置封面' : '暂未设置'}</span>
+            </div>
+            <CoverPicker value={coverImage} onChange={setCoverImage} />
+          </section>
+        </div>
+
+        <aside className="space-y-6">
+          <section className="rounded-[28px] border border-[#eadfce] bg-white px-5 py-5 shadow-[0_14px_32px_rgba(61,53,48,0.04)]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#b1997f]">Mood</p>
+            <h3 className="mt-1 text-lg font-semibold text-[#3d3530]">今天的心情</h3>
+            <p className="mt-1 text-xs leading-5 text-[#8c7d68]">心情会直接影响文章列表里的第一印象。</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {MOODS.map(option => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setMood(option.value)}
+                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-all ${
+                    mood === option.value
+                      ? 'border-[#d4711a] bg-[#fdf6ee] text-[#d4711a]'
+                      : 'border-[#ddd5c8] text-[#5a4f42] hover:border-[#d4711a]'
+                  }`}
+                >
+                  <span>{option.value}</span>
+                  <span>{option.label}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-[28px] border border-[#eadfce] bg-white px-5 py-5 shadow-[0_14px_32px_rgba(61,53,48,0.04)]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#b1997f]">Access</p>
+            <h3 className="mt-1 text-lg font-semibold text-[#3d3530]">访问方式</h3>
+            <div className="mt-4 space-y-3">
+              {[
+                { value: 'PUBLIC', label: '🌐 公开', desc: '所有人可见' },
+                { value: 'PASSWORD', label: '🔒 加密', desc: '需要密码' },
+                { value: 'PAID', label: '💰 打赏', desc: '需要打赏' },
+              ].map(option => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setAccessType(option.value as 'PUBLIC' | 'PASSWORD' | 'PAID')}
+                  className={`block w-full rounded-2xl border p-3 text-left transition-all ${
+                    accessType === option.value
+                      ? 'border-[#d4711a] bg-[#fdf6ee]'
+                      : 'border-[#ddd5c8] hover:border-[#d4711a]'
+                  }`}
+                >
+                  <div className="text-sm font-medium text-[#3d3530]">{option.label}</div>
+                  <div className="mt-0.5 text-xs text-[#a89880]">{option.desc}</div>
+                </button>
+              ))}
+            </div>
+
+            {accessType === 'PASSWORD' && (
+              <div className="mt-4 space-y-3 rounded-2xl bg-[#faf7f1] p-4">
+                <div>
+                  <label className="mb-1 block text-xs text-[#8c7d68]">访问密码 *</label>
+                  <input
+                    type="password"
+                    className="input"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder="设置一个密码"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-[#8c7d68]">
+                    密码提示 <span className="text-[#c4b8a7]">（可选，明文展示给访客，勿填密码本身）</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={passwordHint}
+                    onChange={e => setPasswordHint(e.target.value)}
+                    placeholder="例如：我们初次见面的城市"
+                    maxLength={60}
+                  />
+                </div>
+              </div>
+            )}
+
+            {accessType === 'PAID' && (
+              <div className="mt-4 rounded-2xl bg-[#faf7f1] p-4">
+                <label className="mb-1 block text-xs text-[#8c7d68]">打赏金额（元）*</label>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-[#8c7d68]">¥</span>
+                  <input
+                    type="number"
+                    className="input"
+                    min="1"
+                    step="0.5"
+                    value={price}
+                    onChange={e => setPrice(e.target.value)}
+                    placeholder="5"
+                  />
+                </div>
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-[28px] border border-[#eadfce] bg-white px-5 py-5 shadow-[0_14px_32px_rgba(61,53,48,0.04)]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#b1997f]">Publish</p>
+            <h3 className="mt-1 text-lg font-semibold text-[#3d3530]">发布节奏</h3>
+            <div className="mt-4 space-y-4">
+              <div className="flex items-center gap-3">
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input
+                    type="checkbox"
+                    className="peer sr-only"
+                    checked={published}
+                    onChange={e => setPublished(e.target.checked)}
+                  />
+                  <div className="h-5 w-10 rounded-full bg-[#ddd5c8] transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-[#d4711a] peer-checked:after:translate-x-5" />
+                </label>
+                <div>
+                  <p className="text-sm font-medium text-[#3d3530]">{published ? '立即发布' : '保存为草稿'}</p>
+                  <p className="text-xs text-[#a89880]">{published ? '文章会对访客可见' : '先留在后台继续修改'}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input
+                    type="checkbox"
+                    className="peer sr-only"
+                    checked={pinned}
+                    onChange={e => setPinned(e.target.checked)}
+                  />
+                  <div className="h-5 w-10 rounded-full bg-[#ddd5c8] transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-[#221e1a] peer-checked:after:translate-x-5" />
+                </label>
+                <div>
+                  <p className="text-sm font-medium text-[#3d3530]">{pinned ? '已置顶展示' : '普通顺序'}</p>
+                  <p className="text-xs text-[#a89880]">{pinned ? '会优先显示在文章列表顶部' : '按发布时间排序'}</p>
+                </div>
+              </div>
+            </div>
+          </section>
+        </aside>
       </div>
 
-      <div>
+      <section className="rounded-[32px] border border-[#eadfce] bg-white px-5 py-5 shadow-[0_18px_36px_rgba(61,53,48,0.05)] sm:px-6">
+        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#b1997f]">Writing</p>
+            <h3 className="mt-1 text-xl font-semibold text-[#3d3530]">正文编辑区</h3>
+            <p className="mt-1 text-sm leading-6 text-[#8c7d68]">
+              这里适合直接完成正文成稿。先用导语稳住开头，再插章节、小卡片和结尾，文章会更像完整作品。
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-[#faf7f1] px-3 py-1.5 text-xs text-[#8c7d68]">{preview ? '当前为预览模式' : '当前为编辑模式'}</span>
+            <span className="rounded-full bg-[#faf7f1] px-3 py-1.5 text-xs text-[#8c7d68]">快捷键：Ctrl/Cmd + S</span>
+          </div>
+        </div>
+
         {!preview && <RichTextEditor value={content} onChange={handleContentChange} />}
 
         {preview ? (
@@ -639,93 +821,69 @@ export default function ArticleForm({ mode, articleId, defaultValues }: ArticleF
             {preview ? '继续编辑' : '预览效果'}
           </button>
         </div>
-      </div>
-
-      <div className="grid gap-3 p-4 bg-[#faf8f5] border border-[#ddd5c8] rounded-lg sm:grid-cols-2">
-        <div className="flex items-center gap-3">
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              className="sr-only peer"
-              checked={published}
-              onChange={e => setPublished(e.target.checked)}
-            />
-            <div className="w-10 h-5 bg-[#ddd5c8] peer-checked:bg-[#d4711a] rounded-full transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5" />
-          </label>
-          <div>
-            <p className="text-sm font-medium text-[#3d3530]">{published ? '立即发布' : '保存为草稿'}</p>
-            <p className="text-xs text-[#a89880]">{published ? '文章将对访客可见' : '仅在后台可见'}</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              className="sr-only peer"
-              checked={pinned}
-              onChange={e => setPinned(e.target.checked)}
-            />
-            <div className="w-10 h-5 bg-[#ddd5c8] peer-checked:bg-[#221e1a] rounded-full transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5" />
-          </label>
-          <div>
-            <p className="text-sm font-medium text-[#3d3530]">{pinned ? '已置顶展示' : '普通顺序'}</p>
-            <p className="text-xs text-[#a89880]">{pinned ? '会优先展示在文章列表顶部' : '按发布时间排序显示'}</p>
-          </div>
-        </div>
-      </div>
+      </section>
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl border border-[#eadfce] bg-white px-4 py-4">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-[#b1997f]">正文长度</p>
-          <p className="mt-2 text-2xl font-semibold text-[#3d3530]">{contentMetrics.textLength}</p>
-          <p className="mt-1 text-xs text-[#8c7d68]">约 {contentMetrics.blockCount} 个内容段落</p>
+      <section className="space-y-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#b1997f]">Review</p>
+            <h3 className="mt-1 text-lg font-semibold text-[#3d3530]">发布前检查</h3>
+          </div>
+          <p className="text-xs text-[#8c7d68]">发出去之前，再看一眼字数、媒体、状态和本地暂存是否都对得上。</p>
         </div>
-        <div className="rounded-2xl border border-[#eadfce] bg-white px-4 py-4">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-[#b1997f]">媒体内容</p>
-          <p className="mt-2 text-2xl font-semibold text-[#3d3530]">
-            {contentMetrics.imageCount + contentMetrics.videoCount + contentMetrics.audioCount}
-          </p>
-          <p className="mt-1 text-xs text-[#8c7d68]">
-            图 {contentMetrics.imageCount} / 视 {contentMetrics.videoCount} / 音 {contentMetrics.audioCount}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-[#eadfce] bg-white px-4 py-4">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-[#b1997f]">发布状态</p>
-          <p className="mt-2 text-lg font-semibold text-[#3d3530]">{published ? '准备发布' : '后台草稿'}</p>
-          <p className="mt-1 text-xs text-[#8c7d68]">{accessSummary}</p>
-        </div>
-        <div className="rounded-2xl border border-[#eadfce] bg-white px-4 py-4">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-[#b1997f]">本地暂存</p>
-          <p className="mt-2 text-lg font-semibold text-[#3d3530]">{recoverableDraft ? '待恢复草稿' : formatDraftTime(autosavedAt)}</p>
-          <p className="mt-1 text-xs text-[#8c7d68]">
-            {coverImage ? '已设置封面图' : '未设置封面图'} · {unsavedChanges ? '仍有未保存改动' : '当前内容已对齐'}
-          </p>
-        </div>
-      </div>
 
-      <div className="rounded-2xl border border-[#eadfce] bg-[#faf8f5] px-4 py-3 text-xs text-[#8c7d68]">
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-1">
-            <span className="block">{autosaveLabel}</span>
-            <span className="block text-[#b1997f]">离开当前页、切换后台菜单或刷新浏览器前，都会优先提醒你确认未保存改动。</span>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl border border-[#eadfce] bg-white px-4 py-4">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-[#b1997f]">正文长度</p>
+            <p className="mt-2 text-2xl font-semibold text-[#3d3530]">{contentMetrics.textLength}</p>
+            <p className="mt-1 text-xs text-[#8c7d68]">约 {contentMetrics.blockCount} 个内容段落</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {(recoverableDraft || autosavedAt) ? (
-              <button
-                type="button"
-                onClick={clearDraftStorage}
-                className="rounded-full border border-[#decfb8] bg-white px-3 py-1.5 text-[11px] text-[#8c7d68] transition hover:border-[#d4711a] hover:text-[#d4711a]"
-              >
-                清空当前浏览器草稿
-              </button>
-            ) : null}
-            <span className="text-[#b1997f]">快捷键：Ctrl/Cmd + S 立即保存</span>
+          <div className="rounded-2xl border border-[#eadfce] bg-white px-4 py-4">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-[#b1997f]">媒体内容</p>
+            <p className="mt-2 text-2xl font-semibold text-[#3d3530]">
+              {contentMetrics.imageCount + contentMetrics.videoCount + contentMetrics.audioCount}
+            </p>
+            <p className="mt-1 text-xs text-[#8c7d68]">
+              图 {contentMetrics.imageCount} / 视 {contentMetrics.videoCount} / 音 {contentMetrics.audioCount}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-[#eadfce] bg-white px-4 py-4">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-[#b1997f]">发布状态</p>
+            <p className="mt-2 text-lg font-semibold text-[#3d3530]">{published ? '准备发布' : '后台草稿'}</p>
+            <p className="mt-1 text-xs text-[#8c7d68]">{accessSummary}</p>
+          </div>
+          <div className="rounded-2xl border border-[#eadfce] bg-white px-4 py-4">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-[#b1997f]">本地暂存</p>
+            <p className="mt-2 text-lg font-semibold text-[#3d3530]">{recoverableDraft ? '待恢复草稿' : formatDraftTime(autosavedAt)}</p>
+            <p className="mt-1 text-xs text-[#8c7d68]">
+              {coverImage ? '已设置封面图' : '未设置封面图'} · {unsavedChanges ? '仍有未保存改动' : '当前内容已对齐'}
+            </p>
           </div>
         </div>
-      </div>
+
+        <div className="rounded-2xl border border-[#eadfce] bg-[#faf8f5] px-4 py-3 text-xs text-[#8c7d68]">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-1">
+              <span className="block">{autosaveLabel}</span>
+              <span className="block text-[#b1997f]">离开当前页、切换后台菜单或刷新浏览器前，都会优先提醒你确认未保存改动。</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {(recoverableDraft || autosavedAt) ? (
+                <button
+                  type="button"
+                  onClick={clearDraftStorage}
+                  className="rounded-full border border-[#decfb8] bg-white px-3 py-1.5 text-[11px] text-[#8c7d68] transition hover:border-[#d4711a] hover:text-[#d4711a]"
+                >
+                  清空当前浏览器草稿
+                </button>
+              ) : null}
+              <span className="text-[#b1997f]">快捷键：Ctrl/Cmd + S 立即保存</span>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <div className="flex flex-wrap gap-3 pt-2">
         <button type="submit" className="btn-primary" disabled={status === 'loading'}>

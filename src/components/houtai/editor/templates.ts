@@ -42,11 +42,25 @@ export const EDITOR_TEMPLATES: EditorTemplate[] = [
       '<p class="rt-eyebrow">Part 01</p><h3>这里放小标题</h3><p>这一段展开一个明确主题，可以写观点、事实、数据或个人判断。</p><hr><p>分割线之后就能顺势进入下一段，长文会更清楚，也更像成稿。</p>',
   },
   {
+    id: 'warning',
+    title: '注意事项',
+    description: '适合边界提醒、风险说明、补充注释。',
+    content:
+      '<p class="rt-warning"><strong>补充说明</strong><br />如果这里有容易被忽略的限制、风险、时间条件或前提，就单独放在这块里，让读者一眼看见。</p><p>说明完之后，再继续回到正文，不会打断整体阅读节奏。</p>',
+  },
+  {
     id: 'closing',
     title: '收尾留白',
     description: '适合文章结尾，不用说太满，也能留下余味。',
     content:
       '<h3>写在最后</h3><p class="rt-closing">写到这里，差不多也该收住了。留一句有余味的话，比把所有感受一口气说满，更容易让人记住。</p><p>如果你愿意，也可以在最后轻轻抛出一个问题，引导评论区继续说下去。</p>',
+  },
+  {
+    id: 'signature',
+    title: '署名尾注',
+    description: '适合文末留一个轻一点的署名和时间感。',
+    content:
+      '<hr><p class="rt-eyebrow">纸杯的自留地</p><p class="rt-closing">写到这里就先停一下。愿你读完之后，能带走一句对自己还有点用的话。</p>',
   },
 ]
 
