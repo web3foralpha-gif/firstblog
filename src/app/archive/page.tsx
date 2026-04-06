@@ -58,6 +58,7 @@ export default async function ArchivePage() {
     getArchivePageData(),
   ])
   const groupedPosts = Array.from(groupPostsByYear(posts).entries())
+  const latestUpdatedLabel = posts[0] ? formatDate(posts[0].updatedAt || posts[0].publishedAt) : '暂无'
   const listedPosts = posts.slice(0, 20).map(post => ({
     title: post.title,
     url: absoluteUrl(post.href || `/article/${post.slug}`),
@@ -83,6 +84,20 @@ export default async function ArchivePage() {
             <p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--text-secondary)]">
               {archivePageData.description}
             </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <span className="theme-chip">
+                <span className="text-[var(--text-faint)]">年份</span>
+                <span className="font-medium text-[var(--text-primary)]">{groupedPosts.length} 组</span>
+              </span>
+              <span className="theme-chip">
+                <span className="text-[var(--text-faint)]">文章</span>
+                <span className="font-medium text-[var(--text-primary)]">{posts.length} 篇</span>
+              </span>
+              <span className="theme-chip">
+                <span className="text-[var(--text-faint)]">最近更新</span>
+                <span className="font-medium text-[var(--text-primary)]">{latestUpdatedLabel}</span>
+              </span>
+            </div>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link href="/" className="rounded-full border border-[var(--border-color)] px-5 py-2.5 text-sm text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]">
                 {archivePageData.backHomeLabel}

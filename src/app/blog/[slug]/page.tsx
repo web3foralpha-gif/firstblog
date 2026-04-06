@@ -3,10 +3,11 @@ import { notFound, redirect } from 'next/navigation'
 
 import ArticleEngagementBar from '@/components/blog/ArticleEngagementBar'
 import BlogArticleFrame from '@/components/blog/BlogArticleFrame'
+import ArticlePager from '@/components/blog/ArticlePager'
 import MarkdownContent from '@/components/blog/MarkdownContent'
 import RelatedPosts from '@/components/blog/RelatedPosts'
 import StructuredData from '@/components/StructuredData'
-import { getAllPostSlugs, syncMarkdownPostsToDatabase } from '@/lib/posts'
+import { getAllPostSlugs, getPostNeighbors, syncMarkdownPostsToDatabase } from '@/lib/posts'
 import { getLegacyArticleTitleBySlug } from '@/lib/services/legacy-article-service'
 import { buildArticleSchema } from '@/lib/seo'
 import { getBlogRouteMetadata, getMarkdownArticlePageData } from '@/lib/services/article-page-service'
@@ -46,6 +47,7 @@ export default async function BlogPostPage({ params }: Props) {
   }
 
   const { site, post, engagement, relatedPosts, copy, description, breadcrumbs } = pageData
+  const neighbors = await getPostNeighbors(slug)
 
   return (
     <>
@@ -68,20 +70,37 @@ export default async function BlogPostPage({ params }: Props) {
       />
       <BlogArticleFrame
         title={post.title}
+        eyebrow="Markdown"
         mood={post.mood}
+        breadcrumbs={(
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/" className="transition-colors hover:text-[var(--accent)]">首页</Link>
+            <span>/</span>
+            <Link href="/archive" className="transition-colors hover:text-[var(--accent)]">归档</Link>
+            <span>/</span>
+            <span className="text-[var(--text-secondary)]">{post.title}</span>
+          </div>
+        )}
         badges={(
           <>
             <span className="badge badge-public">Markdown</span>
-            <span className="text-xs text-[var(--text-subtle)]">
-              {post.readingTimeMinutes} {copy.markdown.readingTimeSuffix}
-            </span>
           </>
         )}
+        summary={<p className="mt-1">{description}</p>}
         meta={(
-          <div className="flex flex-wrap items-center gap-3">
-            <time>{formatDate(post.publishedAt)}</time>
-            {post.updatedAt ? <span>{copy.markdown.updatedAtPrefix} {formatDate(post.updatedAt)}</span> : null}
-          </div>
+          <>
+            <span className="theme-chip !px-3 !py-1.5 !shadow-none">
+              <time>{formatDate(post.publishedAt)}</time>
+            </span>
+            <span className="theme-chip !px-3 !py-1.5 !shadow-none">
+              {post.readingTimeMinutes} {copy.markdown.readingTimeSuffix}
+            </span>
+            {post.updatedAt ? (
+              <span className="theme-chip !px-3 !py-1.5 !shadow-none">
+                {copy.markdown.updatedAtPrefix} {formatDate(post.updatedAt)}
+              </span>
+            ) : null}
+          </>
         )}
         afterHeader={post.tags.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2">
@@ -98,13 +117,7 @@ export default async function BlogPostPage({ params }: Props) {
         ) : null}
         coverImage={post.coverImage}
         titleClassName="mb-3 font-serif text-2xl font-medium leading-snug text-[var(--text-primary)] sm:text-4xl"
-        footer={(
-          <div className="border-t border-[var(--border-color)] pt-6">
-            <a href="/" className="text-sm text-[var(--text-subtle)] transition-colors hover:text-[var(--accent)]">
-              {copy.markdown.backLabel}
-            </a>
-          </div>
-        )}
+        footer={<ArticlePager newer={neighbors.newer} older={neighbors.older} homeLabel={copy.markdown.backLabel} />}
       >
         <MarkdownContent content={post.content} className="article-body" />
 

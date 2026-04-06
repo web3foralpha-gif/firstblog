@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -5,11 +6,12 @@ import type { Metadata } from 'next'
 import { formatDate } from '@/lib/utils'
 import ArticleEngagementBar from '@/components/blog/ArticleEngagementBar'
 import BlogArticleFrame from '@/components/blog/BlogArticleFrame'
+import ArticlePager from '@/components/blog/ArticlePager'
 import CommentSection from '@/components/blog/CommentSection'
 import ArticleContent from '@/components/blog/ArticleContent'
 import RelatedPosts from '@/components/blog/RelatedPosts'
 import StructuredData from '@/components/StructuredData'
-import { getPostBySlug } from '@/lib/posts'
+import { getPostBySlug, getPostNeighbors } from '@/lib/posts'
 import { buildArticleSchema } from '@/lib/seo'
 import { getArticleRouteMetadata, getLegacyArticlePageData } from '@/lib/services/article-page-service'
 
@@ -51,6 +53,7 @@ export default async function ArticlePage({ params, searchParams }: Props) {
     readingTimeMinutes,
     breadcrumbs,
   } = pageData
+  const neighbors = await getPostNeighbors(slug)
 
   return (
     <>
@@ -72,7 +75,17 @@ export default async function ArticlePage({ params, searchParams }: Props) {
       />
       <BlogArticleFrame
         title={article.title}
+        eyebrow="Article"
         mood={article.mood}
+        breadcrumbs={(
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/" className="transition-colors hover:text-[var(--accent)]">首页</Link>
+            <span>/</span>
+            <Link href="/archive" className="transition-colors hover:text-[var(--accent)]">归档</Link>
+            <span>/</span>
+            <span className="text-[var(--text-secondary)]">{article.title}</span>
+          </div>
+        )}
         badges={(
           <>
             {article.accessType === 'PASSWORD' ? (
@@ -83,8 +96,22 @@ export default async function ArticlePage({ params, searchParams }: Props) {
             ) : null}
           </>
         )}
-        meta={<time>{formatDate(article.createdAt)}</time>}
+        summary={<p className="mt-1">{article.excerpt || description}</p>}
+        meta={(
+          <>
+            <span className="theme-chip !px-3 !py-1.5 !shadow-none">
+              <time>{formatDate(article.createdAt)}</time>
+            </span>
+            <span className="theme-chip !px-3 !py-1.5 !shadow-none">
+              {readingTimeMinutes} {copy.markdown.readingTimeSuffix}
+            </span>
+            <span className="theme-chip !px-3 !py-1.5 !shadow-none">
+              更新于 {formatDate(article.updatedAt)}
+            </span>
+          </>
+        )}
         coverImage={article.coverImage}
+        footer={<ArticlePager newer={neighbors.newer} older={neighbors.older} />}
       >
         <ArticleContent
           slug={slug}

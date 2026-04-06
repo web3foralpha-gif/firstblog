@@ -340,6 +340,26 @@ export function filterPostsByQuery(posts: BlogPostSummary[], query: string) {
   })
 }
 
+export async function getPostNeighbors(slug: string): Promise<{
+  newer: BlogPostSummary | null
+  older: BlogPostSummary | null
+}> {
+  const posts = await getAllPosts()
+  const index = posts.findIndex(post => post.slug === slug)
+
+  if (index === -1) {
+    return {
+      newer: null,
+      older: null,
+    }
+  }
+
+  return {
+    newer: index > 0 ? posts[index - 1] : null,
+    older: index < posts.length - 1 ? posts[index + 1] : null,
+  }
+}
+
 export async function getRelatedPosts(currentSlug: string, tags: string[] = [], limit = 3): Promise<BlogPostSummary[]> {
   const posts = await getAllPosts()
   const normalizedTags = new Set(tags.map(tag => normalizeSearchQuery(tag)).filter(Boolean))
